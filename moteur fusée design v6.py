@@ -7,6 +7,9 @@ from matplotlib import cm
 import numpy as np
 from rocketcea.cea_obj import CEA_Obj
 import math
+import json
+import os
+from datetime import datetime
 
 # Essayer d'importer ezdxf, sinon on désactive l'export DXF
 try:
@@ -44,12 +47,14 @@ class RocketApp:
         self.tabs = ttk.Notebook(right_panel)
         self.tabs.pack(fill=tk.BOTH, expand=True)
         
+        self.tab_summary = ttk.Frame(self.tabs)
         self.tab_visu = ttk.Frame(self.tabs)
         self.tab_thermal = ttk.Frame(self.tabs)
         self.tab_graphs = ttk.Frame(self.tabs)
         self.tab_cea = ttk.Frame(self.tabs)
         self.tab_database = ttk.Frame(self.tabs)
         
+        self.tabs.add(self.tab_summary, text="📊 Résumé")
         self.tabs.add(self.tab_visu, text="Visualisation 2D")
         self.tabs.add(self.tab_thermal, text="Analyse Thermique (Bartz)")
         self.tabs.add(self.tab_graphs, text="Analyses Paramétriques")
@@ -57,6 +62,7 @@ class RocketApp:
         self.tabs.add(self.tab_database, text="🔍 Base de Données")
         
         self.create_inputs(left_panel)
+        self.init_summary_tab()
         self.init_visu_tab()
         self.init_thermal_tab()
         self.init_cea_tab()
@@ -110,17 +116,36 @@ class RocketApp:
         
         ttk.Button(parent, text="🔥 CALCULER TOUT (CEA + THERMIQUE)", command=self.run_simulation).grid(row=row, column=0, columnspan=2, pady=5, sticky="ew")
         row += 1
-        ttk.Button(parent, text="💾 EXPORTER DXF", command=self.export_dxf).grid(row=row, column=0, columnspan=2, pady=5, sticky="ew")
+        
+        # Boutons de sauvegarde/chargement
+        ttk.Button(parent, text="💾 Sauvegarder Paramètres", command=self.save_design).grid(row=row, column=0, columnspan=2, pady=5, sticky="ew")
+        row += 1
+        ttk.Button(parent, text="📂 Charger Paramètres", command=self.load_design).grid(row=row, column=0, columnspan=2, pady=5, sticky="ew")
         row += 1
         
-        self.txt_summary = tk.Text(parent, height=38, width=45, bg="#f0f0f0", font=("Consolas", 8))
-        self.txt_summary.grid(row=row, column=0, columnspan=2, pady=5)
+        # Bouton d'export DXF et graphes
+        ttk.Button(parent, text="💾 EXPORTER DXF", command=self.export_dxf).grid(row=row, column=0, columnspan=2, pady=5, sticky="ew")
+        row += 1
+        ttk.Button(parent, text="📊 Exporter Graphes HD", command=self.export_graphs_hd).grid(row=row, column=0, columnspan=2, pady=5, sticky="ew")
 
     def get_val(self, key):
         var, type_ = self.inputs[key]
         return type_(var.get())
 
     # --- TABS INIT ---
+    def init_summary_tab(self):
+        """Onglet Résumé - Affiche les résultats des calculs"""
+        summary_frame = ttk.Frame(self.tab_summary)
+        summary_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        
+        self.txt_summary = tk.Text(summary_frame, bg="#f0f0f0", font=("Consolas", 10))
+        self.txt_summary.pack(fill=tk.BOTH, expand=True)
+        
+        # Ajouter une scrollbar
+        scrollbar = ttk.Scrollbar(self.txt_summary, command=self.txt_summary.yview)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.txt_summary.config(yscrollcommand=scrollbar.set)
+
     def init_visu_tab(self):
         self.fig_visu, self.ax_visu = plt.subplots(figsize=(5, 5))
         self.canvas_visu = FigureCanvasTkAgg(self.fig_visu, master=self.tab_visu)
@@ -137,8 +162,24 @@ class RocketApp:
         self.fig_thermal.subplots_adjust(hspace=0.3)
 
     def init_graphs_tab(self):
-        ctrl_frame = ttk.LabelFrame(self.tab_graphs, text="Configuration Analyse", padding=10)
+        ctrl_frame = ttk.LabelFrame(self.tab_graphs, text="Configuration Analyse Paramétrique", padding=10)
         ctrl_frame.pack(side=tk.TOP, fill=tk.X, padx=10, pady=5)
+        
+        # Ligne 0 : Catégorie d'analyse
+        row0 = ttk.Frame(ctrl_frame)
+        row0.pack(fill=tk.X, pady=2)
+        
+        ttk.Label(row0, text="Catégorie:").pack(side=tk.LEFT)
+        self.analysis_categories = [
+            "🚀 Performances CEA",
+            "🌡️ Thermique Paroi",
+            "💧 Refroidissement",
+            "📐 Géométrie"
+        ]
+        self.combo_category = ttk.Combobox(row0, values=self.analysis_categories, state="readonly", width=20)
+        self.combo_category.current(0)
+        self.combo_category.pack(side=tk.LEFT, padx=5)
+        self.combo_category.bind("<<ComboboxSelected>>", self.update_analysis_options)
         
         # Ligne 1 : Mode et Résolution
         row1 = ttk.Frame(ctrl_frame)
@@ -158,16 +199,31 @@ class RocketApp:
         row2 = ttk.Frame(ctrl_frame)
         row2.pack(fill=tk.X, pady=5)
         
-        self.input_vars = ["Pression Chambre (bar)", "O/F Ratio", "Expansion Ratio (Eps)", "Contraction Ratio", "Pression Ambiante (bar)"]
-        self.vars_out = ["ISP Ambiante (s)", "ISP Vide (s)", "Température Chambre (K)", "Température Col (K)", "Température Sortie (K)", "C* (m/s)"]
+        # Variables par catégorie
+        self.input_vars_by_category = {
+            "🚀 Performances CEA": ["Pression Chambre (bar)", "O/F Ratio", "Expansion Ratio (Eps)", "Contraction Ratio", "Pression Ambiante (bar)"],
+            "🌡️ Thermique Paroi": ["Épaisseur Paroi (mm)", "Conductivité Paroi (W/m-K)", "Temp. Coolant (K)", "Profondeur Paroi (%)", "Pression Chambre (bar)", "O/F Ratio"],
+            "💧 Refroidissement": ["Débit Coolant (kg/s)", "Temp. Entrée Coolant (K)", "Pression Coolant (bar)", "Épaisseur Paroi (mm)"],
+            "📐 Géométrie": ["L* (m)", "Contraction Ratio", "Angle Entrée Bell (°)", "Angle Sortie Bell (°)", "Expansion Ratio"]
+        }
+        
+        self.output_vars_by_category = {
+            "🚀 Performances CEA": ["ISP Ambiante (s)", "ISP Vide (s)", "Température Chambre (K)", "Température Col (K)", "Température Sortie (K)", "C* (m/s)", "Cf Vide", "Cf Ambiante", "Gamma"],
+            "🌡️ Thermique Paroi": ["T Paroi Gaz (K)", "T Paroi Milieu (K)", "T Paroi Coolant (K)", "Profil T dans Paroi (K)", "Flux Max (MW/m²)", "Flux Moyen (MW/m²)", "Puissance Thermique (kW)", "Marge Fusion (%)", "Delta T Paroi (K)"],
+            "💧 Refroidissement": ["T Sortie Coolant (K)", "Delta T Coolant (K)", "Puissance Absorbée (kW)", "Marge Ébullition (%)"],
+            "📐 Géométrie": ["Longueur Chambre (mm)", "Longueur Convergent (mm)", "Longueur Divergent (mm)", "Longueur Totale (mm)", "Diamètre Col (mm)", "Diamètre Sortie (mm)", "ISP Vide (s)", "ISP Ambiante (s)", "Efficacité Combustion (%)", "C* (m/s)", "Poussée Vide (N)"]
+        }
+        
+        self.input_vars = self.input_vars_by_category["🚀 Performances CEA"]
+        self.vars_out = self.output_vars_by_category["🚀 Performances CEA"]
         
         ttk.Label(row2, text="Axe X (Input):").pack(side=tk.LEFT)
-        self.combo_x = ttk.Combobox(row2, values=self.input_vars, width=18, state="readonly")
+        self.combo_x = ttk.Combobox(row2, values=self.input_vars, width=22, state="readonly")
         self.combo_x.current(1)
         self.combo_x.pack(side=tk.LEFT, padx=5)
         
         ttk.Label(row2, text="Sortie (Y/Z):").pack(side=tk.LEFT, padx=(10, 0))
-        self.combo_z = ttk.Combobox(row2, values=self.vars_out, width=18, state="readonly")
+        self.combo_z = ttk.Combobox(row2, values=self.vars_out, width=22, state="readonly")
         self.combo_z.current(0)
         self.combo_z.pack(side=tk.LEFT, padx=5)
         
@@ -186,6 +242,33 @@ class RocketApp:
         self.e_xmax.pack(side=tk.LEFT, padx=2)
         
         ttk.Button(ctrl_frame, text="CALCULER & TRACER", command=self.plot_manager).pack(side=tk.RIGHT, padx=10, pady=5)
+        
+        # Ligne 4 : Matériaux de référence (pour thermique)
+        row4 = ttk.Frame(ctrl_frame)
+        row4.pack(fill=tk.X, pady=2)
+        
+        ttk.Label(row4, text="Matériau Réf:").pack(side=tk.LEFT)
+        self.materials_ref = {
+            "Acier Inox 316L": {"k": 15, "t_melt": 1673, "color": "gray"},
+            "Inconel 625": {"k": 10, "t_melt": 1623, "color": "orange"},
+            "Inconel 718": {"k": 11.4, "t_melt": 1609, "color": "darkorange"},
+            "Cuivre C10200": {"k": 391, "t_melt": 1356, "color": "brown"},
+            "Cuivre-Chrome (CuCrZr)": {"k": 320, "t_melt": 1353, "color": "peru"},
+            "Aluminium 6061": {"k": 167, "t_melt": 855, "color": "silver"},
+            "Titane Ti-6Al-4V": {"k": 6.7, "t_melt": 1933, "color": "lightblue"},
+            "Hastelloy X": {"k": 9.1, "t_melt": 1628, "color": "green"},
+            "Niobium C103": {"k": 44, "t_melt": 2623, "color": "purple"},
+            "Tungstène": {"k": 173, "t_melt": 3695, "color": "darkblue"},
+        }
+        self.combo_material = ttk.Combobox(row4, values=list(self.materials_ref.keys()), state="readonly", width=20)
+        self.combo_material.current(0)
+        self.combo_material.pack(side=tk.LEFT, padx=5)
+        
+        self.var_show_melt = tk.BooleanVar(value=True)
+        ttk.Checkbutton(row4, text="Afficher T fusion", variable=self.var_show_melt).pack(side=tk.LEFT, padx=10)
+        
+        self.var_multi_materials = tk.BooleanVar(value=False)
+        ttk.Checkbutton(row4, text="Comparer matériaux", variable=self.var_multi_materials).pack(side=tk.LEFT, padx=5)
         
         self.progress = ttk.Progressbar(self.tab_graphs, mode='indeterminate')
         self.progress.pack(side=tk.TOP, fill=tk.X, padx=10)
@@ -693,7 +776,9 @@ T référence     : {t_ref:.2f} K ({t_ref-273.15:.1f}°C)
                 "dt": dt, "de": de, "dc": dc, "lc": lc, "lb": lb,
                 "rt": rt, "re": re, "rc": dc / 2,
                 "tn": self.get_val("tn"), "te": self.get_val("te"),
-                "isp": isp_amb, "eps": eps
+                "isp": isp_amb, "eps": eps,
+                "tc_k": tc_k, "tt_k": tt_k, "te_k": te_k,
+                "cstar_mps": cstar_mps
             }
             
             # --- ANALYSE THERMIQUE (BARTZ) ---
@@ -713,6 +798,11 @@ T référence     : {t_ref:.2f} K ({t_ref-273.15:.1f}°C)
             # Conversion SI
             Mu_si = Mu_poise * 0.1  # Pa.s
             Cp_si = Cp_imp * 4186.8  # J/kg-K
+            
+            # Stocker les propriétés transportées pour l'analyse paramétrique
+            self.results["Mu"] = Mu_si
+            self.results["Cp"] = Cp_si
+            self.results["Pr"] = Pr
             
             # Profil géométrique
             X_mm, Y_mm = self.calculate_geometry_profile(self.results)
@@ -807,6 +897,9 @@ T référence     : {t_ref:.2f} K ({t_ref-273.15:.1f}°C)
                 Q_total_W += q_avg * dA
             
             Q_total_kW = Q_total_W / 1000
+            
+            # Stocker Q_total_kW dans self.results pour l'accès depuis les analyses paramétriques
+            self.results["Q_total_kW"] = Q_total_kW
             
             # --- PROPRIÉTÉS DU COOLANT (via RocketCEA ou Custom) ---
             # Option: utiliser le fuel, un autre propergol, ou un coolant custom
@@ -1146,6 +1239,9 @@ T référence     : {t_ref:.2f} K ({t_ref-273.15:.1f}°C)
                 "wall_thickness_mm": wall_thickness_mm, "wall_k": wall_k,
             }
             
+            # Ajouter Q_total_kW à self.results aussi pour l'accés depuis les paramétrique
+            self.results["Q_total_kW"] = Q_total_kW
+            
             # --- PLOTS ---
             self.ax_flux.clear()
             self.ax_temp.clear()
@@ -1298,7 +1394,7 @@ Débit Oxydant   : {mdot_ox_available:.4f} kg/s
             except:
                 pass
             
-            self.tabs.select(self.tab_thermal)
+            self.tabs.select(self.tab_summary)
             
         except Exception as e:
             messagebox.showerror("Erreur Prometheus", str(e))
@@ -1350,9 +1446,141 @@ Débit Oxydant   : {mdot_ox_available:.4f} kg/s
             except Exception as e:
                 messagebox.showerror("Erreur", f"Erreur lors de l'export:\n{e}")
 
+    def save_design(self):
+        """Sauvegarder les paramètres de conception dans un fichier JSON"""
+        f = filedialog.asksaveasfilename(
+            defaultextension=".json",
+            filetypes=[("JSON files", "*.json"), ("All files", "*.*")],
+            initialfile=f"design_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+        )
+        
+        if not f:
+            return
+        
+        try:
+            # Récupérer tous les paramètres depuis les inputs
+            design_data = {}
+            for key, (var, type_) in self.inputs.items():
+                design_data[key] = var.get()
+            
+            # Ajouter les résultats si disponibles
+            design_data["_results"] = self.results
+            design_data["_timestamp"] = datetime.now().isoformat()
+            
+            with open(f, 'w', encoding='utf-8') as fp:
+                json.dump(design_data, fp, indent=2, ensure_ascii=False)
+            
+            messagebox.showinfo("Succès", f"Paramètres sauvegardés:\n{f}")
+        except Exception as e:
+            messagebox.showerror("Erreur", f"Erreur lors de la sauvegarde:\n{e}")
+
+    def load_design(self):
+        """Charger les paramètres de conception depuis un fichier JSON"""
+        f = filedialog.askopenfilename(
+            filetypes=[("JSON files", "*.json"), ("All files", "*.*")]
+        )
+        
+        if not f:
+            return
+        
+        try:
+            with open(f, 'r', encoding='utf-8') as fp:
+                design_data = json.load(fp)
+            
+            # Charger les paramètres dans les inputs
+            for key, (var, type_) in self.inputs.items():
+                if key in design_data:
+                    value = design_data[key]
+                    try:
+                        # Convertir en type approprié
+                        var.set(type_(value))
+                    except:
+                        var.set(value)
+            
+            # Charger les résultats si disponibles
+            if "_results" in design_data:
+                self.results = design_data["_results"]
+            
+            messagebox.showinfo("Succès", f"Paramètres chargés:\n{f}")
+        except Exception as e:
+            messagebox.showerror("Erreur", f"Erreur lors du chargement:\n{e}")
+
+    def export_graphs_hd(self):
+        """Exporter les graphes actuels en haute résolution (PNG + PDF)"""
+        if not hasattr(self, 'fig_graph') or not self.fig_graph.get_axes():
+            messagebox.showwarning("Attention", "Aucun graphe à exporter. Lancez d'abord une analyse!")
+            return
+        
+        # Demander le dossier de destination
+        folder = filedialog.askdirectory(title="Sélectionner le dossier d'export")
+        if not folder:
+            return
+        
+        try:
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            
+            # Récupérer le titre du graphe pour le nom de fichier
+            title = self.fig_graph.get_axes()[0].get_title()
+            # Nettoyer tous les caractères invalides pour un nom de fichier
+            title = title.replace(" ", "_").replace(":", "").replace("?", "").replace("/", "_").replace("\\", "_").replace("(", "").replace(")", "").replace("[", "").replace("]", "")[:40] if title else "graph"
+            
+            # Créer un dossier avec timestamp pour les trois fichiers
+            export_folder = os.path.join(folder, f"{title}_{timestamp}")
+            os.makedirs(export_folder, exist_ok=True)
+            
+            # Export en PNG (haute résolution)
+            png_file = os.path.join(export_folder, f"{title}.png")
+            self.fig_graph.savefig(png_file, dpi=300, bbox_inches='tight', facecolor='white')
+            
+            # Export en PDF (vecteur)
+            pdf_file = os.path.join(export_folder, f"{title}.pdf")
+            self.fig_graph.savefig(pdf_file, format='pdf', bbox_inches='tight', facecolor='white')
+            
+            # Export en SVG (vecteur)
+            svg_file = os.path.join(export_folder, f"{title}.svg")
+            self.fig_graph.savefig(svg_file, format='svg', bbox_inches='tight', facecolor='white')
+            
+            messagebox.showinfo("Succès", 
+                f"Graphes exportés en haute résolution dans:\n"
+                f"{export_folder}\n\n"
+                f"Fichiers créés:\n"
+                f"✓ {title}.png (300 DPI)\n"
+                f"✓ {title}.pdf (Vecteur)\n"
+                f"✓ {title}.svg (Vecteur)")
+        except Exception as e:
+            messagebox.showerror("Erreur", f"Erreur lors de l'export:\n{e}")
+
     # ==========================================================================
     # ANALYSES PARAMÉTRIQUES
     # ==========================================================================
+    
+    def update_analysis_options(self, event=None):
+        """Met à jour les options de X et Y selon la catégorie sélectionnée"""
+        category = self.combo_category.get()
+        
+        # Mettre à jour les listes
+        self.input_vars = self.input_vars_by_category.get(category, self.input_vars_by_category["🚀 Performances CEA"])
+        self.vars_out = self.output_vars_by_category.get(category, self.output_vars_by_category["🚀 Performances CEA"])
+        
+        # Mettre à jour les combobox
+        self.combo_x['values'] = self.input_vars
+        self.combo_x.current(0)
+        self.combo_z['values'] = self.vars_out
+        self.combo_z.current(0)
+        
+        # Mettre à jour les valeurs par défaut des ranges selon la catégorie
+        defaults = {
+            "🚀 Performances CEA": ("1.0", "4.0"),
+            "🌡️ Thermique Paroi": ("0.5", "5.0"),  # Épaisseur en mm
+            "💧 Refroidissement": ("0.1", "1.0"),  # Débit en kg/s
+            "📐 Géométrie": ("0.5", "2.0"),  # L* en m
+        }
+        xmin, xmax = defaults.get(category, ("1.0", "4.0"))
+        self.e_xmin.delete(0, tk.END)
+        self.e_xmin.insert(0, xmin)
+        self.e_xmax.delete(0, tk.END)
+        self.e_xmax.insert(0, xmax)
+
     def plot_manager(self):
         self.root.config(cursor="watch")
         self.progress.start()
@@ -1360,8 +1588,16 @@ Débit Oxydant   : {mdot_ox_available:.4f} kg/s
 
     def execute_plot(self):
         try:
+            category = self.combo_category.get()
             mode = self.combo_mode.get()
-            if "2D" in mode:
+            
+            if "🌡️ Thermique" in category:
+                self.plot_thermal_parametric()
+            elif "💧 Refroidissement" in category:
+                self.plot_cooling_parametric()
+            elif "📐 Géométrie" in category:
+                self.plot_geometry_parametric()
+            elif "2D" in mode:
                 self.plot_2d()
             else:
                 self.plot_3d()
@@ -1508,6 +1744,424 @@ Débit Oxydant   : {mdot_ox_available:.4f} kg/s
         ax.set_ylabel(y_label)
         ax.set_zlabel(var_z.split(" ")[0])
         self.fig_graph.colorbar(surf, shrink=0.5, aspect=5)
+        
+        self.canvas_graph.draw()
+
+    # ==========================================================================
+    # ANALYSE THERMIQUE PARAMÉTRIQUE
+    # ==========================================================================
+    def plot_thermal_parametric(self):
+        """Analyse paramétrique thermique - T paroi vs épaisseur, conductivité, etc."""
+        self.fig_graph.clear()
+        ax = self.fig_graph.add_subplot(111)
+        
+        steps = int(self.spin_res.get())
+        try:
+            xmin = float(self.e_xmin.get())
+            xmax = float(self.e_xmax.get())
+        except:
+            xmin, xmax = 0.5, 5.0
+        
+        mode_x = self.combo_x.get()
+        var_out = self.combo_z.get()
+        
+        # Récupérer les paramètres de base depuis les résultats ou les inputs
+        if not hasattr(self, 'results') or not self.results:
+            messagebox.showwarning("Attention", "Veuillez d'abord lancer un calcul CEA+Thermique pour avoir les données de base.")
+            return
+        
+        # Paramètres de base
+        pc = self.get_val("pc")
+        mr = self.get_val("mr")
+        wall_k_base = self.get_val("wall_k")
+        wall_thickness_base = self.get_val("wall_thickness")
+        t_wall_cold = self.get_val("twall")
+        
+        # Données CEA
+        tc_k = self.results.get('tc_k', 3000)
+        tt_k = self.results.get('tt_k', 2700)
+        cstar_mps = self.results.get('cstar_mps', 1500)
+        dt = self.results.get('dt', 20)
+        Mu_si = self.results.get('Mu', 7e-5)
+        Cp_si = self.results.get('Cp', 2000)
+        Pr = self.results.get('Pr', 0.5)
+        
+        # Calcul hg au col
+        Dt_m = dt / 1000.0
+        pc_pa = pc * 1e5
+        term1 = 0.026 / (Dt_m ** 0.2)
+        term2 = (Mu_si ** 0.2 * Cp_si) / (Pr ** 0.6)
+        term3 = (pc_pa / cstar_mps) ** 0.8
+        hg_throat = term1 * term2 * term3
+        
+        X_vals = np.linspace(xmin, xmax, steps)
+        
+        # Comparer plusieurs matériaux ?
+        if self.var_multi_materials.get():
+            materials_to_plot = list(self.materials_ref.keys())[:6]  # Max 6 matériaux
+        else:
+            materials_to_plot = [self.combo_material.get()]
+        
+        t_melt_lines = []
+        
+        for mat_name in materials_to_plot:
+            mat = self.materials_ref.get(mat_name, {"k": wall_k_base, "t_melt": 1673, "color": "blue"})
+            Y_vals = []
+            
+            for val in X_vals:
+                # Déterminer les paramètres selon l'axe X
+                if "Épaisseur" in mode_x:
+                    wall_thickness_m = val / 1000.0
+                    wall_k = mat["k"]
+                    depth_ratio = 0  # Côté gaz (surface)
+                elif "Conductivité" in mode_x:
+                    wall_k = val
+                    wall_thickness_m = wall_thickness_base / 1000.0
+                    depth_ratio = 0
+                elif "Temp. Coolant" in mode_x:
+                    t_wall_cold_local = val
+                    wall_k = mat["k"]
+                    wall_thickness_m = wall_thickness_base / 1000.0
+                    depth_ratio = 0
+                elif "Profondeur" in mode_x:
+                    # val = % de profondeur (0% = côté gaz, 100% = côté coolant)
+                    depth_ratio = val / 100.0
+                    wall_thickness_m = wall_thickness_base / 1000.0
+                    wall_k = mat["k"]
+                else:
+                    wall_thickness_m = wall_thickness_base / 1000.0
+                    wall_k = mat["k"]
+                    depth_ratio = 0
+                
+                t_wall_cold_use = val if "Temp. Coolant" in mode_x else t_wall_cold
+                
+                # Calcul de la température de paroi côté gaz chaud au col
+                if wall_k > 0 and wall_thickness_m > 0:
+                    k_over_e = wall_k / wall_thickness_m
+                    t_wall_hot = (hg_throat * tc_k + k_over_e * t_wall_cold_use) / (hg_throat + k_over_e)
+                else:
+                    t_wall_hot = t_wall_cold_use
+                
+                # Température au milieu de la paroi (interpolation linéaire)
+                t_wall_mid = (t_wall_hot + t_wall_cold_use) / 2
+                
+                # Température à une profondeur donnée (interpolation linéaire)
+                # depth_ratio = 0 -> côté gaz (T_hot), depth_ratio = 1 -> côté coolant (T_cold)
+                t_at_depth = t_wall_hot - depth_ratio * (t_wall_hot - t_wall_cold_use)
+                
+                # Delta T dans la paroi
+                delta_t_wall = t_wall_hot - t_wall_cold_use
+                
+                # Flux thermique
+                q = hg_throat * (tc_k - t_wall_hot)
+                q_mw = q / 1e6
+                
+                # Marge fusion (basée sur la température à la profondeur analysée)
+                t_check = t_at_depth if "Profondeur" in mode_x else t_wall_hot
+                marge_fusion = ((mat["t_melt"] - t_check) / mat["t_melt"]) * 100
+                
+                # Sélectionner la sortie
+                if "T Paroi Gaz" in var_out:
+                    Y_vals.append(t_wall_hot)
+                elif "T Paroi Milieu" in var_out:
+                    Y_vals.append(t_wall_mid)
+                elif "T Paroi Coolant" in var_out:
+                    Y_vals.append(t_wall_cold_use)
+                elif "Profil T" in var_out:
+                    # Si on varie la profondeur, on trace T en fonction de la position
+                    if "Profondeur" in mode_x:
+                        Y_vals.append(t_at_depth)
+                    else:
+                        Y_vals.append(delta_t_wall)
+                elif "Delta T Paroi" in var_out:
+                    Y_vals.append(delta_t_wall)
+                elif "Flux Max" in var_out:
+                    Y_vals.append(q_mw)
+                elif "Flux Moyen" in var_out:
+                    Y_vals.append(q_mw * 0.7)  # Approximation
+                elif "Puissance" in var_out:
+                    # Estimation basée sur surface col
+                    A_throat = np.pi * (Dt_m/2)**2
+                    Q_kw = q * A_throat * 10 / 1000  # Factor 10 pour surface totale approx
+                    Y_vals.append(Q_kw)
+                elif "Marge Fusion" in var_out:
+                    Y_vals.append(marge_fusion)
+                else:
+                    Y_vals.append(t_wall_hot)
+            
+            color = mat.get("color", "blue")
+            ax.plot(X_vals, Y_vals, '-', linewidth=2, marker='o', markersize=3, 
+                   label=mat_name, color=color)
+            
+            # Afficher la ligne de température de fusion pour ce matériau
+            if self.var_show_melt.get() and ("T Paroi" in var_out or "Profil T" in var_out or "Delta T" in var_out):
+                ax.axhline(y=mat["t_melt"], color=color, linestyle='--', alpha=0.5, 
+                          label=f"T fusion {mat_name}: {mat['t_melt']}K")
+        
+        ax.set_xlabel(mode_x)
+        ax.set_ylabel(var_out)
+        ax.set_title(f"Analyse Thermique: {var_out} vs {mode_x}")
+        ax.grid(True, alpha=0.3)
+        ax.legend(loc='best', fontsize=7, ncol=min(2, len(materials_to_plot)+1), framealpha=0.95)
+        
+        # Zone de danger (rouge) si température
+        if "T Paroi" in var_out:
+            y_lim = ax.get_ylim()
+            if self.var_multi_materials.get():
+                # Trouver la T fusion min
+                t_melt_min = min([self.materials_ref[m]["t_melt"] for m in materials_to_plot])
+            else:
+                mat = self.materials_ref.get(self.combo_material.get(), {"t_melt": 1673})
+                t_melt_min = mat["t_melt"]
+            if y_lim[1] > t_melt_min:
+                ax.axhspan(t_melt_min, y_lim[1], alpha=0.12, color='red')
+        
+        self.canvas_graph.draw()
+
+    def plot_cooling_parametric(self):
+        """Analyse paramétrique du refroidissement"""
+        self.fig_graph.clear()
+        ax = self.fig_graph.add_subplot(111)
+        
+        steps = int(self.spin_res.get())
+        try:
+            xmin = float(self.e_xmin.get())
+            xmax = float(self.e_xmax.get())
+        except:
+            xmin, xmax = 0.1, 1.0
+        
+        mode_x = self.combo_x.get()
+        var_out = self.combo_z.get()
+        
+        if not hasattr(self, 'results') or not self.results:
+            messagebox.showwarning("Attention", "Veuillez d'abord lancer un calcul CEA+Thermique.")
+            return
+        
+        # Paramètres de base
+        Q_total = self.results.get('Q_total_kW', 50)  # kW
+        coolant_tin = self.get_val("coolant_tin")
+        coolant_tout_max = self.get_val("coolant_tout")
+        mdot_base = self.get_val("mdot")
+        
+        # Cp coolant (approximation propane/eau)
+        fuel = self.get_val("fuel")
+        if "H2O" in fuel or "Water" in fuel:
+            Cp_coolant = 4186
+            T_boil = 373
+        elif "C3H8" in fuel or "Propane" in fuel:
+            Cp_coolant = 2500
+            T_boil = 231
+        elif "CH4" in fuel or "Methane" in fuel:
+            Cp_coolant = 2200
+            T_boil = 112
+        else:
+            Cp_coolant = 2500
+            T_boil = 350
+        
+        X_vals = np.linspace(xmin, xmax, steps)
+        Y_vals = []
+        
+        for val in X_vals:
+            if "Débit Coolant" in mode_x:
+                mdot = val
+            else:
+                mdot = mdot_base
+            
+            if "Temp. Entrée" in mode_x:
+                t_in = val
+            else:
+                t_in = coolant_tin
+            
+            # Delta T = Q / (mdot * Cp)
+            if mdot > 0:
+                delta_t = (Q_total * 1000) / (mdot * Cp_coolant)
+                t_out = t_in + delta_t
+            else:
+                delta_t = 0
+                t_out = t_in
+            
+            # Marge ébullition
+            marge_ebull = ((T_boil - t_out) / T_boil) * 100 if t_out < T_boil else -((t_out - T_boil) / T_boil) * 100
+            
+            if "T Sortie" in var_out:
+                Y_vals.append(t_out)
+            elif "Delta T" in var_out:
+                Y_vals.append(delta_t)
+            elif "Puissance" in var_out:
+                Y_vals.append(Q_total)
+            elif "Marge" in var_out:
+                Y_vals.append(marge_ebull)
+            else:
+                Y_vals.append(t_out)
+        
+        ax.plot(X_vals, Y_vals, 'b-', linewidth=2, marker='o', markersize=3)
+        
+        # Ligne d'ébullition si température
+        if "T Sortie" in var_out:
+            ax.axhline(y=T_boil, color='red', linestyle='--', label=f"T ébullition: {T_boil}K")
+            ax.legend()
+        
+        ax.set_xlabel(mode_x)
+        ax.set_ylabel(var_out)
+        ax.set_title(f"Analyse Refroidissement: {var_out} vs {mode_x}")
+        ax.grid(True, alpha=0.3)
+        
+        self.canvas_graph.draw()
+
+    def plot_geometry_parametric(self):
+        """Analyse paramétrique géométrique"""
+        self.fig_graph.clear()
+        ax = self.fig_graph.add_subplot(111)
+        
+        steps = int(self.spin_res.get())
+        try:
+            xmin = float(self.e_xmin.get())
+            xmax = float(self.e_xmax.get())
+        except:
+            xmin, xmax = 0.5, 2.0
+        
+        mode_x = self.combo_x.get()
+        var_out = self.combo_z.get()
+        
+        # Récupérer paramètres de base
+        pc = self.get_val("pc")
+        mr = self.get_val("mr")
+        mdot = self.get_val("mdot")
+        cr = self.get_val("cr")
+        lstar = self.get_val("lstar")
+        tn = self.get_val("tn")
+        te = self.get_val("te")
+        pe = self.get_val("pe")
+        
+        ox = self.get_val("ox")
+        fuel = self.get_val("fuel")
+        
+        try:
+            ispObj = CEA_Obj(oxName=ox, fuelName=fuel)
+        except:
+            messagebox.showerror("Erreur", "Ergols invalides")
+            return
+        
+        pc_psi = pc * 14.5038
+        pe_psi = pe * 14.5038
+        
+        X_vals = np.linspace(xmin, xmax, steps)
+        Y_vals = []
+        
+        # Pré-calcul de l'ISP optimal (avec L* optimal autour de 1.0-1.5m)
+        lstar_optimal = 1.2  # L* optimal typique
+        try:
+            cstar_opt = ispObj.get_Cstar(Pc=pc_psi, MR=mr)
+            if isinstance(cstar_opt, tuple):
+                cstar_fps = cstar_opt[0]
+            else:
+                cstar_fps = cstar_opt
+            cstar_opt_mps = cstar_fps * 0.3048
+            
+            # ISP optimal avec L* optimal
+            eps_optimal = ispObj.get_eps_at_PcOvPe(Pc=pc_psi, MR=mr, PcOvPe=pc/pe, frozen=0, frozenAtThroat=0)
+            isp_opt = ispObj.get_Isp(Pc=pc_psi, MR=mr, eps=eps_optimal)
+            # Modèle d'efficacité : 98% au L* optimal, décline pour L* trop petit ou trop grand
+        except:
+            isp_opt = 300
+            cstar_opt_mps = 1500
+            eps_optimal = 1.0
+        
+        for val in X_vals:
+            # Paramètres variables
+            lstar_use = val if "L*" in mode_x else lstar
+            cr_use = val if "Contraction" in mode_x else cr
+            tn_use = val if "Angle Entrée" in mode_x else tn
+            te_use = val if "Angle Sortie" in mode_x else te
+            
+            if "Expansion" in mode_x:
+                eps_override = val
+                eps = val
+            else:
+                eps_override = 0
+                try:
+                    eps = ispObj.get_eps_at_PcOvPe(Pc=pc_psi, MR=mr, PcOvPe=pc/pe, frozen=0, frozenAtThroat=0)
+                except:
+                    eps = 10.0  # Valeur par défaut
+            
+            # Calcul géométrie - get_Cstar retourne un float, pas un tuple
+            try:
+                cstar_result = ispObj.get_Cstar(Pc=pc_psi, MR=mr)
+                if isinstance(cstar_result, tuple):
+                    cstar_fps = cstar_result[0]
+                else:
+                    cstar_fps = cstar_result
+                cstar_mps = cstar_fps * 0.3048
+            except:
+                cstar_mps = 1500  # Valeur par défaut
+            
+            # Calcul ISP et performances
+            try:
+                isp_vac = ispObj.get_Isp(Pc=pc_psi, MR=mr, eps=eps)
+                pamb_psi = self.get_val("pamb") * 14.5038
+                isp_amb = ispObj.estimate_Ambient_Isp(Pc=pc_psi, MR=mr, eps=eps, Pamb=pamb_psi)[0]
+                cf_vac = ispObj.get_PambCf(Pc=pc_psi, MR=mr, eps=eps, Pamb=0)[1]
+            except:
+                isp_vac = 300
+                isp_amb = 280
+                cf_vac = 1.8
+            
+            At = (mdot * cstar_mps) / (pc * 1e5)
+            dt = np.sqrt(4 * At / np.pi) * 1000
+            Ac = At * cr_use
+            dc = np.sqrt(4 * Ac / np.pi) * 1000
+            de = dt * np.sqrt(eps)
+            
+            Vc = At * lstar_use
+            lc = Vc / Ac * 1000
+            
+            l_conv = (dc - dt) / (2 * np.tan(np.radians(30))) if cr_use > 1 else 0
+            l_div = (de - dt) / (2 * np.tan(np.radians((tn_use + te_use) / 2)))
+            l_total = lc + l_conv + l_div
+            
+            # Efficacité de combustion en fonction du L* (modèle parabolique)
+            # 100% d'efficacité au L* optimal, décline pour L* trop petit ou trop grand
+            l_ratio = lstar_use / lstar_optimal
+            combustion_eff = 100 * (1 - 0.02 * (l_ratio - 1)**2)  # Parabole centrée sur 1
+            combustion_eff = max(combustion_eff, 50)  # Min 50%
+            
+            if "Longueur Chambre" in var_out:
+                Y_vals.append(lc)
+            elif "Longueur Convergent" in var_out:
+                Y_vals.append(l_conv)
+            elif "Longueur Divergent" in var_out:
+                Y_vals.append(l_div)
+            elif "Longueur Totale" in var_out:
+                Y_vals.append(l_total)
+            elif "Diamètre Col" in var_out:
+                Y_vals.append(dt)
+            elif "Diamètre Sortie" in var_out:
+                Y_vals.append(de)
+            elif "ISP Vide" in var_out:
+                # ISP réelle avec perte de combustion
+                isp_effective = isp_vac * (combustion_eff / 100)
+                Y_vals.append(isp_effective)
+            elif "ISP Ambiante" in var_out:
+                # ISP réelle avec perte de combustion
+                isp_amb_effective = isp_amb * (combustion_eff / 100)
+                Y_vals.append(isp_amb_effective)
+            elif "Efficacité Combustion" in var_out:
+                Y_vals.append(combustion_eff)
+            elif "C*" in var_out:
+                Y_vals.append(cstar_mps)
+            elif "Poussée" in var_out:
+                # F = mdot * Isp * g0
+                isp_effective = isp_vac * (combustion_eff / 100)
+                thrust_N = mdot * isp_effective * 9.81
+                Y_vals.append(thrust_N)
+            else:
+                Y_vals.append(l_total)
+        
+        ax.plot(X_vals, Y_vals, 'g-', linewidth=2, marker='s', markersize=4)
+        ax.set_xlabel(mode_x)
+        ax.set_ylabel(var_out)
+        ax.set_title(f"Analyse Géométrie: {var_out} vs {mode_x}")
+        ax.grid(True, alpha=0.3)
         
         self.canvas_graph.draw()
 
