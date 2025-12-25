@@ -47,7 +47,7 @@ NASA CEA (Chemical Equilibrium with Applications) is the industry-standard softw
 - **Custom Coolants**: Support for non-propellant coolants (water, glycols, thermal oils)
 
 ### 💾 Export Capabilities
-- **DXF Export**: Generate CAD-compatible drawings for manufacturing
+- **DXF Export**: Generate CAD-compatible drawings of the chamber and the nozzle for manufacturing
 - **Full Reports**: Comprehensive text reports with all calculated parameters
 
 ## Installation
