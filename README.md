@@ -48,6 +48,14 @@ NASA CEA (Chemical Equilibrium with Applications) is the industry-standard softw
 
 ### 💾 Export Capabilities
 - **DXF Export**: Generate CAD-compatible drawings of the chamber and the nozzle for manufacturing
+- **High-Resolution Graph Export**: Export parametric analysis graphs in multiple formats:
+  - **PNG** (300 DPI) - High-resolution raster format for documents and presentations
+  - **PDF** (Vector) - Scalable vector format for printing and publication
+  - **SVG** (Vector) - Editable vector format for web integration and further editing
+- **Design Parameter Save/Load**: Save and load complete engine design configurations as JSON files for:
+  - Design iteration and versioning
+  - Sharing designs with team members
+  - Quick loading of previous configurations
 - **Full Reports**: Comprehensive text reports with all calculated parameters
 
 ## Installation
@@ -105,11 +113,23 @@ python "moteur fusée design v6.py"
    - Adjust contraction and expansion ratios
    - Configure cooling parameters
 
-2. **Run Analysis**:
+2. **Save/Load Designs**:
+   - **💾 Sauvegarder Paramètres**: Save your complete design configuration as JSON with timestamp
+   - **📂 Charger Paramètres**: Load a previously saved design configuration
+   - Designs are stored with full results for future reference
+
+3. **Run Analysis**:
    - Click "🔥 CALCULER TOUT (CEA + THERMIQUE)" button
    - View results in multiple tabs
 
-3. **Explore Results**:
+4. **Export Results**:
+   - **💾 EXPORTER DXF**: Export engine geometry to CAD format (requires ezdxf)
+   - **📊 Exporter Graphes HD**: Export current parametric analysis graphs as PNG/PDF/SVG
+     - Files are organized in a timestamped folder
+     - High-resolution PNG (300 DPI) for quality documents
+     - Vector PDF/SVG for scalable graphics and publication
+
+5. **Explore Results**:
    - **Visualisation 2D**: Engine geometry cross-section
    - **Analyse Thermique**: Heat flux and temperature distributions
    - **Analyses Paramétriques**: Performance curves and surfaces
@@ -169,6 +189,43 @@ Propellant database browser (NASA CEA Database):
 - CEA nomenclature reference (use exact CEA names)
 - Quick copy to design parameters
 - Access to 500+ propellants from NASA's database
+
+## Design Parameter Management
+
+### Saving and Loading Designs
+
+The application supports complete design configuration save/load functionality:
+
+**Save Design** (💾 Sauvegarder Paramètres):
+- Saves all engine parameters and calculated results as a JSON file
+- Automatically timestamped to prevent overwrites
+- Includes propellant selection, pressures, cooling parameters, and geometry settings
+- Useful for design versioning and documentation
+
+**Load Design** (📂 Charger Paramètres):
+- Loads a previously saved design configuration
+- Restores all parameters exactly as they were saved
+- Automatically updates all input fields in the GUI
+- Loads associated calculation results
+
+### Exporting High-Resolution Graphs
+
+**Export Graphs** (📊 Exporter Graphes HD):
+- Export current parametric analysis plots in three formats:
+  - **PNG** (300 DPI): High-resolution raster format ideal for reports and presentations
+  - **PDF** (Vector): Scalable vector format for printing and scientific publications
+  - **SVG** (Vector): Editable vector format compatible with Inkscape, Adobe Illustrator, and web platforms
+- Files are automatically organized in a timestamped folder for each export
+- Graph title is automatically cleaned to create valid filenames
+- Perfect for including in technical reports, thesis, or presentations
+
+Example export structure:
+```
+ISP_Ambiante_vs_OF_Ratio_20251226_123456/
+├── ISP_Ambiante_vs_OF_Ratio.png    (300 DPI)
+├── ISP_Ambiante_vs_OF_Ratio.pdf    (Vector)
+└── ISP_Ambiante_vs_OF_Ratio.svg    (Vector)
+```
 
 ## Design Parameters
 
