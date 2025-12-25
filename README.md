@@ -53,7 +53,9 @@ NASA CEA (Chemical Equilibrium with Applications) is the industry-standard softw
 ## Installation
 
 ### Prerequisites
-- Python 3.7 or higher
+- Python 3.10 (required)
+  - **Note:** This application is tested and confirmed to work with Python 3.10
+  - **Not compatible with Python 3.14** due to dependency constraints
 - pip (Python package manager)
 
 ### Required Dependencies
