@@ -5,11 +5,21 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from mpl_toolkits.mplot3d import Axes3D
 from matplotlib import cm
 import numpy as np
-from rocketcea.cea_obj import CEA_Obj
 import math
 import json
 import os
 from datetime import datetime
+
+#this code only works with python 3.10 and below, 3.11, 3.13, and 3.14 dont support rocketcea.
+
+# Essayer d'importer RocketCEA
+try:
+    from rocketcea.cea_obj import CEA_Obj
+    HAS_ROCKETCEA = True
+except ImportError as e:
+    print(f"⚠️ RocketCEA non disponible: {e}")
+    HAS_ROCKETCEA = False
+    CEA_Obj = None
 
 # Essayer d'importer ezdxf, sinon on désactive l'export DXF
 try:
@@ -48,6 +58,7 @@ class RocketApp:
             "graphs": self.accent,
             "cea": self.accent_alt2,
             "database": self.accent_alt4,
+            "solver": "#00ffaa",  # Vert/cyan pour le solveur
         }
 
         plt.rcParams.update({
@@ -122,6 +133,8 @@ class RocketApp:
         self.tab_graphs = ttk.Frame(self.tabs)
         self.tab_cea = ttk.Frame(self.tabs)
         self.tab_database = ttk.Frame(self.tabs)
+        self.tab_solver = ttk.Frame(self.tabs)
+        self.tab_wiki = ttk.Frame(self.tabs)
         
         self.tabs.add(self.tab_summary, text="📊 Résumé")
         self.tabs.add(self.tab_visu, text="Visualisation 2D")
@@ -129,6 +142,8 @@ class RocketApp:
         self.tabs.add(self.tab_graphs, text="Analyses Paramétriques")
         self.tabs.add(self.tab_cea, text="Sortie NASA CEA (Raw)")
         self.tabs.add(self.tab_database, text="🔍 Base de Données")
+        self.tabs.add(self.tab_solver, text="🧊 Solveur Coolant")
+        self.tabs.add(self.tab_wiki, text="📖 Wiki")
         
         # Calculer le zoom AVANT d'initialiser les onglets (pour les polices)
         self.ui_scale = self.auto_scale_from_display()
@@ -140,6 +155,8 @@ class RocketApp:
         self.init_cea_tab()
         self.init_graphs_tab()
         self.init_database_tab()
+        self.init_solver_tab()
+        self.init_wiki_tab()
 
         # Apply UI scaling after layout is ready
         self.apply_ui_scale(self.ui_scale)
@@ -213,6 +230,12 @@ class RocketApp:
             self.db_details.configure(font=("Consolas", fs))
             self.db_details.tag_configure("db_title", font=("Consolas", fs_title, "bold"))
             self.db_details.tag_configure("db_section", font=("Consolas", fs, "bold"))
+        
+        # Widget Solveur
+        if hasattr(self, 'txt_solver'):
+            self.txt_solver.configure(font=("Consolas", fs))
+            self.txt_solver.tag_configure("title", font=("Consolas", fs_title, "bold"))
+            self.txt_solver.tag_configure("section", font=("Consolas", fs, "bold"))
 
     def set_ui_scale_from_control(self):
         val = self.zoom_var.get()
@@ -505,11 +528,13 @@ class RocketApp:
         tk.Frame(self.tab_thermal, height=4, bg=self.tab_accent.get("thermal", self.accent_alt)).pack(fill=tk.X)
         self.fig_thermal, (self.ax_flux, self.ax_temp) = plt.subplots(2, 1, figsize=(6, 6), sharex=True)
         self.fig_thermal.patch.set_facecolor(self.bg_main)
+        self.fig_thermal.subplots_adjust(hspace=0.35, left=0.12, right=0.95, top=0.95, bottom=0.1)
+        for ax in [self.ax_flux, self.ax_temp]:
+            ax.set_facecolor(self.bg_surface)
         self.apply_dark_axes([self.ax_flux, self.ax_temp])
         self.canvas_thermal = FigureCanvasTkAgg(self.fig_thermal, master=self.tab_thermal)
         self.canvas_thermal.get_tk_widget().configure(bg=self.bg_main, highlightthickness=0)
         self.canvas_thermal.get_tk_widget().pack(fill=tk.BOTH, expand=True)
-        self.fig_thermal.subplots_adjust(hspace=0.3)
 
     def init_graphs_tab(self):
         tk.Frame(self.tab_graphs, height=4, bg=self.tab_accent.get("graphs", self.accent)).pack(fill=tk.X)
@@ -780,7 +805,5692 @@ class RocketApp:
         
         # Charger la base de données au démarrage
         self.root.after(100, self.load_database)
+
+    def build_coolants_database(self):
+        """Construit la base de données des coolants depuis RocketCEA + manuels"""
+        
+        # Propriétés thermophysiques connues (Cp liquide, T_crit, viscosité pour h)
+        # Format: {nom_cea: {"Cp": J/kg-K, "T_crit": K, "rho": kg/m³, "mu": Pa.s, "k_liq": W/m-K}}
+        fuel_props = {
+            "RP1": {"Cp": 2000, "T_crit": 678, "rho": 810, "mu": 0.001, "k_liq": 0.12, "T_boil": 490},
+            "RP_1": {"Cp": 2000, "T_crit": 678, "rho": 810, "mu": 0.001, "k_liq": 0.12, "T_boil": 490},
+            "RP1_NASA": {"Cp": 2000, "T_crit": 678, "rho": 810, "mu": 0.001, "k_liq": 0.12, "T_boil": 490},
+            "Kerosene": {"Cp": 2100, "T_crit": 658, "rho": 800, "mu": 0.001, "k_liq": 0.12, "T_boil": 480},
+            "JetA": {"Cp": 2100, "T_crit": 670, "rho": 808, "mu": 0.001, "k_liq": 0.12, "T_boil": 478},
+            "C3H8": {"Cp": 2500, "T_crit": 370, "rho": 493, "mu": 0.0001, "k_liq": 0.10, "T_boil": 231},
+            "Propane": {"Cp": 2500, "T_crit": 370, "rho": 493, "mu": 0.0001, "k_liq": 0.10, "T_boil": 231},
+            "CH4": {"Cp": 3500, "T_crit": 191, "rho": 422, "mu": 0.00012, "k_liq": 0.19, "T_boil": 112},
+            "LCH4_NASA": {"Cp": 3500, "T_crit": 191, "rho": 422, "mu": 0.00012, "k_liq": 0.19, "T_boil": 112},
+            "GCH4": {"Cp": 2200, "T_crit": 191, "rho": 100, "mu": 0.00001, "k_liq": 0.034, "T_boil": 112},
+            "H2": {"Cp": 14300, "T_crit": 33, "rho": 71, "mu": 0.000013, "k_liq": 0.10, "T_boil": 20},
+            "LH2": {"Cp": 14300, "T_crit": 33, "rho": 71, "mu": 0.000013, "k_liq": 0.10, "T_boil": 20},
+            "LH2_NASA": {"Cp": 14300, "T_crit": 33, "rho": 71, "mu": 0.000013, "k_liq": 0.10, "T_boil": 20},
+            "GH2": {"Cp": 14300, "T_crit": 33, "rho": 5, "mu": 0.000009, "k_liq": 0.18, "T_boil": 20},
+            "GH2_160": {"Cp": 14300, "T_crit": 33, "rho": 10, "mu": 0.000009, "k_liq": 0.18, "T_boil": 20},
+            "C2H5OH": {"Cp": 2440, "T_crit": 514, "rho": 789, "mu": 0.001, "k_liq": 0.17, "T_boil": 351},
+            "Ethanol": {"Cp": 2440, "T_crit": 514, "rho": 789, "mu": 0.001, "k_liq": 0.17, "T_boil": 351},
+            "CH3OH": {"Cp": 2500, "T_crit": 513, "rho": 792, "mu": 0.0006, "k_liq": 0.20, "T_boil": 338},
+            "Methanol": {"Cp": 2500, "T_crit": 513, "rho": 792, "mu": 0.0006, "k_liq": 0.20, "T_boil": 338},
+            "MMH": {"Cp": 2900, "T_crit": 585, "rho": 878, "mu": 0.0008, "k_liq": 0.22, "T_boil": 360},
+            "N2H4": {"Cp": 3100, "T_crit": 653, "rho": 1004, "mu": 0.001, "k_liq": 0.50, "T_boil": 387},
+            "UDMH": {"Cp": 2700, "T_crit": 523, "rho": 793, "mu": 0.0005, "k_liq": 0.21, "T_boil": 336},
+            "NH3": {"Cp": 4700, "T_crit": 405, "rho": 682, "mu": 0.0002, "k_liq": 0.50, "T_boil": 240},
+            "A50": {"Cp": 3000, "T_crit": 600, "rho": 900, "mu": 0.0008, "k_liq": 0.35, "T_boil": 370},
+            "M20": {"Cp": 3050, "T_crit": 600, "rho": 950, "mu": 0.001, "k_liq": 0.40, "T_boil": 375},
+            "MHF3": {"Cp": 2900, "T_crit": 585, "rho": 890, "mu": 0.0008, "k_liq": 0.22, "T_boil": 360},
+            "TURPENTINE": {"Cp": 1800, "T_crit": 620, "rho": 870, "mu": 0.002, "k_liq": 0.13, "T_boil": 433},
+            "Gasoline": {"Cp": 2000, "T_crit": 550, "rho": 750, "mu": 0.0004, "k_liq": 0.12, "T_boil": 373},
+            "JP4": {"Cp": 2050, "T_crit": 650, "rho": 785, "mu": 0.001, "k_liq": 0.12, "T_boil": 473},
+            "JP5": {"Cp": 2000, "T_crit": 675, "rho": 820, "mu": 0.001, "k_liq": 0.12, "T_boil": 523},
+            "Butanol": {"Cp": 2400, "T_crit": 563, "rho": 810, "mu": 0.003, "k_liq": 0.15, "T_boil": 390},
+            "IPA": {"Cp": 2600, "T_crit": 509, "rho": 786, "mu": 0.002, "k_liq": 0.14, "T_boil": 355},
+            "Acetone": {"Cp": 2180, "T_crit": 508, "rho": 790, "mu": 0.0003, "k_liq": 0.16, "T_boil": 329},
+            "DEE": {"Cp": 2200, "T_crit": 467, "rho": 713, "mu": 0.0002, "k_liq": 0.13, "T_boil": 308},
+            "N2O": {"Cp": 880, "T_crit": 310, "rho": 1220, "mu": 0.00013, "k_liq": 0.12, "T_boil": 185},
+            "C2H6": {"Cp": 2400, "T_crit": 305, "rho": 544, "mu": 0.00009, "k_liq": 0.11, "T_boil": 185},
+            "C4H10": {"Cp": 2400, "T_crit": 425, "rho": 579, "mu": 0.0002, "k_liq": 0.11, "T_boil": 273},
+            "C6H14": {"Cp": 2270, "T_crit": 507, "rho": 660, "mu": 0.0003, "k_liq": 0.12, "T_boil": 342},
+        }
+        
+        ox_props = {
+            "LOX": {"Cp": 1700, "T_crit": 155, "rho": 1141, "mu": 0.0002, "k_liq": 0.15, "T_boil": 90},
+            "O2": {"Cp": 1700, "T_crit": 155, "rho": 1141, "mu": 0.0002, "k_liq": 0.15, "T_boil": 90},
+            "LF2": {"Cp": 1550, "T_crit": 144, "rho": 1510, "mu": 0.0003, "k_liq": 0.16, "T_boil": 85},
+            "F2": {"Cp": 1550, "T_crit": 144, "rho": 1510, "mu": 0.0003, "k_liq": 0.16, "T_boil": 85},
+            "N2O4": {"Cp": 1580, "T_crit": 431, "rho": 1450, "mu": 0.0004, "k_liq": 0.12, "T_boil": 294},
+            "HNO3": {"Cp": 1740, "T_crit": 520, "rho": 1510, "mu": 0.001, "k_liq": 0.35, "T_boil": 356},
+            "IRFNA": {"Cp": 1700, "T_crit": 520, "rho": 1550, "mu": 0.001, "k_liq": 0.35, "T_boil": 359},
+            "CLF3": {"Cp": 770, "T_crit": 424, "rho": 1770, "mu": 0.0004, "k_liq": 0.10, "T_boil": 285},
+            "CLF5": {"Cp": 750, "T_crit": 416, "rho": 1900, "mu": 0.0004, "k_liq": 0.10, "T_boil": 260},
+            "H2O2": {"Cp": 2600, "T_crit": 730, "rho": 1450, "mu": 0.001, "k_liq": 0.58, "T_boil": 423},
+        }
+        
+        coolants = {}
+        
+        # Essayer de charger depuis RocketCEA, sinon utiliser les valeurs manuelles
+        try:
+            from rocketcea.blends import fuelCards, oxCards, getFuelRefTempDegK, getOxRefTempDegK
+            use_cea = True
+        except Exception:
+            use_cea = False
+            fuelCards = {}
+            oxCards = {}
+        
+        # Ajouter les fuels
+        for name, props in fuel_props.items():
+            t_boil = props["T_boil"]
+            if use_cea and name in fuelCards:
+                try:
+                    t_boil = getFuelRefTempDegK(name)
+                except:
+                    pass
+            
+            display_name = f"{name} (Fuel)"
+            coolants[display_name] = {
+                "Cp": props["Cp"],
+                "T_boil": t_boil,
+                "T_crit": props["T_crit"],
+                "rho": props["rho"],
+                "mu": props["mu"],
+                "k_liq": props["k_liq"],
+                "type": "fuel"
+            }
+        
+        # Ajouter les oxydants
+        for name, props in ox_props.items():
+            t_boil = props["T_boil"]
+            if use_cea and name in oxCards:
+                try:
+                    t_boil = getOxRefTempDegK(name)
+                except:
+                    pass
+            
+            display_name = f"{name} (Ox)"
+            coolants[display_name] = {
+                "Cp": props["Cp"],
+                "T_boil": t_boil,
+                "T_crit": props["T_crit"],
+                "rho": props["rho"],
+                "mu": props["mu"],
+                "k_liq": props["k_liq"],
+                "type": "ox"
+            }
+        
+        # Coolants classiques non-propulseurs
+        coolants["Eau (H2O)"] = {"Cp": 4186, "T_boil": 373, "T_crit": 647, "rho": 1000, "mu": 0.001, "k_liq": 0.60, "type": "coolant"}
+        coolants["Glycol (EG)"] = {"Cp": 2400, "T_boil": 470, "T_crit": 645, "rho": 1110, "mu": 0.016, "k_liq": 0.25, "type": "coolant"}
+        coolants["Dowtherm A"] = {"Cp": 1800, "T_boil": 530, "T_crit": 770, "rho": 1060, "mu": 0.002, "k_liq": 0.14, "type": "coolant"}
+        coolants["Therminol 66"] = {"Cp": 1900, "T_boil": 632, "T_crit": 850, "rho": 1010, "mu": 0.002, "k_liq": 0.12, "type": "coolant"}
+        coolants["LN2 (Azote liq.)"] = {"Cp": 2040, "T_boil": 77, "T_crit": 126, "rho": 808, "mu": 0.00016, "k_liq": 0.14, "type": "coolant"}
+        
+        return coolants
+
+    def init_solver_tab(self):
+        """Onglet Solveur Coolant - Trouve les paramètres pour éviter la fusion"""
+        tk.Frame(self.tab_solver, height=4, bg=self.tab_accent.get("solver", "#00ffaa")).pack(fill=tk.X)
+        
+        # === PANNEAU DE CONFIGURATION ===
+        config_frame = ttk.LabelFrame(self.tab_solver, text="⚙️ Configuration du Solveur", padding=10)
+        config_frame.pack(side=tk.TOP, fill=tk.X, padx=10, pady=5)
+        
+        # Base de données des matériaux avec leurs propriétés
+        self.materials_db = {
+            "Cuivre (Cu)": {"k": 385, "T_melt": 1358, "T_max": 1100, "rho": 8960},
+            "Cuivre-Chrome (CuCr)": {"k": 320, "T_melt": 1350, "T_max": 1050, "rho": 8900},
+            "Cuivre-Zirconium (CuZr)": {"k": 340, "T_melt": 1356, "T_max": 1000, "rho": 8920},
+            "AlSi10Mg (SLM)": {"k": 130, "T_melt": 870, "T_max": 573, "rho": 2670},
+            "Inconel 718": {"k": 11.4, "T_melt": 1609, "T_max": 1200, "rho": 8190},
+            "Inconel 625": {"k": 9.8, "T_melt": 1623, "T_max": 1250, "rho": 8440},
+            "Acier Inox 316L": {"k": 16.3, "T_melt": 1673, "T_max": 1100, "rho": 8000},
+            "Acier Inox 304": {"k": 16.2, "T_melt": 1723, "T_max": 1050, "rho": 7900},
+            "Niobium (Nb)": {"k": 53.7, "T_melt": 2750, "T_max": 2200, "rho": 8570},
+            "Molybdène (Mo)": {"k": 138, "T_melt": 2896, "T_max": 2400, "rho": 10280},
+            "Tungstène (W)": {"k": 173, "T_melt": 3695, "T_max": 3000, "rho": 19300},
+            "Titane Ti-6Al-4V": {"k": 6.7, "T_melt": 1933, "T_max": 700, "rho": 4430},
+            "Aluminium 6061": {"k": 167, "T_melt": 855, "T_max": 500, "rho": 2700},
+            "Graphite (C)": {"k": 120, "T_melt": 3900, "T_max": 3500, "rho": 2200},
+            "Rhenium (Re)": {"k": 48, "T_melt": 3459, "T_max": 2800, "rho": 21020},
+        }
+        
+        # Base de données des coolants - sera enrichie avec RocketCEA
+        self.coolants_db = self.build_coolants_database()
+        
+        # Ligne 1: Matériau
+        row1 = ttk.Frame(config_frame)
+        row1.pack(fill=tk.X, pady=3)
+        
+        ttk.Label(row1, text="Matériau paroi:").pack(side=tk.LEFT)
+        self.solver_material = ttk.Combobox(row1, values=list(self.materials_db.keys()), state="readonly", width=22)
+        self.solver_material.current(0)
+        self.solver_material.pack(side=tk.LEFT, padx=5)
+        self.solver_material.bind("<<ComboboxSelected>>", lambda e: self.update_material_info())
+        
+        ttk.Label(row1, text="T fusion:").pack(side=tk.LEFT, padx=(15, 0))
+        self.lbl_tmelt = ttk.Label(row1, text="1358 K", foreground=self.accent_alt)
+        self.lbl_tmelt.pack(side=tk.LEFT, padx=5)
+        
+        ttk.Label(row1, text="T max service:").pack(side=tk.LEFT, padx=(15, 0))
+        self.lbl_tmax = ttk.Label(row1, text="1100 K", foreground=self.accent_alt2)
+        self.lbl_tmax.pack(side=tk.LEFT, padx=5)
+        
+        ttk.Label(row1, text="k:").pack(side=tk.LEFT, padx=(15, 0))
+        self.lbl_k = ttk.Label(row1, text="385 W/m-K", foreground=self.accent)
+        self.lbl_k.pack(side=tk.LEFT, padx=5)
+        
+        # Ligne 2: Épaisseur et coolant
+        row2 = ttk.Frame(config_frame)
+        row2.pack(fill=tk.X, pady=3)
+        
+        ttk.Label(row2, text="Épaisseur min (mm):").pack(side=tk.LEFT)
+        self.solver_thickness = ttk.Entry(row2, width=8)
+        self.solver_thickness.insert(0, "2.0")
+        self.solver_thickness.pack(side=tk.LEFT, padx=5)
+        
+        ttk.Label(row2, text="Coolant:").pack(side=tk.LEFT, padx=(15, 0))
+        self.solver_coolant = ttk.Entry(row2, width=15)
+        self.solver_coolant.insert(0, "RP1")
+        self.solver_coolant.pack(side=tk.LEFT, padx=5)
+        ttk.Label(row2, text="(nom RocketCEA)", foreground=self.text_muted).pack(side=tk.LEFT)
+        
+        ttk.Label(row2, text="T entrée coolant (K):").pack(side=tk.LEFT, padx=(15, 0))
+        self.solver_tcool_in = ttk.Entry(row2, width=8)
+        self.solver_tcool_in.insert(0, "300")
+        self.solver_tcool_in.pack(side=tk.LEFT, padx=5)
+        
+        # Ligne 3: Pression coolant et marge
+        row3 = ttk.Frame(config_frame)
+        row3.pack(fill=tk.X, pady=3)
+        
+        ttk.Label(row3, text="Pression coolant (bar):").pack(side=tk.LEFT)
+        self.solver_pcool = ttk.Entry(row3, width=8)
+        self.solver_pcool.insert(0, "30")
+        self.solver_pcool.pack(side=tk.LEFT, padx=5)
+        
+        ttk.Label(row3, text="Marge sécurité (%):").pack(side=tk.LEFT, padx=(15, 0))
+        self.solver_margin = ttk.Entry(row3, width=8)
+        self.solver_margin.insert(0, "20")
+        self.solver_margin.pack(side=tk.LEFT, padx=5)
+        
+        ttk.Label(row3, text="Flux max estimé (MW/m²):").pack(side=tk.LEFT, padx=(15, 0))
+        self.solver_flux = ttk.Entry(row3, width=8)
+        self.solver_flux.insert(0, "")
+        self.solver_flux.pack(side=tk.LEFT, padx=5)
+        ttk.Label(row3, text="(laisser vide = auto)", foreground=self.text_muted).pack(side=tk.LEFT)
+        
+        # Ligne 3b: Paramètres canaux de refroidissement
+        row3b = ttk.Frame(config_frame)
+        row3b.pack(fill=tk.X, pady=3)
+        
+        ttk.Label(row3b, text="Vitesse coolant (m/s):").pack(side=tk.LEFT)
+        self.solver_vcool = ttk.Entry(row3b, width=8)
+        self.solver_vcool.insert(0, "20")
+        self.solver_vcool.pack(side=tk.LEFT, padx=5)
+        
+        ttk.Label(row3b, text="Diam. hydraulique (mm):").pack(side=tk.LEFT, padx=(15, 0))
+        self.solver_dh = ttk.Entry(row3b, width=8)
+        self.solver_dh.insert(0, "3.0")
+        self.solver_dh.pack(side=tk.LEFT, padx=5)
+        
+        ttk.Label(row3b, text="Surface refroidie (m²):").pack(side=tk.LEFT, padx=(15, 0))
+        self.solver_area = ttk.Entry(row3b, width=8)
+        self.solver_area.insert(0, "0.01")
+        self.solver_area.pack(side=tk.LEFT, padx=5)
+        ttk.Label(row3b, text="(chambre + col)", foreground=self.text_muted).pack(side=tk.LEFT)
+        
+        # Ligne 4: Boutons
+        row4 = ttk.Frame(config_frame)
+        row4.pack(fill=tk.X, pady=8)
+        
+        ttk.Button(row4, text="🔍 Résoudre", command=self.solve_cooling, style="Success.TButton").pack(side=tk.LEFT, padx=5)
+        ttk.Button(row4, text="📊 Comparer Matériaux", command=self.compare_materials, style="Primary.TButton").pack(side=tk.LEFT, padx=5)
+        ttk.Button(row4, text="🧊 Comparer Coolants", command=self.compare_coolants, style="Secondary.TButton").pack(side=tk.LEFT, padx=5)
+        ttk.Button(row4, text="🔥 Carte Thermique", command=self.plot_thermal_map, style="Danger.TButton").pack(side=tk.LEFT, padx=5)
+        ttk.Button(row4, text="🔄 Utiliser données simulation", command=self.load_from_simulation, style="Warning.TButton").pack(side=tk.LEFT, padx=5)
+        
+        # === ZONE DE RÉSULTATS ===
+        results_frame = ttk.LabelFrame(self.tab_solver, text="📋 Résultats du Solveur", padding=10)
+        results_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+        
+        fs = self.scaled_font_size(13)
+        fs_title = self.scaled_font_size(16)
+        
+        self.txt_solver = tk.Text(
+            results_frame,
+            bg=self.bg_surface,
+            fg=self.text_primary,
+            insertbackground=self.accent,
+            font=("Consolas", fs),
+            highlightthickness=0,
+            bd=0,
+        )
+        self.txt_solver.pack(fill=tk.BOTH, expand=True)
+        
+        # Tags de couleur
+        self.txt_solver.tag_configure("title", foreground="#ff79c6", font=("Consolas", fs_title, "bold"))
+        self.txt_solver.tag_configure("section", foreground="#ffb86c", font=("Consolas", fs, "bold"))
+        self.txt_solver.tag_configure("label", foreground="#8be9fd")
+        self.txt_solver.tag_configure("number", foreground="#bd93f9")
+        self.txt_solver.tag_configure("unit", foreground="#6272a4")
+        self.txt_solver.tag_configure("success", foreground="#50fa7b")
+        self.txt_solver.tag_configure("warning", foreground="#ffb347")
+        self.txt_solver.tag_configure("error", foreground="#ff5555")
+        self.txt_solver.tag_configure("separator", foreground="#44475a")
+        
+        scrollbar = ttk.Scrollbar(self.txt_solver, command=self.txt_solver.yview)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.txt_solver.config(yscrollcommand=scrollbar.set)
+        
+        # Message initial
+        self.txt_solver.insert(tk.END, "🧊 SOLVEUR DE REFROIDISSEMENT\n\n", "title")
+        self.txt_solver.insert(tk.END, "Ce solveur calcule les paramètres nécessaires pour éviter la fusion du matériau.\n\n", "label")
+        self.txt_solver.insert(tk.END, "1. Sélectionnez un matériau et une épaisseur minimum\n", "label")
+        self.txt_solver.insert(tk.END, "2. Choisissez un coolant et ses conditions d'entrée\n", "label")
+        self.txt_solver.insert(tk.END, "3. Cliquez sur 'Résoudre' pour trouver une solution\n\n", "label")
+        self.txt_solver.insert(tk.END, "💡 Astuce: Lancez d'abord une simulation pour avoir le flux thermique réel.\n", "warning")
+
+    def update_material_info(self):
+        """Met à jour l'affichage des propriétés du matériau sélectionné"""
+        mat_name = self.solver_material.get()
+        if mat_name in self.materials_db:
+            mat = self.materials_db[mat_name]
+            self.lbl_tmelt.config(text=f"{mat['T_melt']} K")
+            self.lbl_tmax.config(text=f"{mat['T_max']} K")
+            self.lbl_k.config(text=f"{mat['k']} W/m-K")
+
+    def load_from_simulation(self):
+        """Charge les données depuis la dernière simulation"""
+        if not self.results:
+            messagebox.showwarning("Attention", "Lancez d'abord une simulation!")
+            return
+        
+        loaded = []
+        
+        # Récupérer le flux max de la simulation
+        if "q_max" in self.results:
+            self.solver_flux.delete(0, tk.END)
+            self.solver_flux.insert(0, f"{self.results['q_max']:.2f}")
+            loaded.append(f"Flux max: {self.results['q_max']:.2f} MW/m²")
+        
+        # Récupérer l'épaisseur
+        if "wall_thickness_mm" in self.results:
+            self.solver_thickness.delete(0, tk.END)
+            self.solver_thickness.insert(0, f"{self.results['wall_thickness_mm']:.1f}")
+            loaded.append(f"Épaisseur: {self.results['wall_thickness_mm']:.1f} mm")
+        
+        # Utiliser la surface refroidie calculée par la simulation
+        if "A_cooled" in self.results:
+            A_total = self.results["A_cooled"]
+            self.solver_area.delete(0, tk.END)
+            self.solver_area.insert(0, f"{A_total:.4f}")
+            loaded.append(f"Surface: {A_total*1e4:.1f} cm²")
+        
+        # Charger le coolant (le fuel utilisé dans la simulation)
+        if "fuel" in self.results:
+            fuel_name = self.results["fuel"]
+            self.solver_coolant.delete(0, tk.END)
+            self.solver_coolant.insert(0, fuel_name)
+            loaded.append(f"Coolant: {fuel_name}")
+            
+            # Chercher la température d'ébullition
+            coolant, coolant_name = self.find_coolant_properties(fuel_name)
+            if coolant:
+                self.solver_tcool_in.delete(0, tk.END)
+                self.solver_tcool_in.insert(0, f"{coolant['T_boil']:.0f}")
+                loaded.append(f"T entrée: {coolant['T_boil']:.0f} K")
+        
+        if loaded:
+            messagebox.showinfo("Chargé", "Données de simulation chargées:\n" + "\n".join(loaded))
+        else:
+            messagebox.showwarning("Attention", "Aucune donnée thermique trouvée dans la simulation.")
+
+    def find_coolant_properties(self, coolant_input):
+        """Cherche un coolant dans la base de données par nom (exact ou partiel)"""
+        coolant_input = coolant_input.strip().upper()
+        
+        if not coolant_input:
+            return None, None
+        
+        # Recherche exacte d'abord
+        for db_name, db_props in self.coolants_db.items():
+            if coolant_input == db_name.upper():
+                return db_props, db_name
+        
+        # Recherche partielle (le nom entré est contenu dans le nom de la base ou vice versa)
+        for db_name, db_props in self.coolants_db.items():
+            db_upper = db_name.upper()
+            # Correspondance partielle
+            if coolant_input in db_upper or db_upper in coolant_input:
+                return db_props, db_name
+            # Correspondance sans caractères spéciaux
+            clean_input = ''.join(c for c in coolant_input if c.isalnum())
+            clean_db = ''.join(c for c in db_upper if c.isalnum())
+            if clean_input in clean_db or clean_db in clean_input:
+                return db_props, db_name
+        
+        # Recherche par formule chimique courante
+        aliases = {
+            "METHANE": "CH4", "LNG": "CH4",
+            "KEROSENE": "RP1", "RP-1": "RP1", "JET-A": "RP1",
+            "HYDROGEN": "LH2", "H2": "LH2",
+            "OXYGEN": "LOX", "O2": "LOX",
+            "ETHANOL": "C2H5OH", "ALCOHOL": "C2H5OH",
+            "METHANOL": "CH3OH",
+            "PROPANE": "C3H8", "LPG": "C3H8",
+            "HYDRAZINE": "N2H4",
+            "NTO": "N2O4", "NITROGEN TETROXIDE": "N2O4",
+            "NITROUS": "N2O", "NITROUS OXIDE": "N2O",
+            "PEROXIDE": "H2O2", "HTP": "H2O2",
+            "AMMONIA": "NH3",
+            "WATER": "H2O", "EAU": "H2O",
+            "GLYCOL": "EG", "ETHYLENE GLYCOL": "EG",
+            "NITROGEN": "LN2", "AZOTE": "LN2",
+        }
+        
+        if coolant_input in aliases:
+            alias_name = aliases[coolant_input]
+            for db_name, db_props in self.coolants_db.items():
+                if alias_name.upper() in db_name.upper():
+                    return db_props, db_name
+        
+        return None, None
+
+    def solve_cooling(self):
+        """Résout le problème de refroidissement avec modèle thermique complet"""
+        self.txt_solver.delete(1.0, tk.END)
+        
+        try:
+            # Récupérer les paramètres
+            mat_name = self.solver_material.get()
+            mat = self.materials_db[mat_name]
+            
+            # Chercher le coolant par son nom dans la base de données
+            coolant_input = self.solver_coolant.get().strip()
+            coolant, coolant_name = self.find_coolant_properties(coolant_input)
+            
+            if coolant is None:
+                self.txt_solver.insert(tk.END, f"❌ Coolant '{coolant_input}' non trouvé dans la base de données!\n\n", "error")
+                self.txt_solver.insert(tk.END, "Exemples de coolants valides:\n", "label")
+                self.txt_solver.insert(tk.END, "• Fuels: RP1, CH4, LH2, C2H5OH, MMH, N2H4, C3H8\n", "success")
+                self.txt_solver.insert(tk.END, "• Oxydants: LOX, N2O4, H2O2, N2O\n", "success")
+                self.txt_solver.insert(tk.END, "• Autres: H2O, EG (Glycol), LN2\n", "success")
+                return
+            
+            e_mm = float(self.solver_thickness.get())
+            e_m = e_mm / 1000
+            T_cool_in = float(self.solver_tcool_in.get())
+            P_cool = float(self.solver_pcool.get())
+            margin_pct = float(self.solver_margin.get()) / 100
+            
+            # Flux thermique
+            flux_str = self.solver_flux.get().strip()
+            if flux_str:
+                q_max = float(flux_str) * 1e6  # MW/m² -> W/m²
+            elif self.results and "q_max" in self.results:
+                q_max = self.results["q_max"] * 1e6
+            else:
+                q_max = 15e6  # 15 MW/m² estimation
+            
+            q_max_mw = q_max / 1e6
+            
+            # Propriétés matériau
+            T_melt = mat["T_melt"]
+            T_max_service = mat["T_max"]
+            k = mat["k"]
+            
+            # Propriétés coolant
+            Cp = coolant["Cp"]
+            rho = coolant["rho"]
+            mu = coolant.get("mu", 0.001)  # Viscosité dynamique Pa.s
+            k_liq = coolant.get("k_liq", 0.1)  # Conductivité thermique W/m-K
+            
+            # Température d'ébullition à la pression donnée
+            # Clausius-Clapeyron simplifié: T_boil ∝ ln(P)
+            T_boil_1bar = coolant["T_boil"]
+            T_crit = coolant["T_crit"]
+            # Approximation: augmentation de ~20-30K par décade de pression
+            if P_cool > 1:
+                T_boil = T_boil_1bar * (1 + 0.05 * math.log(P_cool))
+            else:
+                T_boil = T_boil_1bar
+            T_boil = min(T_boil, T_crit * 0.99)  # Ne pas dépasser la T critique
+            
+            # === PARAMÈTRES CANAUX DE REFROIDISSEMENT ===
+            try:
+                v_cool = float(self.solver_vcool.get())
+            except:
+                v_cool = 20  # m/s par défaut
+            
+            try:
+                D_h = float(self.solver_dh.get()) / 1000  # mm -> m
+            except:
+                D_h = 0.003  # 3mm par défaut
+            
+            try:
+                A_cooled = float(self.solver_area.get())
+            except:
+                A_cooled = 0.01  # m² par défaut
+            
+            # === MODÈLE THERMIQUE COMPLET ===
+            # Calcul du nombre de Reynolds et Prandtl
+            Re = (rho * v_cool * D_h) / mu  # Reynolds
+            Pr = (mu * Cp) / k_liq  # Prandtl
+            
+            # Corrélation de Dittus-Boelter (refroidissement)
+            if Re > 10000:  # Turbulent
+                Nu = 0.023 * (Re ** 0.8) * (Pr ** 0.4)
+                h_cool = Nu * (k_liq / D_h)
+                regime = "turbulent"
+            elif Re > 2300:  # Transitoire
+                # Interpolation Gnielinski
+                f = (0.79 * math.log(Re) - 1.64) ** (-2)
+                Nu = (f/8) * (Re - 1000) * Pr / (1 + 12.7 * (f/8)**0.5 * (Pr**(2/3) - 1))
+                Nu = max(Nu, 4.36)
+                h_cool = Nu * (k_liq / D_h)
+                regime = "transitoire"
+            else:  # Laminaire
+                Nu = 4.36  # Flux constant
+                h_cool = Nu * (k_liq / D_h)
+                regime = "laminaire"
+            
+            # Limiter h à des valeurs réalistes (500 - 150000 W/m²-K)
+            h_cool = max(500, min(150000, h_cool))
+            
+            # === CALCUL DES TEMPÉRATURES ===
+            # T_wall_cold = T_coolant + q/h_cool (résistance convective côté froid)
+            delta_T_convection = q_max / h_cool
+            T_wall_cold = T_cool_in + delta_T_convection
+            
+            # ΔT à travers la paroi métallique (conduction)
+            delta_T_wall = (q_max * e_m) / k
+            
+            # T_wall_hot = T_wall_cold + ΔT_paroi
+            T_wall_hot = T_wall_cold + delta_T_wall
+            
+            # T max du coolant (à la sortie des canaux)
+            T_cool_max = min(T_boil * (1 - margin_pct), T_crit * 0.85)
+            
+            # === VÉRIFICATIONS ===
+            feasible = True
+            issues = []
+            
+            # Check 1: T paroi hot vs T max service
+            if T_wall_hot > T_max_service:
+                issues.append(f"❌ T paroi hot ({T_wall_hot:.0f} K) > T max service ({T_max_service} K)")
+                feasible = False
+            
+            # Check 2: T paroi hot vs T fusion
+            if T_wall_hot > T_melt:
+                issues.append(f"💀 T paroi hot ({T_wall_hot:.0f} K) > T FUSION ({T_melt} K) - DESTRUCTION!")
+                feasible = False
+            
+            # Check 3: Coolant ne doit pas bouillir au contact de la paroi
+            if T_wall_cold > T_boil:
+                issues.append(f"⚠️ T paroi cold ({T_wall_cold:.0f} K) > T ébullition ({T_boil:.0f} K) - Ébullition!")
+                if T_wall_cold > T_boil * 1.1:  # > 10% au-dessus = critique
+                    feasible = False
+            
+            # Check 4: T entrée coolant vs T ébullition
+            if T_cool_in >= T_boil * 0.9:
+                issues.append(f"⚠️ T entrée coolant trop élevée vs T_ébullition")
+            
+            # Marge de sécurité
+            margin_T = T_max_service - T_wall_hot
+            if 0 < margin_T < 100 and feasible:
+                issues.append(f"⚠️ Marge faible: seulement {margin_T:.0f} K sous T max service")
+            
+            # === CALCUL DU DÉBIT NÉCESSAIRE ===
+            Q_total = q_max * A_cooled  # Puissance thermique totale
+            delta_T_coolant = max(1, T_cool_max - T_cool_in)
+            
+            mdot_needed = Q_total / (Cp * delta_T_coolant)
+            
+            # Puissance thermique en kW
+            Q_total_kW = Q_total / 1000
+            
+            # === ÉPAISSEUR OPTIMALE ===
+            # On veut T_wall_hot = T_max_service avec marge 50K
+            # T_wall_hot = T_cool_in + q/h_cool + q*e/k = T_max - 50
+            # => e = (k/q) * (T_max - 50 - T_cool_in - q/h_cool)
+            target_T_hot = T_max_service - 50
+            delta_T_available = target_T_hot - T_cool_in - (q_max / h_cool)
+            if delta_T_available > 0:
+                e_optimal_m = (k * delta_T_available) / q_max
+                e_optimal_mm = e_optimal_m * 1000
+            else:
+                e_optimal_mm = 0  # Impossible même avec e=0
+            
+            # Épaisseur max (avant fusion avec marge 100K)
+            target_T_melt = T_melt - 100
+            delta_T_melt = target_T_melt - T_cool_in - (q_max / h_cool)
+            if delta_T_melt > 0:
+                e_max_m = (k * delta_T_melt) / q_max
+                e_max_mm = e_max_m * 1000
+            else:
+                e_max_mm = 0
+            
+            # === AFFICHAGE DES RÉSULTATS ===
+            self.txt_solver.insert(tk.END, "═══════════════════════════════════════════\n", "separator")
+            self.txt_solver.insert(tk.END, "  🧊 RÉSULTATS DU SOLVEUR COOLANT\n", "title")
+            self.txt_solver.insert(tk.END, "═══════════════════════════════════════════\n\n", "separator")
+            
+            # Configuration
+            self.txt_solver.insert(tk.END, "--- CONFIGURATION ---\n", "section")
+            self.txt_solver.insert(tk.END, f"Matériau        : ", "label")
+            self.txt_solver.insert(tk.END, f"{mat_name}\n", "number")
+            self.txt_solver.insert(tk.END, f"Coolant         : ", "label")
+            self.txt_solver.insert(tk.END, f"{coolant_name}\n", "number")
+            self.txt_solver.insert(tk.END, f"Épaisseur       : ", "label")
+            self.txt_solver.insert(tk.END, f"{e_mm:.1f}", "number")
+            self.txt_solver.insert(tk.END, " mm\n", "unit")
+            self.txt_solver.insert(tk.END, f"Flux max        : ", "label")
+            self.txt_solver.insert(tk.END, f"{q_max_mw:.2f}", "number")
+            self.txt_solver.insert(tk.END, " MW/m²\n", "unit")
+            self.txt_solver.insert(tk.END, f"Surface refroidie: ", "label")
+            self.txt_solver.insert(tk.END, f"{A_cooled*1e4:.1f}", "number")
+            self.txt_solver.insert(tk.END, " cm²\n\n", "unit")
+            
+            # Propriétés coolant et transfert thermique
+            self.txt_solver.insert(tk.END, "--- TRANSFERT THERMIQUE COOLANT ---\n", "section")
+            self.txt_solver.insert(tk.END, f"Vitesse coolant : ", "label")
+            self.txt_solver.insert(tk.END, f"{v_cool:.1f}", "number")
+            self.txt_solver.insert(tk.END, " m/s\n", "unit")
+            self.txt_solver.insert(tk.END, f"Diam. hydraul.  : ", "label")
+            self.txt_solver.insert(tk.END, f"{D_h*1000:.1f}", "number")
+            self.txt_solver.insert(tk.END, " mm\n", "unit")
+            self.txt_solver.insert(tk.END, f"Reynolds        : ", "label")
+            self.txt_solver.insert(tk.END, f"{Re:.0f}", "number")
+            self.txt_solver.insert(tk.END, f" ({regime})\n", "unit")
+            self.txt_solver.insert(tk.END, f"Prandtl         : ", "label")
+            self.txt_solver.insert(tk.END, f"{Pr:.2f}", "number")
+            self.txt_solver.insert(tk.END, "\n", "unit")
+            self.txt_solver.insert(tk.END, f"Nusselt         : ", "label")
+            self.txt_solver.insert(tk.END, f"{Nu:.1f}", "number")
+            self.txt_solver.insert(tk.END, "\n", "unit")
+            self.txt_solver.insert(tk.END, f"h_coolant       : ", "label")
+            self.txt_solver.insert(tk.END, f"{h_cool:.0f}", "number")
+            self.txt_solver.insert(tk.END, " W/m²-K\n", "unit")
+            self.txt_solver.insert(tk.END, f"ΔT convection   : ", "label")
+            self.txt_solver.insert(tk.END, f"{delta_T_convection:.0f}", "number")
+            self.txt_solver.insert(tk.END, " K (q/h)\n\n", "unit")
+            
+            # Analyse thermique paroi
+            self.txt_solver.insert(tk.END, "--- ANALYSE THERMIQUE PAROI ---\n", "section")
+            self.txt_solver.insert(tk.END, f"T fusion mat.   : ", "label")
+            self.txt_solver.insert(tk.END, f"{T_melt}", "number")
+            self.txt_solver.insert(tk.END, " K\n", "unit")
+            self.txt_solver.insert(tk.END, f"T max service   : ", "label")
+            self.txt_solver.insert(tk.END, f"{T_max_service}", "number")
+            self.txt_solver.insert(tk.END, " K\n", "unit")
+            self.txt_solver.insert(tk.END, f"ΔT paroi        : ", "label")
+            self.txt_solver.insert(tk.END, f"{delta_T_wall:.0f}", "number")
+            self.txt_solver.insert(tk.END, " K (q*e/k)\n", "unit")
+            self.txt_solver.insert(tk.END, f"T paroi cold    : ", "label")
+            self.txt_solver.insert(tk.END, f"{T_wall_cold:.0f}", "number")
+            self.txt_solver.insert(tk.END, f" K (T_cool + ΔT_conv)\n", "unit")
+            self.txt_solver.insert(tk.END, f"T paroi hot     : ", "label")
+            self.txt_solver.insert(tk.END, f"{T_wall_hot:.0f}", "number")
+            self.txt_solver.insert(tk.END, " K (calculé)\n", "unit")
+            self.txt_solver.insert(tk.END, f"Marge sécurité  : ", "label")
+            if margin_T > 0:
+                self.txt_solver.insert(tk.END, f"{margin_T:.0f}", "number")
+            else:
+                self.txt_solver.insert(tk.END, f"{margin_T:.0f}", "error")
+            self.txt_solver.insert(tk.END, f" K sous T max\n\n", "unit")
+            
+            # Coolant
+            self.txt_solver.insert(tk.END, "--- COOLANT ---\n", "section")
+            self.txt_solver.insert(tk.END, f"T entrée        : ", "label")
+            self.txt_solver.insert(tk.END, f"{T_cool_in:.0f}", "number")
+            self.txt_solver.insert(tk.END, " K\n", "unit")
+            self.txt_solver.insert(tk.END, f"T ébull. @{P_cool:.0f}bar : ", "label")
+            self.txt_solver.insert(tk.END, f"{T_boil:.0f}", "number")
+            self.txt_solver.insert(tk.END, " K\n", "unit")
+            self.txt_solver.insert(tk.END, f"T critique      : ", "label")
+            self.txt_solver.insert(tk.END, f"{T_crit:.0f}", "number")
+            self.txt_solver.insert(tk.END, " K\n", "unit")
+            self.txt_solver.insert(tk.END, f"T max sortie    : ", "label")
+            self.txt_solver.insert(tk.END, f"{T_cool_max:.0f}", "number")
+            self.txt_solver.insert(tk.END, f" K (avec marge {margin_pct*100:.0f}%)\n", "unit")
+            self.txt_solver.insert(tk.END, f"Puiss. thermique: ", "label")
+            self.txt_solver.insert(tk.END, f"{Q_total_kW:.1f}", "number")
+            self.txt_solver.insert(tk.END, " kW\n", "unit")
+            self.txt_solver.insert(tk.END, f"ΔT coolant max  : ", "label")
+            self.txt_solver.insert(tk.END, f"{delta_T_coolant:.0f}", "number")
+            self.txt_solver.insert(tk.END, " K\n", "unit")
+            self.txt_solver.insert(tk.END, f"Débit estimé    : ", "label")
+            if mdot_needed < float('inf'):
+                self.txt_solver.insert(tk.END, f"{mdot_needed:.4f}", "number")
+                self.txt_solver.insert(tk.END, " kg/s", "unit")
+                self.txt_solver.insert(tk.END, f" ({mdot_needed*1000:.1f} g/s)\n\n", "unit")
+            else:
+                self.txt_solver.insert(tk.END, "IMPOSSIBLE\n\n", "error")
+            
+            # Recommandations
+            self.txt_solver.insert(tk.END, "--- RECOMMANDATIONS ---\n", "section")
+            self.txt_solver.insert(tk.END, f"Épaisseur optimale : ", "label")
+            if e_optimal_mm > 0:
+                self.txt_solver.insert(tk.END, f"{e_optimal_mm:.1f}", "number")
+                self.txt_solver.insert(tk.END, " mm\n", "unit")
+            else:
+                self.txt_solver.insert(tk.END, "N/A (flux trop élevé)\n", "error")
+            self.txt_solver.insert(tk.END, f"Épaisseur max      : ", "label")
+            if e_max_mm > 0:
+                self.txt_solver.insert(tk.END, f"{e_max_mm:.1f}", "number")
+                self.txt_solver.insert(tk.END, " mm (avant fusion)\n\n", "unit")
+            else:
+                self.txt_solver.insert(tk.END, "N/A\n\n", "error")
+            
+            # === SECTION ABLATION / ÉPAISSEUR SACRIFICIELLE ===
+            self.txt_solver.insert(tk.END, "--- 🔥 ANALYSE ABLATION ---\n", "section")
+            
+            # Calcul de l'épaisseur qui fond si e > e_max
+            if e_max_mm > 0 and e_mm > e_max_mm:
+                e_sacrificielle = e_mm - e_max_mm
+                self.txt_solver.insert(tk.END, f"⚠️ Épaisseur actuelle ({e_mm:.1f}mm) > épaisseur max ({e_max_mm:.1f}mm)\n", "warning")
+                self.txt_solver.insert(tk.END, f"🔥 ABLATION PRÉVUE  : ", "label")
+                self.txt_solver.insert(tk.END, f"{e_sacrificielle:.2f}", "error")
+                self.txt_solver.insert(tk.END, " mm vont fondre!\n", "error")
+                
+                # Masse perdue
+                rho_mat = mat.get("rho", 8000)  # kg/m³
+                masse_perdue = rho_mat * A_cooled * (e_sacrificielle / 1000)  # kg
+                self.txt_solver.insert(tk.END, f"💀 Masse perdue     : ", "label")
+                self.txt_solver.insert(tk.END, f"{masse_perdue*1000:.1f}", "error")
+                self.txt_solver.insert(tk.END, " g\n", "unit")
+                
+                # Épaisseur finale après ablation
+                e_finale = e_max_mm
+                self.txt_solver.insert(tk.END, f"📐 Épaisseur finale : ", "label")
+                self.txt_solver.insert(tk.END, f"{e_finale:.1f}", "number")
+                self.txt_solver.insert(tk.END, " mm (après équilibre)\n", "unit")
+                
+                # Recalculer T_wall_hot finale
+                e_finale_m = e_finale / 1000
+                delta_T_wall_finale = (q_max * e_finale_m) / k
+                T_wall_hot_finale = T_wall_cold + delta_T_wall_finale
+                self.txt_solver.insert(tk.END, f"🌡️ T paroi finale   : ", "label")
+                self.txt_solver.insert(tk.END, f"{T_wall_hot_finale:.0f}", "number")
+                self.txt_solver.insert(tk.END, f" K (= T_melt - 100K)\n", "unit")
+                
+            elif e_max_mm > 0:
+                marge_epaisseur = e_max_mm - e_mm
+                self.txt_solver.insert(tk.END, f"✅ Pas d'ablation prévue\n", "success")
+                self.txt_solver.insert(tk.END, f"Marge épaisseur : ", "label")
+                self.txt_solver.insert(tk.END, f"+{marge_epaisseur:.1f}", "success")
+                self.txt_solver.insert(tk.END, " mm avant fusion\n", "unit")
+            else:
+                self.txt_solver.insert(tk.END, f"💀 ABLATION TOTALE - Le flux est trop élevé!\n", "error")
+                self.txt_solver.insert(tk.END, f"Même avec e=0, la paroi fondrait.\n", "error")
+                self.txt_solver.insert(tk.END, f"Il faut améliorer le refroidissement (h_cool).\n", "warning")
+            
+            self.txt_solver.insert(tk.END, "\n", "unit")
+            
+            # Verdict
+            self.txt_solver.insert(tk.END, "═══════════════════════════════════════════\n", "separator")
+            if feasible and not issues:
+                self.txt_solver.insert(tk.END, "✅ SOLUTION VIABLE\n", "success")
+                self.txt_solver.insert(tk.END, f"Le {mat_name} avec {e_mm:.1f} mm peut supporter ce flux\n", "success")
+                self.txt_solver.insert(tk.END, f"avec du {coolant_name} comme refroidissement.\n", "success")
+            elif feasible and issues:
+                self.txt_solver.insert(tk.END, "⚠️ SOLUTION POSSIBLE AVEC PRÉCAUTIONS\n", "warning")
+                for issue in issues:
+                    self.txt_solver.insert(tk.END, f"{issue}\n", "warning")
+            else:
+                self.txt_solver.insert(tk.END, "❌ SOLUTION NON VIABLE\n", "error")
+                for issue in issues:
+                    self.txt_solver.insert(tk.END, f"{issue}\n", "error")
+                self.txt_solver.insert(tk.END, "\nSuggestions:\n", "label")
+                
+                # Suggestions spécifiques basées sur le problème
+                if e_optimal_mm > 0 and e_mm > e_optimal_mm:
+                    self.txt_solver.insert(tk.END, f"• Réduire l'épaisseur à {e_optimal_mm:.1f} mm (optimale)\n", "success")
+                elif e_optimal_mm <= 0:
+                    self.txt_solver.insert(tk.END, "• ⚠️ Flux trop élevé même avec e=0, augmenter h_cool!\n", "warning")
+                    self.txt_solver.insert(tk.END, f"• Augmenter vitesse coolant (actuel: {v_cool:.0f} m/s)\n", "label")
+                    self.txt_solver.insert(tk.END, f"• Réduire diamètre canaux (actuel: {D_h*1000:.1f} mm)\n", "label")
+                
+                if delta_T_convection > delta_T_wall:
+                    self.txt_solver.insert(tk.END, "• Le ΔT convection domine → améliorer h_cool\n", "label")
+                    # Calculer la vitesse nécessaire
+                    h_needed = q_max / (T_max_service - T_cool_in - delta_T_wall - 50)
+                    if h_needed > 0:
+                        self.txt_solver.insert(tk.END, f"• h_cool nécessaire: {h_needed:.0f} W/m²-K\n", "number")
+                
+                self.txt_solver.insert(tk.END, "• Matériaux à haute conductivité: Cuivre, Molybdène\n", "label")
+                
+                # Trouver le meilleur coolant
+                best_cp = max(self.coolants_db.items(), key=lambda x: x[1]["Cp"])
+                self.txt_solver.insert(tk.END, f"• Meilleur Cp: {best_cp[0]} ({best_cp[1]['Cp']} J/kg-K)\n", "label")
+            
+            self.txt_solver.insert(tk.END, "═══════════════════════════════════════════\n", "separator")
+            
+        except Exception as e:
+            self.txt_solver.insert(tk.END, f"❌ ERREUR: {str(e)}\n", "error")
+            import traceback
+            self.txt_solver.insert(tk.END, traceback.format_exc(), "error")
+
+    def compare_materials(self):
+        """Compare tous les matériaux pour le flux actuel"""
+        self.txt_solver.delete(1.0, tk.END)
+        
+        try:
+            flux_str = self.solver_flux.get().strip()
+            if flux_str:
+                q_max = float(flux_str) * 1e6
+            elif self.results and "q_max" in self.results:
+                q_max = self.results["q_max"] * 1e6
+            else:
+                q_max = 15e6
+            
+            e_mm = float(self.solver_thickness.get())
+            e_m = e_mm / 1000
+            T_cool_in = float(self.solver_tcool_in.get())
+            
+            self.txt_solver.insert(tk.END, "═══════════════════════════════════════════\n", "separator")
+            self.txt_solver.insert(tk.END, "  📊 COMPARAISON DES MATÉRIAUX\n", "title")
+            self.txt_solver.insert(tk.END, "═══════════════════════════════════════════\n\n", "separator")
+            
+            self.txt_solver.insert(tk.END, f"Flux: {q_max/1e6:.2f} MW/m² | Épaisseur: {e_mm:.1f} mm | T coolant: {T_cool_in:.0f} K\n\n", "label")
+            
+            self.txt_solver.insert(tk.END, f"{'Matériau':<25} {'k(W/mK)':<10} {'T_melt':<8} {'ΔT_paroi':<10} {'T_cold_req':<12} {'Statut'}\n", "section")
+            self.txt_solver.insert(tk.END, "─" * 85 + "\n", "separator")
+            
+            results = []
+            for name, mat in self.materials_db.items():
+                delta_T = (q_max * e_m) / mat["k"]
+                T_cold_needed = mat["T_max"] - delta_T
+                
+                if T_cold_needed >= T_cool_in + 50:
+                    status = "✅ OK"
+                    tag = "success"
+                elif T_cold_needed >= T_cool_in:
+                    status = "⚠️ Limite"
+                    tag = "warning"
+                else:
+                    status = "❌ Non"
+                    tag = "error"
+                
+                results.append((name, mat["k"], mat["T_melt"], delta_T, T_cold_needed, status, tag))
+            
+            # Trier par T_cold_needed décroissant (meilleur en premier)
+            results.sort(key=lambda x: x[4], reverse=True)
+            
+            for name, k, T_melt, delta_T, T_cold, status, tag in results:
+                line = f"{name:<25} {k:<10.1f} {T_melt:<8} {delta_T:<10.0f} {T_cold:<12.0f} "
+                self.txt_solver.insert(tk.END, line, "label")
+                self.txt_solver.insert(tk.END, f"{status}\n", tag)
+            
+        except Exception as e:
+            self.txt_solver.insert(tk.END, f"❌ ERREUR: {str(e)}\n", "error")
+
+    def compare_coolants(self):
+        """Compare tous les coolants pour la configuration actuelle"""
+        self.txt_solver.delete(1.0, tk.END)
+        
+        try:
+            mat_name = self.solver_material.get()
+            mat = self.materials_db[mat_name]
+            
+            flux_str = self.solver_flux.get().strip()
+            if flux_str:
+                q_max = float(flux_str) * 1e6
+            elif self.results and "q_max" in self.results:
+                q_max = self.results["q_max"] * 1e6
+            else:
+                q_max = 15e6
+            
+            e_mm = float(self.solver_thickness.get())
+            e_m = e_mm / 1000
+            T_cool_in = float(self.solver_tcool_in.get())
+            P_cool = float(self.solver_pcool.get())
+            
+            delta_T_wall = (q_max * e_m) / mat["k"]
+            T_wall_cold = mat["T_max"] - delta_T_wall
+            
+            self.txt_solver.insert(tk.END, "═══════════════════════════════════════════\n", "separator")
+            self.txt_solver.insert(tk.END, "  🧊 COMPARAISON DES COOLANTS\n", "title")
+            self.txt_solver.insert(tk.END, "═══════════════════════════════════════════\n\n", "separator")
+            
+            self.txt_solver.insert(tk.END, f"Matériau: {mat_name} | Flux: {q_max/1e6:.2f} MW/m²\n", "label")
+            self.txt_solver.insert(tk.END, f"T paroi froide nécessaire: {T_wall_cold:.0f} K\n\n", "label")
+            
+            self.txt_solver.insert(tk.END, f"{'Coolant':<22} {'Cp(J/kgK)':<10} {'T_boil':<8} {'T_crit':<8} {'Marge':<10} {'Statut'}\n", "section")
+            self.txt_solver.insert(tk.END, "─" * 75 + "\n", "separator")
+            
+            results = []
+            for name, cool in self.coolants_db.items():
+                T_boil = cool["T_boil"] + 20 * math.log10(max(1, P_cool))
+                margin = T_boil - T_wall_cold
+                
+                if margin > 100:
+                    status = "✅ Excellent"
+                    tag = "success"
+                elif margin > 50:
+                    status = "✅ OK"
+                    tag = "success"
+                elif margin > 0:
+                    status = "⚠️ Limite"
+                    tag = "warning"
+                else:
+                    status = "❌ Ébullition"
+                    tag = "error"
+                
+                results.append((name, cool["Cp"], T_boil, cool["T_crit"], margin, status, tag))
+            
+            # Trier par marge décroissante
+            results.sort(key=lambda x: x[4], reverse=True)
+            
+            for name, cp, T_boil, T_crit, margin, status, tag in results:
+                line = f"{name:<22} {cp:<10} {T_boil:<8.0f} {T_crit:<8} {margin:<10.0f} "
+                self.txt_solver.insert(tk.END, line, "label")
+                self.txt_solver.insert(tk.END, f"{status}\n", tag)
+            
+        except Exception as e:
+            self.txt_solver.insert(tk.END, f"❌ ERREUR: {str(e)}\n", "error")
     
+    def plot_thermal_map(self):
+        """Affiche la carte thermique avec étude paramétrique en épaisseur"""
+        if not self.results or "thermal_profile" not in self.results:
+            messagebox.showwarning("Attention", "Lancez d'abord une simulation CEA pour avoir les données thermiques!")
+            return
+        
+        try:
+            import matplotlib.pyplot as plt
+            from matplotlib.colors import LinearSegmentedColormap, Normalize
+            from matplotlib.patches import Rectangle
+            import matplotlib.patches as mpatches
+            
+            # Récupérer les données de base
+            profile = self.results["thermal_profile"]
+            X_mm = np.array(profile["X_mm"])
+            Y_mm = np.array(profile["Y_mm"])
+            Flux_MW = np.array(profile["Flux_MW"])  # MW/m²
+            T_wall_cold = profile["T_wall_cold"]  # T côté coolant (K)
+            hg_throat = profile["hg_throat"]  # Coefficient de transfert au col
+            
+            # Matériau sélectionné
+            mat_name = self.solver_material.get()
+            mat = self.materials_db[mat_name]
+            T_melt = mat["T_melt"]
+            T_max_service = mat["T_max"]
+            k_mat = mat["k"]  # Conductivité thermique W/m-K
+            
+            # Plage d'épaisseurs à tester (0.5mm à 15mm)
+            thicknesses = np.linspace(0.5, 15, 30)
+            
+            # Calculer T_wall_hot pour chaque épaisseur et chaque position
+            # T_wall_hot = T_wall_cold + (q * e) / k
+            # où q est le flux en W/m², e en m, k en W/m-K
+            
+            n_positions = len(X_mm)
+            n_thicknesses = len(thicknesses)
+            
+            # Matrice de températures [position x épaisseur]
+            T_matrix = np.zeros((n_positions, n_thicknesses))
+            
+            for j, e_mm in enumerate(thicknesses):
+                e_m = e_mm / 1000  # Convertir en m
+                for i in range(n_positions):
+                    q_wm2 = Flux_MW[i] * 1e6  # MW/m² -> W/m²
+                    delta_T = (q_wm2 * e_m) / k_mat
+                    T_matrix[i, j] = T_wall_cold + delta_T
+            
+            # Trouver l'épaisseur critique (où ça fond) pour chaque position
+            e_melt = np.zeros(n_positions)
+            e_max_service = np.zeros(n_positions)
+            
+            for i in range(n_positions):
+                # Épaisseur où T = T_melt
+                q_wm2 = Flux_MW[i] * 1e6
+                if q_wm2 > 0:
+                    e_melt[i] = (T_melt - T_wall_cold) * k_mat / q_wm2 * 1000  # en mm
+                    e_max_service[i] = (T_max_service - T_wall_cold) * k_mat / q_wm2 * 1000
+                else:
+                    e_melt[i] = 999
+                    e_max_service[i] = 999
+            
+            # Créer la figure
+            fig = plt.figure(figsize=(16, 12), facecolor=self.bg_main)
+            
+            # Layout: 2x2
+            ax1 = fig.add_subplot(2, 2, 1)  # Carte thermique position x épaisseur
+            ax2 = fig.add_subplot(2, 2, 2)  # Épaisseur critique vs position
+            ax3 = fig.add_subplot(2, 2, 3)  # Profil moteur avec couleur
+            ax4 = fig.add_subplot(2, 2, 4)  # Tableau récapitulatif
+            
+            for ax in [ax1, ax2, ax3, ax4]:
+                ax.set_facecolor(self.bg_surface)
+                ax.tick_params(colors=self.text_primary)
+                for spine in ax.spines.values():
+                    spine.set_color(self.grid_color)
+            
+            # === GRAPHE 1: Carte thermique (heatmap) ===
+            # Colormap: bleu (froid) -> vert -> jaune -> orange -> rouge (chaud)
+            colors_thermal = ['#0066ff', '#00cc66', '#ffff00', '#ff8800', '#ff0000', '#ff00ff']
+            cmap = LinearSegmentedColormap.from_list('thermal', colors_thermal)
+            
+            # Normaliser par T_melt
+            T_ratio = T_matrix / T_melt
+            
+            im = ax1.imshow(T_ratio.T, aspect='auto', origin='lower', cmap=cmap,
+                           extent=[X_mm.min(), X_mm.max(), thicknesses.min(), thicknesses.max()],
+                           vmin=0, vmax=1.3)
+            
+            # Lignes de contour
+            cs1 = ax1.contour(X_mm, thicknesses, T_ratio.T, levels=[T_max_service/T_melt], 
+                             colors=['orange'], linewidths=2, linestyles='--')
+            cs2 = ax1.contour(X_mm, thicknesses, T_ratio.T, levels=[1.0], 
+                             colors=['red'], linewidths=3)
+            
+            ax1.clabel(cs1, fmt=f'T_max ({T_max_service}K)', fontsize=9, colors='orange')
+            ax1.clabel(cs2, fmt='FUSION', fontsize=10, colors='red')
+            
+            cbar = fig.colorbar(im, ax=ax1, label='T / T_fusion')
+            cbar.ax.yaxis.label.set_color(self.text_primary)
+            cbar.ax.tick_params(colors=self.text_primary)
+            
+            ax1.set_xlabel('Position axiale (mm)', color=self.text_primary)
+            ax1.set_ylabel('Épaisseur paroi (mm)', color=self.text_primary)
+            ax1.set_title(f'🔥 CARTE THERMIQUE - {mat_name}', color=self.text_primary, fontsize=12, fontweight='bold')
+            ax1.axvline(0, color='cyan', linestyle=':', alpha=0.7, linewidth=1)
+            ax1.text(0, thicknesses.max() * 0.95, 'COL', color='cyan', ha='center', fontsize=9)
+            
+            # === GRAPHE 2: Épaisseur critique vs position ===
+            ax2.fill_between(X_mm, 0, e_max_service, color='green', alpha=0.3, label='Zone OK')
+            ax2.fill_between(X_mm, e_max_service, e_melt, color='orange', alpha=0.3, label='Zone limite')
+            ax2.fill_between(X_mm, e_melt, 20, color='red', alpha=0.3, label='Zone FUSION')
+            
+            ax2.plot(X_mm, e_melt, 'r-', linewidth=2, label=f'Épaisseur FUSION ({T_melt}K)')
+            ax2.plot(X_mm, e_max_service, 'orange', linewidth=2, linestyle='--', label=f'Épaisseur T_max ({T_max_service}K)')
+            
+            # Marquer l'épaisseur actuelle
+            e_current = float(self.solver_thickness.get())
+            ax2.axhline(e_current, color='cyan', linewidth=2, linestyle='-', label=f'Épaisseur actuelle ({e_current:.1f}mm)')
+            
+            # Point critique (min)
+            idx_min = np.argmin(e_melt)
+            ax2.plot(X_mm[idx_min], e_melt[idx_min], 'ro', markersize=10)
+            ax2.annotate(f'Min: {e_melt[idx_min]:.1f}mm\n(x={X_mm[idx_min]:.0f}mm)',
+                        xy=(X_mm[idx_min], e_melt[idx_min]),
+                        xytext=(X_mm[idx_min] + 10, e_melt[idx_min] + 2),
+                        fontsize=10, color='red', fontweight='bold',
+                        arrowprops=dict(arrowstyle='->', color='red'))
+            
+            ax2.set_xlabel('Position axiale (mm)', color=self.text_primary)
+            ax2.set_ylabel('Épaisseur paroi (mm)', color=self.text_primary)
+            ax2.set_title('📏 ÉPAISSEUR CRITIQUE vs POSITION', color=self.text_primary, fontsize=12, fontweight='bold')
+            ax2.set_ylim(0, min(20, max(e_melt) * 1.5))
+            ax2.set_xlim(X_mm.min(), X_mm.max())
+            ax2.legend(loc='upper right', fontsize=9, facecolor=self.bg_surface, labelcolor=self.text_primary)
+            ax2.grid(True, alpha=0.2)
+            ax2.axvline(0, color='cyan', linestyle=':', alpha=0.7)
+            
+            # === GRAPHE 3: Profil moteur avec couleur de flux ===
+            # Normaliser le flux pour la couleur
+            flux_norm = Flux_MW / max(Flux_MW)
+            
+            # Dessiner le profil comme une série de rectangles colorés
+            # Exagérer l'épaisseur pour la visibilité (facteur 10)
+            e_exag = e_current * 5  # Facteur d'exagération
+            
+            for i in range(len(X_mm) - 1):
+                # Couleur basée sur le ratio T/T_melt pour l'épaisseur actuelle
+                q_wm2 = Flux_MW[i] * 1e6
+                T_hot = T_wall_cold + (q_wm2 * e_current/1000) / k_mat
+                ratio = T_hot / T_melt
+                
+                # Couleur
+                if ratio >= 1.0:
+                    color = '#ff00ff'  # Magenta = fusion
+                elif ratio >= T_max_service/T_melt:
+                    color = '#ff4400'  # Rouge-orange = danger
+                elif ratio >= 0.7:
+                    color = '#ffaa00'  # Orange = attention
+                elif ratio >= 0.5:
+                    color = '#ffff00'  # Jaune
+                else:
+                    color = '#00cc66'  # Vert = OK
+                
+                # Rectangle pour la paroi (exagérée)
+                width = X_mm[i+1] - X_mm[i]
+                
+                # Partie supérieure
+                rect_top = Rectangle((X_mm[i], Y_mm[i]), width, e_exag, 
+                                     facecolor=color, edgecolor='none', alpha=0.8)
+                ax3.add_patch(rect_top)
+                
+                # Partie inférieure (miroir)
+                rect_bot = Rectangle((X_mm[i], -Y_mm[i] - e_exag), width, e_exag,
+                                     facecolor=color, edgecolor='none', alpha=0.8)
+                ax3.add_patch(rect_bot)
+            
+            # Profil interne
+            ax3.plot(X_mm, Y_mm, 'white', linewidth=1.5)
+            ax3.plot(X_mm, -Y_mm, 'white', linewidth=1.5)
+            
+            # Profil externe
+            ax3.plot(X_mm, Y_mm + e_exag, '--', color='#888888', linewidth=1)
+            ax3.plot(X_mm, -Y_mm - e_exag, '--', color='#888888', linewidth=1)
+            
+            ax3.set_xlim(X_mm.min() - 5, X_mm.max() + 5)
+            ax3.set_ylim(-Y_mm.max() - e_exag - 5, Y_mm.max() + e_exag + 10)
+            ax3.set_xlabel('Position axiale (mm)', color=self.text_primary)
+            ax3.set_ylabel('Rayon (mm) - épaisseur exagérée x5', color=self.text_primary)
+            ax3.set_title(f'🚀 PROFIL THERMIQUE (e={e_current}mm)', color=self.text_primary, fontsize=12, fontweight='bold')
+            ax3.set_aspect('equal')
+            ax3.axvline(0, color='cyan', linestyle=':', alpha=0.5)
+            ax3.text(0, Y_mm.max() + e_exag + 3, 'COL', color='cyan', ha='center', fontsize=9)
+            
+            # Légende couleurs
+            legend_elements = [
+                mpatches.Patch(facecolor='#00cc66', label='OK (<50% Tmelt)'),
+                mpatches.Patch(facecolor='#ffff00', label='50-70% Tmelt'),
+                mpatches.Patch(facecolor='#ffaa00', label='70-90% Tmelt'),
+                mpatches.Patch(facecolor='#ff4400', label=f'>T_max ({T_max_service}K)'),
+                mpatches.Patch(facecolor='#ff00ff', label='FUSION!'),
+            ]
+            ax3.legend(handles=legend_elements, loc='upper right', fontsize=8, 
+                      facecolor=self.bg_surface, labelcolor=self.text_primary)
+            
+            # === GRAPHE 4: Tableau récapitulatif ===
+            ax4.axis('off')
+            
+            # Calculs
+            e_melt_min = min(e_melt)
+            e_max_min = min(e_max_service)
+            idx_critical = np.argmin(e_melt)
+            x_critical = X_mm[idx_critical]
+            flux_critical = Flux_MW[idx_critical]
+            
+            # Vérifier si l'épaisseur actuelle est OK
+            T_hot_current = T_wall_cold + (flux_critical * 1e6 * e_current/1000) / k_mat
+            
+            # Texte du tableau
+            table_text = f"""
+    📊 RÉSUMÉ - {mat_name}
+    {'='*50}
+    
+    🛠️  Matériau: {mat_name}
+        • Conductivité k = {k_mat} W/m-K
+        • T fusion = {T_melt} K
+        • T max service = {T_max_service} K
+    
+    🔥  Flux thermique:
+        • Max = {max(Flux_MW):.2f} MW/m²
+        • Position critique = {x_critical:.1f} mm (x=0 = col)
+    
+    📏  ÉPAISSEURS CRITIQUES:
+        • Épaisseur max avant FUSION = {e_melt_min:.2f} mm
+        • Épaisseur max avant T_max = {e_max_min:.2f} mm
+        • Épaisseur actuelle = {e_current:.1f} mm
+    
+    🎯  À LA POSITION CRITIQUE (x={x_critical:.0f}mm):
+        • Flux = {flux_critical:.2f} MW/m²
+        • T paroi hot = {T_hot_current:.0f} K
+        • Marge avant fusion = {T_melt - T_hot_current:.0f} K
+    """
+            
+            # Calculer l'ablation
+            e_sacrificielle = max(0, e_current - e_melt_min)
+            rho_mat = mat.get("rho", 8000)
+            
+            # Surface approximative de la zone critique (10% autour du col)
+            idx_start = max(0, idx_critical - len(X_mm)//10)
+            idx_end = min(len(X_mm)-1, idx_critical + len(X_mm)//10)
+            A_critical = 0
+            for i in range(idx_start, idx_end):
+                r_avg = (Y_mm[i] + Y_mm[i+1]) / 2 / 1000  # m
+                dL = abs(X_mm[i+1] - X_mm[i]) / 1000  # m
+                A_critical += 2 * np.pi * r_avg * dL
+            
+            masse_perdue = rho_mat * A_critical * (e_sacrificielle / 1000) if e_sacrificielle > 0 else 0
+            
+            # Ajouter section ablation
+            if e_sacrificielle > 0:
+                ablation_text = f"""
+    🔥  ANALYSE ABLATION:
+        • Épaisseur sacrificielle = {e_sacrificielle:.2f} mm
+        • Surface zone critique ≈ {A_critical*1e4:.1f} cm²
+        • Masse qui fond ≈ {masse_perdue*1000:.1f} g
+        • Épaisseur finale = {e_melt_min:.2f} mm
+        
+    ⚠️  Les premiers {e_sacrificielle:.1f} mm vont fondre
+        jusqu'à atteindre l'équilibre thermique!
+    """
+                table_text += ablation_text
+            else:
+                table_text += f"""
+    ✅  ABLATION: Aucune
+        Marge = {e_melt_min - e_current:.1f} mm avant fusion
+    """
+            
+            # Verdict
+            if e_current > e_melt_min:
+                verdict = f"\n    💀 ABLATION: {e_sacrificielle:.1f}mm vont fondre ({masse_perdue*1000:.0f}g perdus)"
+                verdict_color = '#ff0000'
+            elif e_current > e_max_min:
+                verdict = f"\n    ⚠️ ATTENTION: L'épaisseur {e_current:.1f}mm > {e_max_min:.1f}mm (T_max)"
+                verdict_color = '#ff8800'
+            else:
+                marge = e_max_min - e_current
+                verdict = f"\n    ✅ OK: Marge de {marge:.1f}mm avant T_max service"
+                verdict_color = '#00ff88'
+            
+            ax4.text(0.05, 0.95, table_text, transform=ax4.transAxes, fontsize=11,
+                    verticalalignment='top', fontfamily='monospace', color=self.text_primary)
+            ax4.text(0.05, 0.12, verdict, transform=ax4.transAxes, fontsize=13,
+                    verticalalignment='top', fontfamily='monospace', color=verdict_color, fontweight='bold')
+            
+            plt.tight_layout()
+            plt.show()
+            
+        except Exception as e:
+            import traceback
+            error_msg = f"Erreur: {str(e)}\n\n{traceback.format_exc()}"
+            messagebox.showerror("Erreur", error_msg)
+    
+    def init_wiki_tab(self):
+        """Onglet Wiki - Documentation complète sur l'analyse thermique"""
+        # Barre de couleur en haut
+        tk.Frame(self.tab_wiki, height=4, bg="#9966ff").pack(fill=tk.X)
+        
+        # Frame principal
+        main_frame = ttk.Frame(self.tab_wiki)
+        main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+        
+        # Titre
+        title_frame = ttk.Frame(main_frame)
+        title_frame.pack(fill=tk.X, pady=(0, 10))
+        
+        ttk.Label(title_frame, text="📖 WIKI - Analyse Thermique des Moteurs-Fusées", 
+                 font=("Segoe UI", 16, "bold"), foreground=self.accent).pack(side=tk.LEFT)
+        
+        # Barre d'outils
+        toolbar = ttk.Frame(main_frame)
+        toolbar.pack(fill=tk.X, pady=(0, 5))
+        
+        # Variable pour la recherche
+        self.wiki_search_var = tk.StringVar()
+        ttk.Label(toolbar, text="🔍 Rechercher:").pack(side=tk.LEFT, padx=(0, 5))
+        search_entry = ttk.Entry(toolbar, textvariable=self.wiki_search_var, width=30)
+        search_entry.pack(side=tk.LEFT, padx=(0, 5))
+        search_entry.bind("<Return>", lambda e: self.wiki_search())
+        ttk.Button(toolbar, text="Chercher", command=self.wiki_search, style="Secondary.TButton").pack(side=tk.LEFT, padx=5)
+        ttk.Button(toolbar, text="Suivant", command=self.wiki_search_next, style="Secondary.TButton").pack(side=tk.LEFT)
+        
+        # Sommaire à gauche
+        paned = ttk.PanedWindow(main_frame, orient=tk.HORIZONTAL)
+        paned.pack(fill=tk.BOTH, expand=True)
+        
+        # Panneau sommaire
+        toc_frame = ttk.LabelFrame(paned, text="📑 Sommaire", padding=5)
+        paned.add(toc_frame, weight=1)
+        
+        # Liste du sommaire
+        self.wiki_toc = tk.Listbox(toc_frame, bg=self.bg_surface, fg=self.text_primary,
+                                   selectbackground=self.accent, selectforeground="#000000",
+                                   font=("Consolas", 10), height=25, activestyle='none')
+        self.wiki_toc.pack(fill=tk.BOTH, expand=True)
+        self.wiki_toc.bind("<<ListboxSelect>>", self.wiki_goto_section)
+        
+        # Sections du sommaire
+        toc_items = [
+            "1. Introduction",
+            "   1.1 Pourquoi refroidir ?",
+            "   1.2 Stratégies de refroidissement",
+            "   1.3 Schéma du transfert",
+            "   1.4 Équations fondamentales",
+            "   1.5 Ordres de grandeur",
+            "2. Théorie du transfert thermique",
+            "   2.1 Conduction thermique",
+            "   2.2 Convection thermique", 
+            "   2.3 Nombres adimensionnels",
+            "3. Modèle de Bartz",
+            "   3.1 Historique",
+            "   3.2 Équation complète",
+            "   3.3 Formule simplifiée",
+            "   3.4 Propriétés gaz combustion",
+            "   3.5 Valeurs typiques h_g",
+            "   3.6 Limitations",
+            "   3.7 Autres corrélations",
+            "4. Températures de paroi",
+            "   4.1 Système d'équations",
+            "   4.2 Calcul T_wall_hot",
+            "   4.3 Calcul T_wall_cold",
+            "   4.4 Profil dans la paroi",
+            "   4.5 Contraintes thermiques",
+            "   4.6 Régime transitoire",
+            "   4.7 Température adiabatique",
+            "   4.8 Calcul itératif",
+            "5. Corrélations coolant",
+            "   5.1 Dittus-Boelter",
+            "   5.2 Gnielinski",
+            "   5.3 Régime laminaire",
+            "   5.4 Régime transitoire",
+            "   5.5 Ébullition sous-refroidie",
+            "   5.6 Géométrie des canaux",
+            "   5.7 Pertes de charge",
+            "   5.8 Valeurs typiques h_c",
+            "6. Épaisseur critique",
+            "   6.1 Épaisseur de fusion",
+            "   6.2 Épaisseur de service",
+            "   6.3 Processus d'ablation",
+            "   6.4 Épaisseur sacrificielle",
+            "   6.5 Temps d'ablation",
+            "   6.6 Ablation acceptable?",
+            "   6.7 Dimensionnement",
+            "   6.8 Carte thermique",
+            "7. Propriétés matériaux",
+            "   7.1 Tableau récapitulatif",
+            "   7.2 Alliages de cuivre",
+            "   7.3 Superalliages nickel",
+            "   7.4 Alliages aluminium",
+            "   7.5 Métaux réfractaires",
+            "   7.6 Céramiques/composites",
+            "   7.7 Critères de sélection",
+            "   7.8 Exemples moteurs réels",
+            "8. Propriétés coolants",
+            "   8.1 Tableau récapitulatif",
+            "   8.2 Hydrogène (LH2)",
+            "   8.3 Oxygène (LOX)",
+            "   8.4 Méthane (LCH4)",
+            "   8.5 RP-1 / Kérosène",
+            "   8.6 Éthanol",
+            "   8.7 Hydrazines",
+            "   8.8 Eau (H2O)",
+            "   8.9 Ammoniac (NH3)",
+            "   8.10 Sélection coolant",
+            "   8.11 Propriétés vs T",
+            "9. Exemples de calcul",
+            "   9.1 Exemple LOX/RP-1",
+            "   9.2 Exemple LOX/LH2",
+            "   9.3 Exemple LOX/CH4",
+            "   9.4 Dimensionnement canaux",
+            "   9.5 Élévation T coolant",
+            "   9.6 Analyse dimensionnelle",
+            "   9.7 Tableau récapitulatif",
+            "   9.8 Exercices",
+            "10. Formules rapides",
+            "   10.1 Équations fondamentales",
+            "   10.2 Équation de Bartz",
+            "   10.3 Nombres adimensionnels",
+            "   10.4 Corrélations convection",
+            "   10.5 Température paroi",
+            "   10.6 Épaisseur paroi",
+            "   10.7 Puissance thermique",
+            "   10.8 Pertes de charge",
+            "   10.9 Film cooling",
+            "   10.10 Propriétés gaz",
+            "   10.11 Tableau formules",
+            "   10.12 Ordres de grandeur",
+            "   10.13 Conversions",
+            "   10.14 Constantes",
+            "Références",
+        ]
+        for item in toc_items:
+            self.wiki_toc.insert(tk.END, item)
+        
+        # Panneau contenu
+        content_frame = ttk.LabelFrame(paned, text="📄 Contenu", padding=5)
+        paned.add(content_frame, weight=4)
+        
+        # Zone de texte avec scrollbar
+        text_frame = ttk.Frame(content_frame)
+        text_frame.pack(fill=tk.BOTH, expand=True)
+        
+        self.wiki_text = tk.Text(text_frame, bg=self.bg_surface, fg=self.text_primary,
+                                 font=("Consolas", 11), wrap=tk.WORD,
+                                 insertbackground=self.accent, padx=15, pady=10,
+                                 highlightthickness=0, bd=0)
+        
+        scrollbar = ttk.Scrollbar(text_frame, command=self.wiki_text.yview)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.wiki_text.config(yscrollcommand=scrollbar.set)
+        self.wiki_text.pack(fill=tk.BOTH, expand=True)
+        
+        # Configurer les tags de style
+        self.wiki_text.tag_configure("h1", font=("Segoe UI", 18, "bold"), foreground="#ff79c6", spacing3=10)
+        self.wiki_text.tag_configure("h2", font=("Segoe UI", 14, "bold"), foreground="#ffb86c", spacing1=15, spacing3=5)
+        self.wiki_text.tag_configure("h3", font=("Segoe UI", 12, "bold"), foreground="#8be9fd", spacing1=10, spacing3=3)
+        self.wiki_text.tag_configure("code", font=("Consolas", 10), background="#1a1a2e", foreground="#50fa7b")
+        self.wiki_text.tag_configure("formula", font=("Consolas", 11), foreground="#bd93f9")
+        self.wiki_text.tag_configure("important", foreground="#ff5555", font=("Consolas", 11, "bold"))
+        self.wiki_text.tag_configure("table_header", font=("Consolas", 10, "bold"), foreground="#8be9fd")
+        self.wiki_text.tag_configure("highlight", background="#3d3d00", foreground="#ffff00")
+        self.wiki_text.tag_configure("normal", font=("Consolas", 11), foreground=self.text_primary)
+        
+        # Variable pour la recherche
+        self.wiki_search_pos = "1.0"
+        
+        # Charger le contenu du wiki
+        self.load_wiki_content()
+    
+    def load_wiki_content(self):
+        """Charge le contenu du wiki dans la zone de texte"""
+        self.wiki_text.config(state=tk.NORMAL)
+        self.wiki_text.delete(1.0, tk.END)
+        
+        # Contenu du wiki (version ultra-détaillée)
+        content = '''
+🔥 ANALYSE THERMIQUE DES MOTEURS-FUSÉES - GUIDE COMPLET
+═══════════════════════════════════════════════════════════════
+
+Ce guide exhaustif couvre tous les aspects du refroidissement 
+régénératif des moteurs-fusées à propergols liquides.
+
+
+1. INTRODUCTION ET CONCEPTS FONDAMENTAUX
+═══════════════════════════════════════════════════════════════
+
+1.1 POURQUOI LE REFROIDISSEMENT EST-IL CRITIQUE ?
+───────────────────────────────────────────────────────────────
+
+Un moteur-fusée à propergols liquides génère des températures 
+extrêmement élevées lors de la combustion:
+
+  • Couple LOX/RP-1:    T_c ≈ 3500-3600 K
+  • Couple LOX/LH2:     T_c ≈ 3200-3400 K  
+  • Couple LOX/CH4:     T_c ≈ 3500-3600 K
+  • Couple N2O4/UDMH:   T_c ≈ 3200-3400 K
+  • Couple H2O2/RP-1:   T_c ≈ 2800-3000 K
+
+⚠️  PROBLÈME CRITIQUE:
+Ces températures dépassent largement le point de fusion de TOUS 
+les métaux et alliages connus:
+
+  • Cuivre fond à:      1358 K (1085°C)
+  • Inconel fond à:     1609 K (1336°C)  
+  • Tungstène fond à:   3695 K (3422°C)
+
+Sans refroidissement, la paroi de la chambre fondrait en 
+quelques MILLISECONDES à quelques SECONDES selon:
+  - Le flux thermique local
+  - L'épaisseur de la paroi
+  - La conductivité thermique du matériau
+  - La capacité thermique massique
+
+EXEMPLE NUMÉRIQUE - Temps avant fusion sans refroidissement:
+  Données: CuCr, e=3mm, ρ=8900 kg/m³, Cp=385 J/kg·K
+  Flux entrant: q = 30 MW/m² (typique au col)
+  
+  Énergie pour chauffer 1m² de ΔT = 1000K:
+  E = ρ × e × Cp × ΔT = 8900 × 0.003 × 385 × 1000 = 10.3 MJ
+  
+  Temps: t = E/q = 10.3×10⁶ / 30×10⁶ = 0.34 seconde!
+
+💀 En moins d'une demi-seconde, la paroi atteint sa température 
+   de fusion sans refroidissement actif!
+
+
+1.2 LES DIFFÉRENTES STRATÉGIES DE REFROIDISSEMENT
+───────────────────────────────────────────────────────────────
+
+Il existe plusieurs méthodes pour gérer la charge thermique:
+
+A) REFROIDISSEMENT RÉGÉNÉRATIF (traité dans ce guide)
+   Le propergol (fuel ou oxydant) circule dans des canaux 
+   autour de la chambre AVANT d'être injecté et brûlé.
+   
+   Avantages:
+   ✅ Récupère l'énergie thermique (améliore Isp)
+   ✅ Pas de perte de masse propulsive
+   ✅ Permet fonctionnement continu longue durée
+   ✅ Contrôle précis des températures
+   
+   Inconvénients:
+   ❌ Complexité de fabrication (canaux, soudures)
+   ❌ Risque de cokéfaction avec hydrocarbures
+   ❌ Pertes de charge hydrauliques
+   ❌ Coût élevé de fabrication
+
+B) REFROIDISSEMENT PAR FILM (Film Cooling)
+   Une couche de propergol liquide ou gazeux est injectée 
+   le long de la paroi, créant une barrière protectrice.
+   
+   Avantages:
+   ✅ Simple à implémenter
+   ✅ Réduit le flux thermique effectif
+   
+   Inconvénients:
+   ❌ Perte d'Isp (propergol non brûlé de façon optimale)
+   ❌ Peut perturber la combustion
+   ❌ Efficacité limitée dans le temps
+
+C) REFROIDISSEMENT ABLATIF
+   La paroi est faite d'un matériau qui s'érode progressivement,
+   absorbant l'énergie par changement de phase.
+   
+   Avantages:
+   ✅ Très simple (pas de circulation)
+   ✅ Léger pour moteurs à courte durée
+   ✅ Fiable (pas de pompes, pas de canaux)
+   
+   Inconvénients:
+   ❌ Durée limitée
+   ❌ Changement de géométrie pendant le tir
+   ❌ Débris dans l'écoulement
+
+D) REFROIDISSEMENT RADIATIF
+   La paroi rayonne sa chaleur vers l'espace.
+   Utilisé principalement pour les tuyères de moteurs 
+   spatiaux à faible poussée.
+   
+   Avantages:
+   ✅ Très simple, léger
+   ✅ Pas de fluide de refroidissement
+   
+   Inconvénients:
+   ❌ Limité aux faibles flux (< 5 MW/m²)
+   ❌ Nécessite matériaux réfractaires (Nb, Mo, W)
+
+E) TRANSPIRATION (Sweat Cooling)
+   Le coolant suinte à travers un matériau poreux.
+   
+   Avantages:
+   ✅ Très efficace thermiquement
+   
+   Inconvénients:
+   ❌ Risque de bouchage des pores
+   ❌ Difficulté de fabrication
+   ❌ Rarement utilisé en pratique
+
+
+1.3 SCHÉMA DU TRANSFERT THERMIQUE
+───────────────────────────────────────────────────────────────
+
+Vue en coupe de la paroi d'un moteur à refroidissement régénératif:
+
+     GAZ DE COMBUSTION CHAUDS
+     T_gaz ≈ 2800-3500 K (selon T_aw adiabatique)
+     Vitesse: Mach 0.1-0.3 (chambre) à Mach 1+ (col)
+            │
+            │ CONVECTION FORCÉE (coefficient h_g)
+            │ q₁ = h_g × (T_gaz - T_wall_hot)
+            ↓
+    ════════════════════════════════════════  
+    ║░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░║  ← Surface chaude
+    ║░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░║    T_wall_hot
+    ║░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░║
+    ║░░░░░░ PAROI MÉTALLIQUE ░░░░░░░░░░░░║  ← Épaisseur e
+    ║░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░║    Conductivité k
+    ║░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░║
+    ║░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░║  ← Surface froide
+    ════════════════════════════════════════    T_wall_cold
+            │
+            │ CONDUCTION (à travers la paroi)
+            │ q₂ = (k/e) × (T_wall_hot - T_wall_cold)
+            │
+            ↓
+    ╔══════════════════════════════════════╗
+    ║        CANAL DE REFROIDISSEMENT      ║  ← Hauteur h_canal
+    ║   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~→      ║    Largeur w_canal
+    ║        Coolant en écoulement         ║    T_coolant
+    ╚══════════════════════════════════════╝
+            │
+            │ CONVECTION FORCÉE (coefficient h_c)
+            │ q₃ = h_c × (T_wall_cold - T_coolant)
+            ↓
+    ════════════════════════════════════════
+    ║        PAROI EXTERNE (liner)         ║
+    ════════════════════════════════════════
+
+PRINCIPE DE CONSERVATION:
+En régime permanent (steady-state), le flux est CONSTANT 
+à travers toutes les couches:
+
+  q₁ = q₂ = q₃ = q
+
+  q = h_g×(T_gaz - T_wh) = (k/e)×(T_wh - T_wc) = h_c×(T_wc - T_cool)
+
+
+1.4 ÉQUATIONS FONDAMENTALES DU TRANSFERT
+───────────────────────────────────────────────────────────────
+
+La résolution du problème thermique repose sur l'ANALOGIE 
+ÉLECTRIQUE: le flux de chaleur est analogue au courant, 
+la différence de température à la tension.
+
+RÉSISTANCES THERMIQUES EN SÉRIE:
+
+  ┌─────────┐    ┌─────────┐    ┌─────────┐
+  │  R_gaz  │────│ R_paroi │────│ R_cool  │
+  │  1/h_g  │    │   e/k   │    │  1/h_c  │
+  └─────────┘    └─────────┘    └─────────┘
+       ↑              ↑              ↑
+    T_gaz          T_wall         T_cool
+
+Résistance totale:
+  R_total = R_gaz + R_paroi + R_cool
+  R_total = 1/h_g + e/k + 1/h_c   [m²·K/W]
+
+Flux thermique:
+  q = ΔT_total / R_total
+  q = (T_gaz - T_coolant) / (1/h_g + e/k + 1/h_c)   [W/m²]
+
+REMARQUE IMPORTANTE:
+Cette formule suppose des coefficients h constants et une 
+paroi plane. En réalité:
+  - h_g varie avec la position (maximum au col)
+  - La géométrie est cylindrique/conique
+  - T_coolant augmente le long du canal
+  - Les propriétés varient avec T
+
+
+1.5 ORDRES DE GRANDEUR TYPIQUES
+───────────────────────────────────────────────────────────────
+
+Pour un moteur LOX/RP-1 de 100 kN:
+
+PARAMÈTRES DE CONCEPTION:
+  ┌────────────────────────┬──────────────────────────────┐
+  │ Paramètre              │ Valeur typique               │
+  ├────────────────────────┼──────────────────────────────┤
+  │ Pression chambre       │ 30-100 bar                   │
+  │ Température chambre    │ 3400-3600 K                  │
+  │ Diamètre col           │ 50-150 mm                    │
+  │ Diamètre chambre       │ 100-300 mm                   │
+  │ Rapport de section     │ 15-40 (selon altitude)       │
+  │ Épaisseur paroi        │ 1-5 mm                       │
+  │ Nombre de canaux       │ 50-200                       │
+  └────────────────────────┴──────────────────────────────┘
+
+FLUX THERMIQUES:
+  ┌────────────────────────┬──────────────────────────────┐
+  │ Zone                   │ Flux q (MW/m²)               │
+  ├────────────────────────┼──────────────────────────────┤
+  │ Injecteur              │ 5 - 15                       │
+  │ Chambre cylindrique    │ 5 - 15                       │
+  │ Convergent             │ 10 - 30                      │
+  │ Col (MAXIMUM!)         │ 20 - 80                      │
+  │ Divergent (début)      │ 10 - 30                      │
+  │ Divergent (sortie)     │ 1 - 5                        │
+  └────────────────────────┴──────────────────────────────┘
+
+COEFFICIENTS DE TRANSFERT:
+  ┌────────────────────────┬──────────────────────────────┐
+  │ Coefficient            │ Valeur (W/m²·K)              │
+  ├────────────────────────┼──────────────────────────────┤
+  │ h_g (chambre)          │ 2,000 - 10,000               │
+  │ h_g (col)              │ 10,000 - 50,000              │
+  │ h_c (RP-1)             │ 5,000 - 30,000               │
+  │ h_c (LH2)              │ 20,000 - 150,000             │
+  │ h_c (CH4)              │ 10,000 - 50,000              │
+  └────────────────────────┴──────────────────────────────┘
+
+TEMPÉRATURES DE PAROI:
+  ┌────────────────────────┬──────────────────────────────┐
+  │ Surface                │ Température (K)              │
+  ├────────────────────────┼──────────────────────────────┤
+  │ T_wall_hot (typique)   │ 600 - 1000                   │
+  │ T_wall_hot (max admis) │ 800 - 1200 selon matériau    │
+  │ T_wall_cold            │ 400 - 800                    │
+  │ T_coolant entrée       │ 150 - 300                    │
+  │ T_coolant sortie       │ 300 - 500                    │
+  └────────────────────────┴──────────────────────────────┘
+
+
+2. THÉORIE DÉTAILLÉE DU TRANSFERT THERMIQUE
+═══════════════════════════════════════════════════════════════
+
+Cette section développe les fondements physiques et 
+mathématiques du transfert de chaleur dans les moteurs-fusées.
+
+
+2.1 LA CONDUCTION THERMIQUE
+───────────────────────────────────────────────────────────────
+
+2.1.1 Loi de Fourier
+
+La conduction est le transfert d'énergie thermique par 
+agitation moléculaire et interaction électronique dans 
+un milieu solide (ou fluide immobile).
+
+ÉQUATION DE FOURIER (forme différentielle):
+  
+  q⃗ = -k × ∇T
+
+Où:
+  q⃗  = vecteur flux thermique [W/m²]
+  k  = conductivité thermique [W/(m·K)]
+  ∇T = gradient de température [K/m]
+
+Le signe négatif indique que le flux va des zones chaudes 
+vers les zones froides.
+
+Pour une paroi plane 1D:
+
+  q = -k × dT/dx = k × (T_hot - T_cold) / e
+
+  q = k × ΔT / e   [W/m²]
+
+RÉSISTANCE THERMIQUE DE CONDUCTION:
+
+  R_cond = e / k   [m²·K/W]
+
+  ΔT = q × R_cond
+
+Plus k est élevé, plus la résistance est faible, plus le 
+transfert est efficace.
+
+2.1.2 Conductivité des matériaux pour moteurs-fusées
+
+La conductivité k varie selon:
+  - La composition du matériau
+  - La température (généralement ↓ quand T ↑ pour métaux)
+  - L'état cristallin
+  - Les impuretés
+
+TABLEAU DES CONDUCTIVITÉS DÉTAILLÉ:
+  ┌──────────────────┬────────────────────────────────────────┐
+  │ Matériau         │ k (W/m·K) à différentes températures   │
+  ├──────────────────┼──────────┬──────────┬────────┬─────────┤
+  │                  │  300 K   │  500 K   │ 800 K  │ 1000 K  │
+  ├──────────────────┼──────────┼──────────┼────────┼─────────┤
+  │ Cuivre pur       │   401    │   386    │  357   │   337   │
+  │ CuCr (C18200)    │   324    │   315    │  298   │   285   │
+  │ CuCrZr           │   315    │   305    │  288   │   275   │
+  │ GRCop-84 (NASA)  │   298    │   285    │  265   │   250   │
+  │ Inconel 718      │   11.4   │   14.7   │  19.2  │   22.1  │
+  │ Inconel 625      │    9.8   │   12.8   │  17.3  │   20.5  │
+  │ Inox 316L        │   16.3   │   18.9   │  22.5  │   25.2  │
+  │ Inox 304         │   16.2   │   18.6   │  22.0  │   24.5  │
+  │ Niobium          │   53.7   │   55.1   │  59.3  │   62.0  │
+  │ C103 (Nb alloy)  │   44.2   │   46.5   │  51.2  │   54.5  │
+  │ Molybdène        │   138    │   126    │  112   │   105   │
+  │ TZM (Mo alloy)   │   120    │   115    │  105   │    98   │
+  │ Tungstène        │   173    │   156    │  132   │   118   │
+  │ Rhénium          │   47.9   │   44.5   │  40.2  │   38.0  │
+  │ Tantale          │   57.5   │   56.0   │  57.5  │   59.0  │
+  │ AlSi10Mg (SLM)   │   130    │   138    │  (fond)│  (fond) │
+  │ Ti-6Al-4V        │    6.7   │    8.5   │  12.0  │   15.0  │
+  │ Graphite (ISO)   │   120    │   100    │   80   │    70   │
+  │ C/C composite    │   50-150 │   70-120 │  80-100│   85-95 │
+  └──────────────────┴──────────┴──────────┴────────┴─────────┘
+
+REMARQUES SUR LES ALLIAGES DE CUIVRE:
+
+• CuCr (C18200 / "Chromium Copper"):
+  - Contient ~1% Cr
+  - Bonne conductivité + résistance mécanique
+  - T_max service ≈ 1050 K (ramollissement)
+  - Très utilisé: Merlin (SpaceX), RS-25 (NASA)
+
+• CuCrZr (C18150):
+  - Contient ~0.8% Cr + 0.08% Zr
+  - Meilleure tenue à chaud que CuCr
+  - T_max service ≈ 1100 K
+  - Utilisé: RD-170 (Energomash)
+
+• GRCop-84 (NASA Glenn):
+  - Cu + 8% Cr + 4% Nb (nano-particules)
+  - Développé spécifiquement pour moteurs-fusées
+  - Excellente résistance au fluage à haute T
+  - T_max service ≈ 1200 K
+  - Utilisé: SLS RS-25 upgrades, Relativity Terran
+
+2.1.3 Géométrie cylindrique
+
+Pour une paroi cylindrique (chambre, tuyère):
+
+  q_radial = (2π × k × L × ΔT) / ln(r_ext/r_int)
+
+  Résistance: R_cyl = ln(r_ext/r_int) / (2π × k × L)
+
+Pour des parois minces (e << r_moy), on peut approximer:
+  R_cyl ≈ e / (k × A_moy)  où A_moy = 2π × r_moy × L
+
+
+2.2 LA CONVECTION THERMIQUE
+───────────────────────────────────────────────────────────────
+
+2.2.1 Loi de Newton du refroidissement
+
+La convection est le transfert d'énergie entre une surface 
+solide et un fluide en mouvement.
+
+ÉQUATION DE NEWTON:
+
+  q = h × (T_surface - T_fluide)   [W/m²]
+
+Où:
+  h  = coefficient de transfert convectif [W/(m²·K)]
+  T_surface = température de la paroi [K]
+  T_fluide = température du fluide [K]
+
+Le coefficient h dépend de nombreux facteurs:
+  - Type d'écoulement (laminaire, turbulent)
+  - Vitesse du fluide
+  - Propriétés thermophysiques (ρ, μ, Cp, k_fluide)
+  - Géométrie du canal
+  - Rugosité de surface
+  - Effets d'entrée
+
+RÉSISTANCE THERMIQUE DE CONVECTION:
+
+  R_conv = 1 / h   [m²·K/W]
+
+2.2.2 Types de convection
+
+CONVECTION NATURELLE:
+  Le mouvement du fluide est dû à la différence de densité 
+  causée par le gradient de température.
+  h ≈ 5-25 W/m²·K (air)
+  → Non pertinent pour les moteurs-fusées!
+
+CONVECTION FORCÉE:
+  Le mouvement du fluide est imposé par une pompe/turbine.
+  h ≈ 50 - 200,000 W/m²·K selon le fluide et les conditions.
+  → C'est le cas dans les moteurs-fusées.
+
+ÉBULLITION:
+  Changement de phase liquide → vapeur.
+  h peut atteindre 100,000+ W/m²·K
+  ⚠️ Éviter l'ébullition non contrôlée (DNB = crise d'ébullition)
+
+2.2.3 Couche limite thermique
+
+Près de la paroi, il existe une "couche limite thermique" où 
+la température varie de T_surface à T_fluide.
+
+CÔTÉ GAZ CHAUD:
+  - Épaisseur couche limite: δ_th ≈ 0.1-1 mm
+  - C'est là que se concentre la résistance thermique
+  - La turbulence améliore le mélange → h_g plus élevé
+
+CÔTÉ COOLANT:
+  - Épaisseur couche limite: δ_th ≈ 0.01-0.5 mm
+  - Canaux étroits → meilleur transfert
+  - Turbulence très importante pour h_c élevé
+
+LIEN AVEC h:
+  h ≈ k_fluide / δ_th
+
+Plus la couche limite est mince, plus h est élevé.
+
+
+2.3 LES NOMBRES ADIMENSIONNELS
+───────────────────────────────────────────────────────────────
+
+Les corrélations de transfert thermique utilisent des 
+groupements adimensionnels permettant de généraliser les 
+résultats expérimentaux.
+
+2.3.1 Nombre de Reynolds (Re)
+
+DÉFINITION:
+  Re = ρ × v × D_h / μ = v × D_h / ν
+
+Où:
+  ρ   = masse volumique [kg/m³]
+  v   = vitesse moyenne [m/s]
+  D_h = diamètre hydraulique [m]
+  μ   = viscosité dynamique [Pa·s]
+  ν   = viscosité cinématique [m²/s] = μ/ρ
+
+SIGNIFICATION PHYSIQUE:
+  Re = Forces d'inertie / Forces visqueuses
+
+RÉGIMES D'ÉCOULEMENT:
+  ┌────────────────────┬─────────────────────────────────────┐
+  │ Re                 │ Régime                              │
+  ├────────────────────┼─────────────────────────────────────┤
+  │ Re < 2,300         │ LAMINAIRE                           │
+  │                    │ Écoulement ordonné en couches       │
+  │                    │ Profil de vitesse parabolique       │
+  │                    │ Transfert thermique faible          │
+  ├────────────────────┼─────────────────────────────────────┤
+  │ 2,300 < Re < 10,000│ TRANSITOIRE                         │
+  │                    │ Intermittence turbulente            │
+  │                    │ Comportement imprévisible           │
+  │                    │ À éviter si possible!               │
+  ├────────────────────┼─────────────────────────────────────┤
+  │ Re > 10,000        │ TURBULENT DÉVELOPPÉ                 │
+  │                    │ Mélange chaotique efficace          │
+  │                    │ Profil de vitesse aplati            │
+  │                    │ Excellent transfert thermique!      │
+  └────────────────────┴─────────────────────────────────────┘
+
+DIAMÈTRE HYDRAULIQUE:
+Pour un canal non-circulaire:
+  D_h = 4 × A / P
+
+Où:
+  A = aire de la section [m²]
+  P = périmètre mouillé [m]
+
+Exemples:
+  - Canal rectangulaire (w × h): D_h = 4×w×h / (2w+2h) = 2wh/(w+h)
+  - Canal carré (a × a): D_h = a
+  - Anneau (R_ext, R_int): D_h = 2×(R_ext - R_int)
+
+VALEURS TYPIQUES DANS LES MOTEURS:
+  ┌────────────────────┬──────────────────────────────────┐
+  │ Fluide/Zone        │ Re typique                       │
+  ├────────────────────┼──────────────────────────────────┤
+  │ Gaz chambre        │ 10⁵ - 10⁷ (hautement turbulent)  │
+  │ RP-1 dans canaux   │ 10⁴ - 10⁵                        │
+  │ LH2 dans canaux    │ 10⁵ - 10⁶                        │
+  │ CH4 dans canaux    │ 10⁴ - 10⁵                        │
+  │ LOX dans canaux    │ 10⁴ - 10⁵                        │
+  └────────────────────┴──────────────────────────────────┘
+
+2.3.2 Nombre de Prandtl (Pr)
+
+DÉFINITION:
+  Pr = μ × Cp / k = ν / α
+
+Où:
+  μ  = viscosité dynamique [Pa·s]
+  Cp = capacité thermique massique [J/(kg·K)]
+  k  = conductivité thermique [W/(m·K)]
+  ν  = viscosité cinématique [m²/s]
+  α  = diffusivité thermique [m²/s]
+
+SIGNIFICATION PHYSIQUE:
+  Pr = Diffusivité de quantité de mouvement / Diffusivité thermique
+  Pr = Épaisseur couche limite dynamique / Épaisseur couche limite thermique
+
+INTERPRÉTATION:
+  ┌────────────────────┬─────────────────────────────────────┐
+  │ Pr                 │ Signification                       │
+  ├────────────────────┼─────────────────────────────────────┤
+  │ Pr << 1            │ MÉTAUX LIQUIDES                     │
+  │ (0.001-0.03)       │ Diffusion thermique >> diffusion    │
+  │                    │ de quantité de mouvement            │
+  │                    │ Ex: Na, K, NaK, Hg, Li              │
+  ├────────────────────┼─────────────────────────────────────┤
+  │ Pr ≈ 0.7-1.0       │ GAZ                                 │
+  │                    │ Couches limites comparables         │
+  │                    │ Ex: Air, N2, O2, gaz de combustion  │
+  ├────────────────────┼─────────────────────────────────────┤
+  │ Pr > 1             │ LIQUIDES                            │
+  │ (1-1000)           │ Diffusion momentum >> diffusion     │
+  │                    │ thermique                           │
+  │                    │ Ex: H2O (Pr≈6), RP-1 (Pr≈20-50)     │
+  └────────────────────┴─────────────────────────────────────┘
+
+VALEURS TYPIQUES:
+  ┌────────────────────┬──────────────────────────────────┐
+  │ Fluide             │ Pr (approximatif)                │
+  ├────────────────────┼──────────────────────────────────┤
+  │ Gaz de combustion  │ 0.7 - 0.9                        │
+  │ Hydrogène liquide  │ 0.7 - 1.5                        │
+  │ Méthane liquide    │ 2 - 5                            │
+  │ LOX                │ 2 - 4                            │
+  │ RP-1 / Kérosène    │ 10 - 100 (selon T)               │
+  │ Éthanol            │ 10 - 50                          │
+  │ Eau                │ 1 - 10 (selon T)                 │
+  └────────────────────┴──────────────────────────────────┘
+
+2.3.3 Nombre de Nusselt (Nu)
+
+DÉFINITION:
+  Nu = h × D_h / k_fluide
+
+Où:
+  h        = coefficient de convection [W/(m²·K)]
+  D_h      = diamètre hydraulique [m]
+  k_fluide = conductivité du fluide [W/(m·K)]
+
+SIGNIFICATION PHYSIQUE:
+  Nu = Transfert convectif réel / Transfert conductif pur
+
+  Nu = 1 signifie que la convection n'améliore pas le 
+       transfert par rapport à la conduction seule.
+  Nu >> 1 signifie une amélioration significative.
+
+UTILISATION:
+Une fois Nu calculé via une corrélation, on obtient h:
+
+  h = Nu × k_fluide / D_h
+
+VALEURS TYPIQUES:
+  - Écoulement laminaire: Nu ≈ 3.66-4.36
+  - Écoulement turbulent: Nu ≈ 100-1000
+  - Ébullition: Nu >> 1000
+
+2.3.4 Autres nombres utiles
+
+NOMBRE DE STANTON (St):
+  St = h / (ρ × v × Cp) = Nu / (Re × Pr)
+  
+  Utilisé dans les analyses de couche limite.
+  Représente le transfert thermique adimensionnel.
+
+NOMBRE DE BIOT (Bi):
+  Bi = h × L_c / k_solide
+  
+  Où L_c = caractéristique longueur du solide (e.g., épaisseur)
+  
+  Si Bi << 0.1: Température uniforme dans le solide
+  Si Bi >> 0.1: Gradient de température significatif
+
+NOMBRE DE FOURIER (Fo):
+  Fo = α × t / L²
+  
+  Temps adimensionnel pour les problèmes transitoires.
+  α = diffusivité thermique du solide.
+
+NOMBRE DE MACH (Ma):
+  Ma = v / a  (a = vitesse du son)
+  
+  Important côté gaz: effets de compressibilité.
+
+
+3. MODÈLE DE BARTZ POUR h_g
+═══════════════════════════════════════════════════════════════
+
+L'équation de Bartz est la corrélation de référence pour 
+calculer le coefficient de transfert convectif côté gaz 
+chaud dans les moteurs-fusées.
+
+
+3.1 HISTORIQUE ET DÉVELOPPEMENT
+───────────────────────────────────────────────────────────────
+
+David R. Bartz a développé cette corrélation en 1957 au 
+Jet Propulsion Laboratory (JPL) de la NASA.
+
+CONTEXTE:
+  - Années 1950: développement de missiles balistiques
+  - Besoin de prédire les températures de paroi
+  - Corrélations existantes (Dittus-Boelter) inadaptées
+  - Conditions extrêmes: T > 3000 K, P > 50 bar
+
+APPROCHE DE BARTZ:
+  1. Partir de la corrélation de Dittus-Boelter
+  2. Adapter pour les propriétés variables (T très élevées)
+  3. Introduire un facteur de correction σ
+  4. Valider expérimentalement sur moteurs réels
+
+PUBLICATION ORIGINALE:
+  Bartz, D.R., "A Simple Equation for Rapid Estimation of 
+  Rocket Nozzle Convective Heat Transfer Coefficients"
+  Jet Propulsion, Vol. 27, No. 1, 1957, pp. 49-51
+
+
+3.2 ÉQUATION COMPLÈTE DE BARTZ
+───────────────────────────────────────────────────────────────
+
+FORME GÉNÉRALE:
+
+            0.026      ⎛  μ^0.2 × Cp  ⎞   ⎛ p_c ⎞^0.8
+  h_g = ──────────── × ⎜ ───────────── ⎟ × ⎜ ──── ⎟     × (A_t/A)^0.9 × σ
+         D_t^0.2       ⎝   Pr^0.6     ⎠   ⎝ c*   ⎠
+
+DÉFINITION DES TERMES:
+
+  h_g   = coefficient de transfert convectif [W/(m²·K)]
+  D_t   = diamètre au col [m]
+  μ     = viscosité dynamique des gaz [Pa·s]
+  Cp    = capacité thermique massique à pression constante [J/(kg·K)]
+  Pr    = nombre de Prandtl des gaz combustion [-]
+  p_c   = pression de chambre [Pa]
+  c*    = vitesse caractéristique [m/s]
+  A_t   = aire au col [m²]
+  A     = aire locale [m²]
+  σ     = facteur de correction pour couche limite [-]
+
+LE FACTEUR σ (sigma):
+
+                          1
+  σ = ─────────────────────────────────────────────────────────
+        ⎛   T_wall_hot     ⎞^0.68   ⎛           T_wall_hot     ⎞^0.12
+       ⎜0.5 × ─────────── + 0.5⎟    × ⎜1 + γ-1 × M² × (0.5 - ─────────)⎟
+        ⎝      T_stag      ⎠         ⎝   2            T_stag   ⎠
+
+Où:
+  T_wall_hot = température de paroi côté gaz [K]
+  T_stag = température de stagnation (≈ T_chambre) [K]
+  γ = rapport des chaleurs spécifiques [-]
+  M = nombre de Mach local [-]
+
+SIMPLIFICATION COURANTE:
+Pour les calculs préliminaires, on utilise souvent σ ≈ 1.0-1.2
+
+
+3.3 FORMULE SIMPLIFIÉE (utilisée dans le code)
+───────────────────────────────────────────────────────────────
+
+Pour simplifier l'implémentation, on utilise:
+
+ÉTAPE 1 - Calcul de h_g au col (référence):
+
+            0.026      ⎛  μ^0.2 × Cp  ⎞   ⎛ P_c ⎞^0.8
+  h_g_col = ────────── × ⎜ ────────────  ⎟ × ⎜ ──── ⎟
+            D_t^0.2     ⎝   Pr^0.6    ⎠   ⎝ c*   ⎠
+
+ÉTAPE 2 - h_g local par mise à l'échelle:
+
+  h_g(x) = h_g_col × (D_t / D_local)^1.8
+
+Cette relation vient du fait que:
+  - h_g ∝ (débit massique par unité de surface)^0.8
+  - À débit constant: G = ṁ/A ∝ 1/D²
+  - Donc h_g ∝ (1/D²)^0.8 = D^(-1.6)
+  - Avec correction pour le rapport de section: exposant ≈ 1.8
+
+JUSTIFICATION DE L'EXPOSANT 1.8:
+  - Origine: combinaison d'effets géométriques et d'écoulement
+  - Au col: A minimum, G maximum, donc h_g maximum
+  - Dans la chambre: A grand, h_g plus faible
+  - Dans le divergent: A croissant, h_g décroissant rapidement
+
+
+3.4 PROPRIÉTÉS DES GAZ DE COMBUSTION
+───────────────────────────────────────────────────────────────
+
+Les propriétés thermo-physiques des gaz de combustion sont 
+calculées à une température de film:
+
+  T_film = (T_wall_hot + T_adiabatique) / 2
+
+PROPRIÉTÉS TYPIQUES (LOX/RP-1, T ≈ 2500 K):
+  ┌────────────────────┬──────────────────────────────────┐
+  │ Propriété          │ Valeur approximative             │
+  ├────────────────────┼──────────────────────────────────┤
+  │ μ (viscosité)      │ 7-9 × 10⁻⁵ Pa·s                  │
+  │ Cp                 │ 2000-2500 J/(kg·K)               │
+  │ k_gaz              │ 0.15-0.25 W/(m·K)                │
+  │ Pr                 │ 0.75-0.85                        │
+  │ γ (gamma)          │ 1.15-1.25                        │
+  │ M (masse molaire)  │ 22-28 kg/kmol                    │
+  └────────────────────┴──────────────────────────────────┘
+
+VARIATION AVEC LE MÉLANGE O/F:
+  ┌──────────────────┬───────────┬───────────┬───────────┐
+  │ O/F (LOX/RP-1)   │    2.0    │    2.6    │    3.2    │
+  ├──────────────────┼───────────┼───────────┼───────────┤
+  │ T_chambre (K)    │   3350    │   3600    │   3500    │
+  │ M (kg/kmol)      │   21.5    │   24.0    │   27.5    │
+  │ γ                │   1.22    │   1.18    │   1.15    │
+  │ c* (m/s)         │   1680    │   1750    │   1700    │
+  └──────────────────┴───────────┴───────────┴───────────┘
+
+EFFET SUR h_g:
+  - O/F élevé: T_c plus élevé, mais M plus élevé
+  - h_g varie peu avec O/F (effets compensatoires)
+
+
+3.5 VALEURS TYPIQUES DE h_g
+───────────────────────────────────────────────────────────────
+
+  ┌─────────────────┬────────────────────┬──────────────────────┐
+  │ Zone            │ h_g (W/m²·K)       │ Commentaires         │
+  ├─────────────────┼────────────────────┼──────────────────────┤
+  │ Injecteur       │ 3,000 - 10,000     │ Dépend du design     │
+  │ Chambre (cyl.)  │ 2,000 - 8,000      │ Écoulement subsonique│
+  │ Convergent      │ 5,000 - 20,000     │ Accélération du gaz  │
+  │ Col (throat)    │ 10,000 - 50,000    │ MAXIMUM! Ma = 1      │
+  │ Divergent début │ 8,000 - 25,000     │ Expansion commence   │
+  │ Divergent mi    │ 3,000 - 10,000     │ Refroidissement gaz  │
+  │ Divergent sortie│ 500 - 3,000        │ Gaz très dilatés     │
+  └─────────────────┴────────────────────┴──────────────────────┘
+
+FACTEURS INFLUENÇANT h_g:
+
+  ┌────────────────────┬────────────────────────────────────────┐
+  │ Facteur            │ Effet sur h_g                          │
+  ├────────────────────┼────────────────────────────────────────┤
+  │ Pression chambre ↑ │ h_g ↑ (∝ P^0.8)                        │
+  │ Diamètre col ↓     │ h_g ↑ (∝ D^-0.2 pour référence)        │
+  │ Position → col     │ h_g ↑ (maximum au col)                 │
+  │ Position → sortie  │ h_g ↓ (minimum à la sortie)            │
+  │ T_chambre ↑        │ h_g ↓ légèrement (via σ)               │
+  │ T_paroi ↓          │ h_g ↑ légèrement (via σ)               │
+  └────────────────────┴────────────────────────────────────────┘
+
+
+3.6 LIMITATIONS DU MODÈLE DE BARTZ
+───────────────────────────────────────────────────────────────
+
+Le modèle de Bartz a des limitations importantes:
+
+❌ NE PREND PAS EN COMPTE:
+  - Rayonnement thermique (important si T > 3000 K)
+  - Dissociation/recombinaison des gaz
+  - Effets de couche limite réactive
+  - Turbulence de combustion
+  - Effets 3D près de l'injecteur
+  - Rugosité de surface
+  - Dépôts de suie (cokéfaction)
+
+⚠️ PRÉCISION:
+  - Généralement ±20-30% pour h_g
+  - Peut être pire dans des conditions extrêmes
+  - Sous-estime parfois h_g au col
+
+✅ RECOMMANDATIONS:
+  - Utiliser des marges de sécurité (facteur 1.2-1.5)
+  - Valider par essais si possible
+  - Utiliser CFD pour conception détaillée
+  - Comparer avec d'autres corrélations (Rao, Cinjarew)
+
+
+3.7 COMPARAISON AVEC AUTRES CORRÉLATIONS
+───────────────────────────────────────────────────────────────
+
+CORRÉLATION DE RAO (1960):
+  Similaire à Bartz mais avec facteur σ modifié.
+  Meilleure pour les gaz à haute température.
+
+CORRÉLATION DE CINJAREW:
+  Utilisée par l'industrie russe.
+  Prend en compte plus de paramètres.
+
+APPROCHE CFD MODERNE:
+  - Résolution numérique des équations de Navier-Stokes
+  - Modèles de turbulence (k-ε, k-ω SST)
+  - Précision bien meilleure mais coût élevé
+  - Utilisée pour la conception finale
+
+
+4. CALCUL DES TEMPÉRATURES DE PAROI
+═══════════════════════════════════════════════════════════════
+
+Le calcul précis des températures de paroi est l'objectif 
+principal de l'analyse thermique. C'est ce qui détermine 
+si le moteur survivra ou non.
+
+
+4.1 SYSTÈME D'ÉQUATIONS THERMIQUES
+───────────────────────────────────────────────────────────────
+
+En régime permanent, le flux thermique est constant à travers 
+toutes les couches. Cela donne un système de 3 équations:
+
+ÉQUATION 1 - Côté gaz chaud:
+  q = h_g × (T_gaz - T_wall_hot)
+
+ÉQUATION 2 - Conduction dans la paroi:
+  q = (k/e) × (T_wall_hot - T_wall_cold)
+
+ÉQUATION 3 - Côté coolant:
+  q = h_c × (T_wall_cold - T_coolant)
+
+COMBINAISON - Flux thermique total:
+
+        T_gaz - T_coolant
+  q = ─────────────────────────────
+       1/h_g + e/k + 1/h_c
+
+Cette équation est FONDAMENTALE. Elle permet de calculer q 
+connaissant les températures des fluides et les résistances.
+
+
+4.2 CALCUL DE T_WALL_HOT (température critique)
+───────────────────────────────────────────────────────────────
+
+C'est la température la plus importante car c'est elle qui 
+détermine si le matériau va fondre ou se dégrader.
+
+MÉTHODE 1 - À partir du flux:
+
+  T_wall_hot = T_gaz - q/h_g
+
+MÉTHODE 2 - À partir de T_wall_cold:
+
+  T_wall_hot = T_wall_cold + q × e/k
+
+MÉTHODE 3 - Formule directe (résolution du système):
+
+           h_g×T_gaz + (k/e)×T_wall_cold
+  T_wh = ────────────────────────────────
+                h_g + k/e
+
+Ou de façon équivalente:
+
+           h_g×T_gaz + h_c×T_cool + (k/e)×(h_c×T_cool/(h_c+k/e))
+  T_wh = ──────────────────────────────────────────────────────────
+                            ...système couplé...
+
+En pratique, on résout par itération ou formule analytique.
+
+INFLUENCE DES PARAMÈTRES SUR T_wall_hot:
+  ┌────────────────────┬────────────────────────────────────────┐
+  │ Si on augmente...  │ Effet sur T_wall_hot                   │
+  ├────────────────────┼────────────────────────────────────────┤
+  │ h_g ↑              │ T_wall_hot ↑ (plus de flux entrant)    │
+  │ h_c ↑              │ T_wall_hot ↓ (meilleure évacuation)    │
+  │ k ↑                │ T_wall_hot ↓ (gradient réduit)         │
+  │ e ↑                │ T_wall_hot ↑ (résistance accrue)       │
+  │ T_gaz ↑            │ T_wall_hot ↑ (source plus chaude)      │
+  │ T_coolant ↓        │ T_wall_hot ↓ (puits plus froid)        │
+  └────────────────────┴────────────────────────────────────────┘
+
+
+4.3 CALCUL DE T_WALL_COLD
+───────────────────────────────────────────────────────────────
+
+MÉTHODE 1 - À partir du flux:
+
+  T_wall_cold = T_coolant + q/h_c
+
+MÉTHODE 2 - À partir de T_wall_hot:
+
+  T_wall_cold = T_wall_hot - q × e/k
+
+IMPORTANCE DE T_WALL_COLD:
+  - Détermine le ΔT dans la paroi
+  - Influence le stress thermique (dilatation différentielle)
+  - Affecte les propriétés du coolant (ébullition possible?)
+
+⚠️ ATTENTION À L'ÉBULLITION:
+Si T_wall_cold > T_ébullition du coolant (à la pression locale):
+  → Formation de bulles
+  → Risque de DNB (Departure from Nucleate Boiling)
+  → Chute drastique de h_c → SURCHAUFFE → DESTRUCTION
+
+TEMPÉRATURES D'ÉBULLITION (à pression atmosphérique):
+  ┌────────────────────┬──────────────────────────────────┐
+  │ Coolant            │ T_boil @ 1 bar (K)               │
+  ├────────────────────┼──────────────────────────────────┤
+  │ LH2                │ 20.3 K                           │
+  │ LOX                │ 90.2 K                           │
+  │ LN2                │ 77.4 K                           │
+  │ CH4                │ 111.7 K                          │
+  │ C2H6               │ 184.6 K                          │
+  │ NH3                │ 239.8 K                          │
+  │ C2H5OH             │ 351.4 K                          │
+  │ H2O                │ 373.2 K                          │
+  │ N2H4               │ 387.0 K                          │
+  │ RP-1               │ 490-540 K (plage)                │
+  └────────────────────┴──────────────────────────────────┘
+
+À haute pression, T_boil augmente (selon courbe de saturation).
+
+
+4.4 PROFIL DE TEMPÉRATURE DANS LA PAROI
+───────────────────────────────────────────────────────────────
+
+En régime permanent avec flux constant, le profil est LINÉAIRE:
+
+                     q
+  T(x) = T_wall_hot - ─── × x
+                      k
+
+Où:
+  x = distance depuis la surface chaude (0 ≤ x ≤ e)
+  T(0) = T_wall_hot
+  T(e) = T_wall_cold
+
+REPRÉSENTATION GRAPHIQUE:
+
+  T (K)
+    │
+T_wh├─────●
+    │      ╲
+    │       ╲  Gradient = -q/k
+    │        ╲
+    │         ╲
+T_wc├──────────●
+    │          │
+    └──────────┴────── x (m)
+    0          e
+
+GRADIENT DE TEMPÉRATURE:
+
+  dT/dx = -q/k   [K/m]
+
+Exemple numérique:
+  q = 20 MW/m², k = 320 W/m·K (CuCr)
+  dT/dx = -20×10⁶ / 320 = -62,500 K/m = -62.5 K/mm
+
+Pour une épaisseur e = 2 mm:
+  ΔT = 62.5 × 2 = 125 K
+
+
+4.5 CONTRAINTES THERMIQUES (STRESS THERMIQUE)
+───────────────────────────────────────────────────────────────
+
+Le gradient de température crée des contraintes mécaniques 
+dues à la dilatation différentielle.
+
+CONTRAINTE THERMIQUE MAXIMALE:
+
+              E × α × ΔT
+  σ_th = ──────────────────
+              2 × (1 - ν)
+
+Où:
+  E = module de Young [Pa]
+  α = coefficient de dilatation thermique [1/K]
+  ΔT = T_wall_hot - T_wall_cold [K]
+  ν = coefficient de Poisson [-]
+
+PROPRIÉTÉS THERMOMÉCANIQUES:
+  ┌──────────────────┬────────┬────────────┬────────┐
+  │ Matériau         │ E (GPa)│ α (10⁻⁶/K) │ ν      │
+  ├──────────────────┼────────┼────────────┼────────┤
+  │ Cuivre           │  117   │    17.0    │ 0.34   │
+  │ CuCr             │  130   │    16.5    │ 0.34   │
+  │ Inconel 718      │  200   │    13.0    │ 0.29   │
+  │ Inox 316L        │  193   │    16.0    │ 0.27   │
+  │ Niobium          │  105   │     7.3    │ 0.40   │
+  │ Molybdène        │  329   │     5.0    │ 0.31   │
+  │ Tungstène        │  411   │     4.5    │ 0.28   │
+  └──────────────────┴────────┴────────────┴────────┘
+
+EXEMPLE DE CALCUL:
+  CuCr, ΔT = 150 K, E = 130 GPa, α = 16.5×10⁻⁶/K, ν = 0.34
+  
+  σ_th = 130×10⁹ × 16.5×10⁻⁶ × 150 / (2×(1-0.34))
+  σ_th = 244 MPa
+
+Cette contrainte s'ajoute aux contraintes de pression!
+
+
+4.6 RÉGIME TRANSITOIRE (DÉMARRAGE/ARRÊT)
+───────────────────────────────────────────────────────────────
+
+Pendant les phases de démarrage et d'arrêt, le régime n'est 
+pas permanent. Les équations deviennent:
+
+ÉQUATION DE LA CHALEUR (1D):
+
+  ∂T       k     ∂²T        ∂²T
+  ── = ───────── × ─── = α × ───
+  ∂t    ρ × Cp    ∂x²        ∂x²
+
+Où α = k/(ρ×Cp) est la diffusivité thermique [m²/s].
+
+TEMPS CARACTÉRISTIQUE:
+
+  τ = e² / α
+
+C'est le temps pour atteindre ~63% du régime permanent.
+
+VALEURS TYPIQUES DE τ:
+  ┌──────────────────┬────────────┬─────────────────────┐
+  │ Matériau         │ α (mm²/s)  │ τ pour e=2mm (s)    │
+  ├──────────────────┼────────────┼─────────────────────┤
+  │ Cuivre           │   117      │     0.034           │
+  │ CuCr             │   104      │     0.038           │
+  │ Inconel 718      │    3.1     │     1.3             │
+  │ Inox 316L        │    4.0     │     1.0             │
+  │ Niobium          │   24.3     │     0.16            │
+  │ Molybdène        │   53.7     │     0.074           │
+  │ Tungstène        │   68.3     │     0.058           │
+  └──────────────────┴────────────┴─────────────────────┘
+
+IMPLICATIONS:
+  - Cuivre: réponse très rapide (~35 ms)
+  - Superalliages: réponse lente (~1 s)
+  - Pendant le transitoire, T_wall_hot peut DÉPASSER la valeur 
+    en régime permanent (overshoot)!
+
+⚠️ RISQUE AU DÉMARRAGE:
+Le coolant peut ne pas être à plein débit quand les gaz 
+chauds arrivent → surchauffe critique possible!
+
+
+4.7 TEMPÉRATURE ADIABATIQUE DE PAROI
+───────────────────────────────────────────────────────────────
+
+En réalité, on n'utilise pas directement T_chambre mais la 
+température adiabatique de paroi T_aw.
+
+DÉFINITION:
+T_aw est la température qu'atteindrait une paroi parfaitement 
+isolée (adiabatique) exposée à l'écoulement.
+
+CALCUL:
+                          γ - 1
+  T_aw = T_statique × (1 + r × ───── × M²)
+                            2
+
+Où:
+  r = facteur de récupération ≈ Pr^(1/3) pour turbulent
+  γ = rapport des chaleurs spécifiques
+  M = nombre de Mach local
+
+VALEURS DE r:
+  - Écoulement laminaire:  r ≈ Pr^(1/2) ≈ 0.85
+  - Écoulement turbulent:  r ≈ Pr^(1/3) ≈ 0.89
+
+EFFET:
+  T_aw < T_stagnation (à cause des frottements visqueux)
+  
+Typiquement: T_aw ≈ 0.9 × T_stagnation au col
+
+
+4.8 CALCUL ITÉRATIF COMPLET
+───────────────────────────────────────────────────────────────
+
+En pratique, le calcul est itératif car h_g et h_c dépendent 
+des températures (via les propriétés des fluides).
+
+ALGORITHME:
+  1. Estimer T_wall_hot_init (e.g., 800 K)
+  2. Calculer T_film_gaz = (T_aw + T_wall_hot)/2
+  3. Calculer propriétés gaz à T_film_gaz
+  4. Calculer h_g (Bartz)
+  5. Estimer T_wall_cold
+  6. Calculer T_film_cool = (T_wall_cold + T_cool)/2
+  7. Calculer propriétés coolant à T_film_cool
+  8. Calculer h_c (Dittus-Boelter ou Gnielinski)
+  9. Calculer q = (T_aw - T_cool) / (1/h_g + e/k + 1/h_c)
+  10. Calculer nouvelles T_wall_hot et T_wall_cold
+  11. Si |T_new - T_old| > tolérance: retour à 2
+  12. Sinon: CONVERGÉ!
+
+CRITÈRE DE CONVERGENCE:
+  |T_wall_hot_new - T_wall_hot_old| < 1 K
+
+Typiquement convergence en 3-5 itérations.
+
+
+5. CORRÉLATIONS CÔTÉ COOLANT - ANALYSE DÉTAILLÉE
+═══════════════════════════════════════════════════════════════
+
+Le calcul précis de h_c est crucial pour une conception fiable.
+Cette section détaille les principales corrélations utilisées.
+
+
+5.1 CORRÉLATION DE DITTUS-BOELTER
+───────────────────────────────────────────────────────────────
+
+C'est la corrélation la plus utilisée pour l'écoulement 
+turbulent en convection forcée dans des tubes.
+
+HISTORIQUE:
+  Publiée en 1930 par F.W. Dittus et L.M.K. Boelter.
+  Basée sur des expériences avec de l'eau et de l'huile.
+
+ÉQUATION:
+  Nu = 0.023 × Re^0.8 × Pr^n
+
+Où:
+  n = 0.4 si le fluide est CHAUFFÉ (T_paroi > T_fluide)
+  n = 0.3 si le fluide est REFROIDI (T_paroi < T_fluide)
+
+Dans le cas du refroidissement régénératif:
+  Le coolant est chauffé → n = 0.4
+
+DONC:
+  Nu = 0.023 × Re^0.8 × Pr^0.4
+
+CONDITIONS DE VALIDITÉ:
+  ┌────────────────────────────────────────────────────────────┐
+  │ • Re > 10,000 (écoulement pleinement turbulent)            │
+  │ • 0.6 < Pr < 160                                           │
+  │ • L/D > 10 (écoulement développé)                          │
+  │ • Propriétés évaluées à T_bulk (température moyenne)       │
+  │ • Flux de chaleur modéré                                   │
+  │ • Parois lisses                                            │
+  └────────────────────────────────────────────────────────────┘
+
+CALCUL DE h_c:
+              Nu × k_coolant
+  h_c = ─────────────────────
+               D_h
+
+EXEMPLE DÉTAILLÉ:
+  Données:
+    Coolant: RP-1 à 350 K
+    ρ = 780 kg/m³
+    μ = 0.0008 Pa·s
+    Cp = 2100 J/kg·K
+    k = 0.12 W/m·K
+    v = 25 m/s
+    D_h = 3 mm = 0.003 m
+
+  Calculs:
+    Re = ρ×v×D_h/μ = 780×25×0.003/0.0008 = 73,125
+    Pr = μ×Cp/k = 0.0008×2100/0.12 = 14.0
+    Nu = 0.023 × 73125^0.8 × 14.0^0.4
+    Nu = 0.023 × 8,547 × 2.92 = 573
+    h_c = 573 × 0.12 / 0.003 = 22,920 W/m²·K
+
+CORRECTIONS POUR CAS PARTICULIERS:
+
+a) Correction pour L/D court (effets d'entrée):
+   Nu_corrigé = Nu × (1 + (D/L)^0.7)
+   
+b) Correction pour T_paroi ≠ T_bulk:
+   Nu_corrigé = Nu × (μ_bulk/μ_paroi)^0.14
+   
+c) Correction pour canaux non-circulaires:
+   Utiliser D_h hydraulique, mais précision réduite.
+
+
+5.2 CORRÉLATION DE GNIELINSKI
+───────────────────────────────────────────────────────────────
+
+Plus précise que Dittus-Boelter, surtout en régime transitoire.
+Publiée par V. Gnielinski en 1976.
+
+ÉQUATION PRINCIPALE:
+
+        (f/8) × (Re - 1000) × Pr
+  Nu = ─────────────────────────────────────────
+        1 + 12.7 × (f/8)^0.5 × (Pr^(2/3) - 1)
+
+Où f est le facteur de frottement de Darcy:
+
+  f = (0.79 × ln(Re) - 1.64)^(-2)    [Équation de Petukhov]
+
+Ou avec l'équation explicite de Colebrook-White simplifiée:
+
+  f = 0.316 × Re^(-0.25)    [Équation de Blasius, Re < 10⁵]
+
+CONDITIONS DE VALIDITÉ:
+  ┌────────────────────────────────────────────────────────────┐
+  │ • 2300 < Re < 5×10⁶                                        │
+  │ • 0.5 < Pr < 2000                                          │
+  │ • Plus précise que Dittus-Boelter                          │
+  │ • Valide aussi en régime transitoire (Re > 2300)           │
+  │ • Propriétés évaluées à T_bulk                             │
+  └────────────────────────────────────────────────────────────┘
+
+EXEMPLE DÉTAILLÉ:
+  Reprenons l'exemple précédent (RP-1, Re = 73,125, Pr = 14.0)
+
+  Calculs:
+    f = (0.79×ln(73125) - 1.64)^(-2)
+    f = (0.79×11.2 - 1.64)^(-2)
+    f = (8.85 - 1.64)^(-2)
+    f = 7.21^(-2) = 0.0192
+
+    Numérateur = (0.0192/8) × (73125-1000) × 14.0
+                = 0.0024 × 72125 × 14.0 = 2424
+
+    Dénominateur = 1 + 12.7 × (0.0024)^0.5 × (14.0^0.667 - 1)
+                 = 1 + 12.7 × 0.049 × (5.19 - 1)
+                 = 1 + 12.7 × 0.049 × 4.19
+                 = 1 + 2.61 = 3.61
+
+    Nu = 2424 / 3.61 = 671
+
+    h_c = 671 × 0.12 / 0.003 = 26,840 W/m²·K
+
+COMPARAISON:
+  Dittus-Boelter: h_c = 22,920 W/m²·K
+  Gnielinski:     h_c = 26,840 W/m²·K (17% plus élevé)
+
+Gnielinski est généralement plus précise (+/-10% vs +/-25%).
+
+
+5.3 RÉGIME LAMINAIRE (Re < 2300)
+───────────────────────────────────────────────────────────────
+
+⚠️ À ÉVITER DANS LES MOTEURS-FUSÉES!
+Le transfert thermique est très faible en laminaire.
+
+CAS DU FLUX CONSTANT:
+  Nu = 4.36 (tube circulaire)
+  Nu = 3.66 (température de paroi constante)
+
+POUR CANAUX RECTANGULAIRES:
+  ┌────────────────┬───────────────────────────────────────────┐
+  │ Rapport a/b    │ Nu (flux constant)                        │
+  ├────────────────┼───────────────────────────────────────────┤
+  │ 1.0 (carré)    │ 3.61                                      │
+  │ 2.0            │ 4.12                                      │
+  │ 4.0            │ 5.35                                      │
+  │ 8.0            │ 6.49                                      │
+  │ ∞ (plaques)    │ 8.24                                      │
+  └────────────────┴───────────────────────────────────────────┘
+
+CONSÉQUENCE:
+En laminaire: h_c ≈ 100-500 W/m²·K seulement!
+C'est 10 à 100 fois moins qu'en turbulent.
+
+→ Toujours concevoir pour Re > 10,000 minimum.
+
+
+5.4 RÉGIME TRANSITOIRE (2300 < Re < 10000)
+───────────────────────────────────────────────────────────────
+
+Zone difficile à prédire avec précision.
+
+APPROCHE RECOMMANDÉE:
+  Utiliser Gnielinski (valide dès Re > 2300).
+
+ALTERNATIVE - Interpolation:
+  Nu = Nu_lam + (Nu_turb - Nu_lam) × ((Re - 2300)/(10000 - 2300))
+
+RECOMMANDATION:
+  Éviter cette zone! Concevoir pour Re > 10,000.
+
+
+5.5 ÉBULLITION SOUS-REFROIDIE (SUBCOOLED BOILING)
+───────────────────────────────────────────────────────────────
+
+Si T_paroi > T_saturation mais T_bulk < T_saturation:
+  → Formation de bulles à la paroi
+  → Les bulles se condensent dans le cœur du fluide
+  → Transfert thermique AMÉLIORÉ!
+
+CORRÉLATION DE CHEN (1966):
+  h_total = h_convection + h_ébullition
+
+  h_ébullition = S × h_nucleation
+
+Où S est un facteur de suppression tenant compte de la 
+turbulence qui inhibe la nucléation.
+
+AVANTAGES:
+  ✅ h peut augmenter de 2 à 5 fois
+  ✅ Utilisé intentionnellement dans certains moteurs
+
+RISQUES:
+  ❌ Si T_bulk approche T_sat → ébullition en masse
+  ❌ DNB (Departure from Nucleate Boiling) → destruction
+  ❌ Instabilités hydrauliques possibles
+
+
+5.6 EFFETS DE LA GÉOMÉTRIE DES CANAUX
+───────────────────────────────────────────────────────────────
+
+La géométrie des canaux influence fortement h_c.
+
+TYPES DE CANAUX COURANTS:
+  ┌────────────────────────────────────────────────────────────┐
+  │                                                            │
+  │  ┌──┐  ┌──┐  ┌──┐     Canaux rectangulaires               │
+  │  │  │  │  │  │  │     (fraisage ou impression 3D)         │
+  │  │  │  │  │  │  │                                          │
+  │  └──┘  └──┘  └──┘                                          │
+  │                                                            │
+  │  ╭──╮  ╭──╮  ╭──╮     Canaux circulaires                  │
+  │  │  │  │  │  │  │     (perçage ou tubes)                  │
+  │  ╰──╯  ╰──╯  ╰──╯                                          │
+  │                                                            │
+  │  /\/\/\/\/\/\/\/\     Canaux hélicoïdaux                  │
+  │  \/\/\/\/\/\/\/\/     (meilleur mélange)                  │
+  │                                                            │
+  └────────────────────────────────────────────────────────────┘
+
+DIAMÈTRE HYDRAULIQUE:
+  Canal rectangulaire:  D_h = 4×w×h / (2w + 2h) = 2wh/(w+h)
+  Canal circulaire:     D_h = D
+  Anneau:               D_h = D_ext - D_int
+
+EFFET DU RAPPORT D'ASPECT (h/w):
+  ┌────────────────┬───────────────────────────────────────────┐
+  │ h/w            │ Effet                                     │
+  ├────────────────┼───────────────────────────────────────────┤
+  │ h/w ≈ 1        │ Optimal pour h_c                          │
+  │ h/w > 3        │ Canaux étroits, h_c réduit aux coins      │
+  │ h/w < 0.3      │ Canaux larges/plats, efficace             │
+  └────────────────┴───────────────────────────────────────────┘
+
+EFFET DU NOMBRE DE CANAUX:
+  Plus de canaux → Plus petits D_h → Re plus bas MAIS D_h plus petit
+  
+  h_c ∝ Nu × k / D_h
+  
+  Si D_h ↓ de moitié:
+    - Re ↓ de moitié
+    - Nu ↓ d'environ 40% (∝ Re^0.8)
+    - Mais D_h ↓ de 50%
+    - Net: h_c ↑ d'environ 20%
+
+OPTIMISATION:
+  Compromis entre:
+  - h_c élevé (petits canaux)
+  - Pertes de charge acceptables (grands canaux)
+  - Fabricabilité (dépend du procédé)
+
+
+5.7 PERTES DE CHARGE DANS LES CANAUX
+───────────────────────────────────────────────────────────────
+
+Les pertes de charge sont liées au transfert thermique:
+  Plus de turbulence → meilleur h_c MAIS plus de ΔP
+
+ÉQUATION DE DARCY-WEISBACH:
+            f × L × ρ × v²
+  ΔP = ─────────────────────
+             2 × D_h
+
+Où:
+  f = facteur de frottement (Darcy)
+  L = longueur du canal [m]
+  ρ = masse volumique [kg/m³]
+  v = vitesse [m/s]
+  D_h = diamètre hydraulique [m]
+
+FACTEUR DE FROTTEMENT:
+  Laminaire:    f = 64/Re
+  Turbulent:    f ≈ 0.316 × Re^(-0.25)  (Blasius)
+  Turbulent:    f = (0.79×ln(Re) - 1.64)^(-2)  (Petukhov)
+
+ORDRES DE GRANDEUR:
+  ┌────────────────────┬──────────────────────────────────┐
+  │ Configuration      │ ΔP typique (bar)                 │
+  ├────────────────────┼──────────────────────────────────┤
+  │ RP-1 dans canaux   │ 10 - 50                          │
+  │ LH2 dans canaux    │ 5 - 30                           │
+  │ LOX dans canaux    │ 10 - 40                          │
+  └────────────────────┴──────────────────────────────────┘
+
+PUISSANCE DE POMPAGE:
+  P_pompe = ΔP × Q = ΔP × A × v
+
+Cette puissance est "perdue" et doit être fournie par la 
+turbopompe → impact sur les performances globales.
+
+
+5.8 VALEURS TYPIQUES DE h_c - TABLEAU COMPLET
+───────────────────────────────────────────────────────────────
+
+  ┌────────────────┬──────────────┬───────────┬───────────────┐
+  │ Coolant        │ T (K)        │ v (m/s)   │ h_c (W/m²·K)  │
+  ├────────────────┼──────────────┼───────────┼───────────────┤
+  │ LH2            │ 25           │ 50        │ 50,000-150,000│
+  │ LH2            │ 30           │ 100       │ 80,000-200,000│
+  │ LOX            │ 100          │ 20        │ 15,000-40,000 │
+  │ LOX            │ 100          │ 40        │ 25,000-60,000 │
+  │ CH4            │ 150          │ 20        │ 10,000-30,000 │
+  │ CH4            │ 150          │ 40        │ 18,000-50,000 │
+  │ RP-1           │ 300          │ 15        │ 5,000-15,000  │
+  │ RP-1           │ 350          │ 25        │ 10,000-25,000 │
+  │ RP-1           │ 400          │ 30        │ 15,000-35,000 │
+  │ C2H5OH         │ 300          │ 20        │ 8,000-20,000  │
+  │ H2O            │ 350          │ 10        │ 15,000-40,000 │
+  │ H2O            │ 350          │ 30        │ 30,000-80,000 │
+  │ N2H4           │ 320          │ 15        │ 8,000-22,000  │
+  └────────────────┴──────────────┴───────────┴───────────────┘
+
+CLASSEMENT PAR CAPACITÉ DE REFROIDISSEMENT:
+  1. LH2 (meilleur! Cp très élevé, k élevé, μ faible)
+  2. H2O (excellent mais T_boil basse)
+  3. LOX (bon mais corrosif, limites de T)
+  4. CH4 (très bon, propre, compatible)
+  5. C2H5OH (bon, simple)
+  6. RP-1 (correct mais cokéfaction)
+  7. N2H4 (toxique, éviter si possible)
+
+
+6. ÉPAISSEUR CRITIQUE, SERVICE ET ABLATION
+═══════════════════════════════════════════════════════════════
+
+Cette section traite des critères d'épaisseur et du 
+phénomène d'ablation pour les parois trop épaisses.
+
+
+6.1 ÉPAISSEUR CRITIQUE DE FUSION (e_melt)
+───────────────────────────────────────────────────────────────
+
+L'épaisseur critique est l'épaisseur MAXIMALE pour laquelle 
+T_wall_hot reste inférieure à T_melt (température de fusion).
+
+DÉRIVATION:
+  En régime permanent: T_wall_hot = T_wall_cold + q×e/k
+  
+  Pour éviter la fusion: T_wall_hot ≤ T_melt
+  
+  Donc: T_wall_cold + q×e/k ≤ T_melt
+  
+  Résolvant pour e:
+  
+         k × (T_melt - T_wall_cold)
+  e ≤ ───────────────────────────────
+                    q
+
+FORMULE FINALE:
+  ┌─────────────────────────────────────────────────────────┐
+  │                                                         │
+  │              k × (T_melt - T_wall_cold)                 │
+  │   e_melt = ─────────────────────────────────            │
+  │                        q                                │
+  │                                                         │
+  └─────────────────────────────────────────────────────────┘
+
+INTERPRÉTATION:
+  - Si e < e_melt: la paroi NE FOND PAS ✅
+  - Si e = e_melt: T_wall_hot = T_melt exactement (limite)
+  - Si e > e_melt: la surface FOND ❌
+
+FACTEURS FAVORABLES (e_melt élevé = plus de marge):
+  ✅ k élevé (bonne conductivité)
+  ✅ T_melt élevé (matériau réfractaire)
+  ✅ T_wall_cold bas (bon refroidissement)
+  ✅ q faible (position loin du col)
+
+EXEMPLE NUMÉRIQUE - CuCr:
+  k = 320 W/m·K
+  T_melt = 1350 K
+  T_wall_cold = 600 K
+  q = 25 MW/m² (au col)
+
+  e_melt = 320 × (1350 - 600) / 25×10⁶
+  e_melt = 320 × 750 / 25×10⁶
+  e_melt = 240,000 / 25×10⁶
+  e_melt = 0.0096 m = 9.6 mm
+
+  → La paroi peut faire jusqu'à 9.6 mm avant de fondre.
+
+EXEMPLE - COMPARAISON MATÉRIAUX:
+  Même conditions: T_wc = 600 K, q = 25 MW/m²
+  
+  ┌──────────────────┬────────┬─────────┬──────────────────┐
+  │ Matériau         │ k      │ T_melt  │ e_melt (mm)      │
+  ├──────────────────┼────────┼─────────┼──────────────────┤
+  │ Cuivre           │ 385    │ 1358 K  │ 11.7             │
+  │ CuCr             │ 320    │ 1350 K  │ 9.6              │
+  │ Inconel 718      │ 11.4   │ 1609 K  │ 0.46             │
+  │ Inox 316L        │ 16.3   │ 1673 K  │ 0.70             │
+  │ AlSi10Mg         │ 130    │ 870 K   │ 1.4              │
+  │ Niobium          │ 53.7   │ 2750 K  │ 4.6              │
+  │ Molybdène        │ 138    │ 2896 K  │ 12.7             │
+  │ Tungstène        │ 173    │ 3695 K  │ 21.4             │
+  └──────────────────┴────────┴─────────┴──────────────────┘
+
+OBSERVATIONS:
+  - Cuivre et alliages: e_melt ≈ 10 mm (excellent)
+  - Superalliages: e_melt < 1 mm (faible conductivité!)
+  - Réfractaires: e_melt élevé grâce à T_melt très haut
+
+
+6.2 ÉPAISSEUR DE SERVICE (e_max)
+───────────────────────────────────────────────────────────────
+
+En pratique, on ne veut pas atteindre T_melt mais rester 
+en dessous de T_max_service pour éviter:
+  - Perte de propriétés mécaniques
+  - Fluage (déformation lente sous charge)
+  - Oxydation accélérée
+  - Changements métallurgiques
+
+FORMULE:
+
+         k × (T_max_service - T_wall_cold)
+  e_max = ───────────────────────────────────
+                        q
+
+TEMPÉRATURES MAX DE SERVICE:
+  ┌──────────────────┬──────────────────────────────────────┐
+  │ Matériau         │ T_max_service (K) et raison          │
+  ├──────────────────┼──────────────────────────────────────┤
+  │ Cuivre           │ 800-900 K (ramollissement)           │
+  │ CuCr             │ 1000-1050 K (perte de dureté)        │
+  │ CuCrZr           │ 1050-1100 K                          │
+  │ GRCop-84         │ 1100-1200 K (excellent!)             │
+  │ Inconel 718      │ 1100-1200 K (fluage)                 │
+  │ Inconel 625      │ 1150-1250 K                          │
+  │ Inox 316L        │ 1000-1100 K                          │
+  │ AlSi10Mg         │ 500-573 K (très bas!)                │
+  │ Niobium          │ 2000-2200 K (oxydation si pas vide)  │
+  │ Molybdène        │ 2200-2400 K                          │
+  │ Tungstène        │ 2800-3000 K                          │
+  └──────────────────┴──────────────────────────────────────┘
+
+MARGE DE SÉCURITÉ:
+  Typiquement: T_design = T_max_service - 50 à 100 K
+
+EXEMPLE - CuCr:
+  k = 320 W/m·K
+  T_max = 1050 K
+  T_wall_cold = 600 K
+  q = 25 MW/m²
+
+  e_max = 320 × (1050 - 600) / 25×10⁶
+  e_max = 320 × 450 / 25×10⁶
+  e_max = 5.76 mm
+
+  → Épaisseur max pour rester sous T_max = 5.76 mm
+
+
+6.3 PROCESSUS D'ABLATION
+───────────────────────────────────────────────────────────────
+
+Que se passe-t-il si l'épaisseur initiale e₀ > e_melt?
+
+RÉPONSE: La surface fond et s'érode jusqu'à atteindre e_melt.
+
+MÉCANISME PHYSIQUE DÉTAILLÉ:
+
+  INSTANT t = 0 (allumage):
+  ┌────────────────────────────────────────────────────────────┐
+  │  Gaz chauds arrivent                                       │
+  │  T_wall_hot commence à monter rapidement                   │
+  │  (régime transitoire)                                      │
+  └────────────────────────────────────────────────────────────┘
+           ↓
+  INSTANT t = τ (temps caractéristique):
+  ┌────────────────────────────────────────────────────────────┐
+  │  T_wall_hot atteint le régime "quasi-permanent"            │
+  │  Si e₀ > e_melt: T_wall_hot > T_melt                       │
+  │  → La surface commence à FONDRE                            │
+  └────────────────────────────────────────────────────────────┘
+           ↓
+  PHASE D'ABLATION:
+  ┌────────────────────────────────────────────────────────────┐
+  │  • Métal fondu à la surface                                │
+  │  • Gouttelettes emportées par le flux gazeux               │
+  │  • Épaisseur diminue progressivement                       │
+  │  • T_wall_hot reste ≈ T_melt (latent heat)                 │
+  └────────────────────────────────────────────────────────────┘
+           ↓
+  ÉQUILIBRE (t >> τ):
+  ┌────────────────────────────────────────────────────────────┐
+  │  e final = e_melt                                          │
+  │  T_wall_hot = T_melt                                       │
+  │  Plus de fusion, état stable                               │
+  └────────────────────────────────────────────────────────────┘
+
+
+6.4 ÉPAISSEUR SACRIFICIELLE ET MASSE PERDUE
+───────────────────────────────────────────────────────────────
+
+DÉFINITION:
+
+  e_sacrificielle = e₀ - e_melt   (si e₀ > e_melt)
+  e_sacrificielle = 0             (si e₀ ≤ e_melt)
+
+C'est l'épaisseur qui va fondre et être emportée.
+
+MASSE PERDUE PAR UNITÉ DE SURFACE:
+
+  Δm/A = ρ_métal × e_sacrificielle   [kg/m²]
+
+MASSE TOTALE PERDUE:
+
+  Δm = ρ_métal × A_surface × e_sacrificielle   [kg]
+
+EXEMPLE NUMÉRIQUE:
+  Données:
+    Matériau: CuCr
+    ρ = 8900 kg/m³
+    e₀ = 12 mm (épaisseur initiale)
+    e_melt = 9.6 mm (calculé précédemment)
+    A_surface = 0.05 m² (surface au col)
+
+  Calculs:
+    e_sacrificielle = 12 - 9.6 = 2.4 mm = 0.0024 m
+    Δm = 8900 × 0.05 × 0.0024 = 1.07 kg
+
+  → 1.07 kg de cuivre va fondre et être éjecté!
+
+
+6.5 TEMPS D'ABLATION
+───────────────────────────────────────────────────────────────
+
+Combien de temps dure l'ablation?
+
+BILAN ÉNERGÉTIQUE:
+L'énergie pour fondre e_sac d'épaisseur sur 1 m² est:
+
+  E_fusion = ρ × e_sac × (Cp × (T_melt - T₀) + L_fusion)
+
+Où L_fusion est la chaleur latente de fusion.
+
+CHALEUR LATENTE DE FUSION:
+  ┌──────────────────┬──────────────────────────────────────┐
+  │ Matériau         │ L_fusion (kJ/kg)                     │
+  ├──────────────────┼──────────────────────────────────────┤
+  │ Cuivre           │ 205                                  │
+  │ Aluminium        │ 397                                  │
+  │ Fer/Acier        │ 247                                  │
+  │ Nickel           │ 298                                  │
+  │ Niobium          │ 285                                  │
+  │ Molybdène        │ 390                                  │
+  │ Tungstène        │ 192                                  │
+  └──────────────────┴──────────────────────────────────────┘
+
+FLUX DISPONIBLE POUR LA FUSION:
+Le flux "excédentaire" qui cause la fusion est:
+
+  q_fusion = q_entrant - q_évacué_à_T_melt
+
+TEMPS D'ABLATION (approximation):
+
+  t_ablation ≈ ρ × e_sac × L_fusion / q_fusion
+
+En pratique: quelques secondes à quelques dizaines de secondes.
+
+
+6.6 QUAND L'ABLATION EST-ELLE ACCEPTABLE?
+───────────────────────────────────────────────────────────────
+
+L'ablation peut être:
+  - ACCEPTÉE volontairement (moteurs ablatifs)
+  - TOLÉRÉE accidentellement
+  - CATASTROPHIQUE
+
+CAS 1 - MOTEURS ABLATIFS (acceptable):
+  ┌────────────────────────────────────────────────────────────┐
+  │ • Conception prévue pour l'ablation                        │
+  │ • Matériau sacrificiel (phénolique, silice)               │
+  │ • Durée de fonctionnement limitée (quelques secondes)      │
+  │ • Pas de refroidissement régénératif                       │
+  │ • Simple, léger, fiable                                    │
+  │ • Exemple: moteurs de missiles, boosters                   │
+  └────────────────────────────────────────────────────────────┘
+
+CAS 2 - ABLATION TOLÉRÉE:
+  ┌────────────────────────────────────────────────────────────┐
+  │ • Légère sur-épaisseur de sécurité                         │
+  │ • Ablation minime (< 0.5 mm)                               │
+  │ • Moteur reste fonctionnel après ablation                  │
+  │ • Vérifié par calcul et tests                              │
+  └────────────────────────────────────────────────────────────┘
+
+CAS 3 - ABLATION CATASTROPHIQUE (à éviter!):
+  ┌────────────────────────────────────────────────────────────┐
+  │ ❌ Percement de la paroi → fuite de gaz chauds             │
+  │ ❌ Contamination du coolant par métal fondu                │
+  │ ❌ Modification de la géométrie → perte de performances    │
+  │ ❌ Débris métalliques endommageant l'injecteur             │
+  │ ❌ Explosion possible!                                      │
+  └────────────────────────────────────────────────────────────┘
+
+
+6.7 DIMENSIONNEMENT POUR ÉVITER L'ABLATION
+───────────────────────────────────────────────────────────────
+
+RÈGLE DE CONCEPTION:
+
+  e_design < e_max < e_melt
+
+Où:
+  e_design = épaisseur choisie
+  e_max = épaisseur pour T_wall_hot = T_max_service
+  e_melt = épaisseur pour T_wall_hot = T_melt
+
+MARGES RECOMMANDÉES:
+
+  e_design = 0.7 à 0.8 × e_max
+
+Cette marge couvre:
+  - Incertitudes sur h_g (±20-30%)
+  - Variations locales de flux
+  - Transitoires (démarrage/arrêt)
+  - Vieillissement du matériau
+
+PROCÉDURE DE DIMENSIONNEMENT:
+  1. Calculer q_max (au col)
+  2. Choisir le matériau (k, T_melt, T_max)
+  3. Calculer e_melt et e_max
+  4. Choisir e_design avec marge
+  5. Vérifier résistance mécanique (pression)
+  6. Vérifier stress thermique
+  7. Itérer si nécessaire
+
+
+6.8 CARTE THERMIQUE ET VARIATION AXIALE
+───────────────────────────────────────────────────────────────
+
+Le flux q varie le long du moteur:
+  - Maximum au COL
+  - Décroissant vers la chambre et le divergent
+
+CONSÉQUENCE:
+  e_melt et e_max VARIENT aussi le long du moteur!
+
+APPROCHE DE CONCEPTION:
+  ┌────────────────────────────────────────────────────────────┐
+  │ OPTION 1: Épaisseur constante                              │
+  │  + Simple à fabriquer                                      │
+  │  - Sur-dimensionné dans chambre et divergent               │
+  │  - Sous-dimensionné potentiel au col                       │
+  ├────────────────────────────────────────────────────────────┤
+  │ OPTION 2: Épaisseur variable                               │
+  │  + Optimisé thermiquement                                  │
+  │  + Masse minimale                                          │
+  │  - Fabrication plus complexe                               │
+  │  - Usinage ou impression 3D                                │
+  ├────────────────────────────────────────────────────────────┤
+  │ OPTION 3: Matériau variable (hybride)                      │
+  │  + Optimal pour chaque zone                                │
+  │  + CuCr au col, Inconel dans divergent, etc.               │
+  │  - Joints complexes                                        │
+  │  - Dilatation différentielle                               │
+  └────────────────────────────────────────────────────────────┘
+
+PROFIL TYPIQUE D'UN MOTEUR MODERNE:
+  - Chambre: e = 3-5 mm (CuCr ou GRCop)
+  - Convergent/Col: e = 1.5-3 mm (minimum pour q max)
+  - Divergent: e = 2-4 mm (CuCr) ou transition vers acier
+
+
+7. PROPRIÉTÉS DES MATÉRIAUX POUR MOTEURS-FUSÉES
+═══════════════════════════════════════════════════════════════
+
+Cette section détaille les matériaux utilisés pour les parois 
+de chambres de combustion et tuyères à refroidissement régénératif.
+
+
+7.1 TABLEAU RÉCAPITULATIF DES PROPRIÉTÉS
+───────────────────────────────────────────────────────────────
+
+  ┌──────────────────┬───────┬─────────┬─────────┬─────────┐
+  │ Matériau         │k W/m·K│T_melt K │T_max K  │ρ kg/m³  │
+  ├──────────────────┼───────┼─────────┼─────────┼─────────┤
+  │ Cuivre (Cu)      │  385  │  1358   │   900   │  8960   │
+  │ CuCr (C18200)    │  320  │  1350   │  1050   │  8900   │
+  │ CuCrZr (C18150)  │  315  │  1355   │  1100   │  8890   │
+  │ GRCop-84 (NASA)  │  298  │  1350   │  1200   │  8870   │
+  │ GRCop-42         │  310  │  1355   │  1150   │  8850   │
+  │ AlSi10Mg (SLM)   │  130  │   870   │   573   │  2670   │
+  │ Al 6061-T6       │  167  │   925   │   573   │  2700   │
+  │ Inconel 718      │ 11.4  │  1609   │  1200   │  8190   │
+  │ Inconel 625      │  9.8  │  1623   │  1250   │  8440   │
+  │ Inconel X-750    │ 12.0  │  1620   │  1150   │  8280   │
+  │ Haynes 230       │  8.9  │  1635   │  1350   │  8970   │
+  │ Haynes 188       │ 10.4  │  1635   │  1320   │  8980   │
+  │ Inox 316L        │ 16.3  │  1673   │  1100   │  8000   │
+  │ Inox 304L        │ 16.2  │  1673   │  1050   │  7900   │
+  │ Ti-6Al-4V        │  6.7  │  1933   │   700   │  4430   │
+  │ Niobium (Nb)     │ 53.7  │  2750   │  2200   │  8570   │
+  │ C103 (Nb alloy)  │ 44.2  │  2685   │  2000   │  8860   │
+  │ Molybdène (Mo)   │  138  │  2896   │  2400   │ 10280   │
+  │ TZM (Mo alloy)   │  120  │  2895   │  2500   │ 10220   │
+  │ Tungstène (W)    │  173  │  3695   │  3000   │ 19300   │
+  │ W-Re (W alloy)   │  100  │  3450   │  2800   │ 19700   │
+  │ Rhénium (Re)     │ 47.9  │  3459   │  2800   │ 21020   │
+  │ Tantale (Ta)     │ 57.5  │  3290   │  2600   │ 16650   │
+  │ Graphite         │  120  │  3900*  │  3500   │  2200   │
+  │ C/C Composite    │ 50-150│  3900*  │  3200   │  1800   │
+  │ SiC (CVD)        │  120  │  3100*  │  2000   │  3210   │
+  └──────────────────┴───────┴─────────┴─────────┴─────────┘
+  * Sublime au lieu de fondre
+
+
+7.2 ALLIAGES DE CUIVRE - LES CHAMPIONS DU REFROIDISSEMENT
+───────────────────────────────────────────────────────────────
+
+Les alliages de cuivre sont les matériaux de choix pour les 
+zones à haut flux thermique (chambre, col) grâce à leur 
+excellente conductivité thermique.
+
+A) CUIVRE PUR (Cu - C10200, OFHC)
+
+  Composition: Cu > 99.95%
+  
+  Propriétés:
+    k = 385-401 W/m·K (le meilleur!)
+    T_melt = 1358 K (1085°C)
+    T_max = 800-900 K (ramollissement)
+    σ_yield @ 20°C = 70 MPa (très faible)
+    σ_yield @ 500°C = 35 MPa
+  
+  ✅ Avantages:
+    - Conductivité maximale
+    - Facile à usiner
+    - Bon marché
+  
+  ❌ Inconvénients:
+    - Très faible résistance mécanique
+    - Ramollit rapidement à T > 500 K
+    - Fluage important
+  
+  Utilisation:
+    - Rarement seul pour moteurs haute pression
+    - Parfois pour petits moteurs < 10 bar
+    - Inserts ou revêtements
+
+B) CUIVRE-CHROME (CuCr - C18200)
+
+  Composition: Cu + 0.6-1.2% Cr
+  
+  Propriétés:
+    k = 315-324 W/m·K
+    T_melt = 1350 K
+    T_max = 1000-1050 K
+    σ_yield @ 20°C = 310-450 MPa (traité)
+    σ_yield @ 500°C = 180 MPa
+    E = 130 GPa
+    α = 16.5 × 10⁻⁶ /K
+  
+  ✅ Avantages:
+    - Excellent compromis k / résistance
+    - Très bien maîtrisé industriellement
+    - Soudable (TIG, EBW, FSW)
+    - Disponible et économique
+  
+  ❌ Inconvénients:
+    - Perd sa dureté si surchauffe > 800 K
+    - Recristallisation possible
+  
+  Traitement thermique:
+    - Mise en solution: 980°C, trempe eau
+    - Vieillissement: 450-500°C, 2-4h
+  
+  Utilisation:
+    - Merlin (SpaceX)
+    - RS-25 SSME (NASA/Aerojet)
+    - Vulcain (ESA)
+    - RD-180, RD-191 (Energomash)
+    - TRÈS COURANT!
+
+C) CUIVRE-CHROME-ZIRCONIUM (CuCrZr - C18150)
+
+  Composition: Cu + 0.5-1.5% Cr + 0.05-0.15% Zr
+  
+  Propriétés:
+    k = 310-320 W/m·K
+    T_melt = 1355 K
+    T_max = 1050-1100 K
+    σ_yield @ 20°C = 380-500 MPa
+    σ_yield @ 600°C = 220 MPa
+  
+  ✅ Avantages:
+    - Meilleure tenue à chaud que CuCr
+    - Résistance au fluage améliorée
+    - Zr stabilise les précipités de Cr
+  
+  ❌ Inconvénients:
+    - Plus cher que CuCr
+    - Traitement thermique critique
+  
+  Utilisation:
+    - RD-170/171 (Energomash)
+    - Moteurs russes haute performance
+    - Réacteurs de fusion (ITER)
+
+D) GRCop-84 (NASA Glenn Research Center)
+
+  Composition: Cu + 8% Cr + 4% Nb (nano-dispersions)
+  
+  Propriétés:
+    k = 285-300 W/m·K
+    T_melt = 1350 K
+    T_max = 1150-1200 K
+    σ_yield @ 20°C = 250 MPa
+    σ_yield @ 800°C = 150 MPa (EXCELLENT!)
+    Résistance au fluage: 100× meilleure que CuCr
+  
+  ✅ Avantages:
+    - Excellente résistance à haute T
+    - Résistance au fluage exceptionnelle
+    - Stable microstructuralement
+    - Idéal pour impression 3D (SLM/DMLS)
+  
+  ❌ Inconvénients:
+    - Développé par NASA, accès limité
+    - Fabrication spécialisée
+    - Plus cher
+  
+  Fabrication:
+    - Atomisation plasma
+    - Impression 3D (SLM avec laser 400W+)
+    - HIP (Hot Isostatic Pressing)
+  
+  Utilisation:
+    - RS-25 upgrades (SLS)
+    - Relativity Space (Terran 1, Aeon)
+    - Virgin Orbit (NewtonThree)
+    - Aerojet Rocketdyne (RL10 upgrades)
+
+E) GRCop-42 (variante)
+
+  Composition: Cu + 4% Cr + 2% Nb
+  
+  Propriétés:
+    k = 305-315 W/m·K (meilleur que GRCop-84)
+    T_max = 1100-1150 K
+    Compromis entre k et résistance haute T
+  
+  Utilisation:
+    - Applications où k est prioritaire
+    - Développement en cours
+
+
+7.3 SUPERALLIAGES BASE NICKEL
+───────────────────────────────────────────────────────────────
+
+Les superalliages sont utilisés pour les zones moins sollicitées 
+thermiquement mais nécessitant haute résistance mécanique.
+
+A) INCONEL 718
+
+  Composition: Ni-52%, Cr-19%, Fe-18%, Nb-5%, Mo-3%
+  
+  Propriétés:
+    k = 11.4 W/m·K (faible!)
+    T_melt = 1609 K
+    T_max = 1100-1200 K
+    σ_yield @ 20°C = 1035-1240 MPa (très élevé!)
+    σ_yield @ 650°C = 1000 MPa
+    E = 200 GPa
+  
+  ✅ Avantages:
+    - Excellente résistance mécanique
+    - Bonne résistance à l'oxydation
+    - Soudable
+    - Bien maîtrisé pour impression 3D
+  
+  ❌ Inconvénients:
+    - Conductivité très faible (11× moins que CuCr)
+    - Limite thermique malgré T_melt élevé
+    - Usinage difficile
+  
+  Utilisation:
+    - Structures de tuyères
+    - Brides, collecteurs
+    - Divergent (partie froide)
+    - Chambres basse pression
+
+B) INCONEL 625
+
+  Composition: Ni-62%, Cr-22%, Mo-9%, Nb-3.5%
+  
+  Propriétés:
+    k = 9.8 W/m·K
+    T_melt = 1623 K
+    T_max = 1200-1250 K
+    σ_yield @ 20°C = 460-760 MPa
+    Excellente résistance à la corrosion
+  
+  ✅ Avantages:
+    - Meilleure résistance corrosion que 718
+    - Soudable sans traitement post-soudure
+    - Bon pour environnements agressifs
+  
+  Utilisation:
+    - Divergent de tuyères
+    - Environnements corrosifs
+    - Propergols agressifs (N2O4, HNO3)
+
+C) HAYNES 230
+
+  Composition: Ni-57%, Cr-22%, W-14%, Mo-2%
+  
+  Propriétés:
+    k = 8.9 W/m·K
+    T_melt = 1635 K
+    T_max = 1300-1350 K (excellent!)
+    σ_yield @ 20°C = 390 MPa
+    Résistance à l'oxydation exceptionnelle
+  
+  Utilisation:
+    - Tuyères haute température
+    - Applications spatiales réutilisables
+    - Turbines, échangeurs
+
+D) HAYNES 188
+
+  Composition: Co-39%, Ni-22%, Cr-22%, W-14%
+  
+  Propriétés:
+    k = 10.4 W/m·K
+    T_max = 1300-1320 K
+    Excellente résistance à l'oxydation
+  
+  Utilisation:
+    - Tuyères pour moteurs réutilisables
+    - Applications haute température longue durée
+
+
+7.4 ALLIAGES D'ALUMINIUM
+───────────────────────────────────────────────────────────────
+
+Utilisés pour les petits moteurs ou prototypes grâce à leur 
+légèreté et facilité d'usinage/impression 3D.
+
+A) AlSi10Mg (impression 3D)
+
+  Composition: Al + 10% Si + 0.3% Mg
+  
+  Propriétés:
+    k = 120-140 W/m·K
+    T_melt = 870 K (597°C) - TRÈS BAS!
+    T_max = 473-573 K (200-300°C)
+    ρ = 2670 kg/m³ (léger!)
+    σ_yield @ 20°C = 230-280 MPa (SLM)
+  
+  ✅ Avantages:
+    - Très léger (3× moins que CuCr)
+    - Excellente imprimabilité 3D
+    - Conductivité correcte
+    - Économique
+    - Prototypage rapide
+  
+  ❌ Inconvénients:
+    - T_max TRÈS BASSE! (~300°C)
+    - Fond facilement
+    - Limité aux faibles flux
+    - Résistance chute rapidement avec T
+  
+  ⚠️ ATTENTION:
+    SEULEMENT pour moteurs faible pression/flux
+    ou zones très bien refroidies!
+  
+  Utilisation:
+    - Prototypes
+    - Petits moteurs (< 5 kN)
+    - Moteurs basse pression
+    - Zones froides (divergent loin)
+
+B) Al 6061-T6
+
+  Composition: Al + 1% Mg + 0.6% Si + 0.3% Cu
+  
+  Propriétés:
+    k = 167 W/m·K
+    T_melt = 925 K
+    T_max = 473-573 K
+    σ_yield = 275 MPa
+  
+  Utilisation:
+    - Structures, brides
+    - Pas pour parois chaudes!
+
+
+7.5 MÉTAUX RÉFRACTAIRES
+───────────────────────────────────────────────────────────────
+
+Pour les tuyères à rayonnement ou hautes températures extrêmes.
+Utilisés principalement pour les divergents non refroidis.
+
+A) NIOBIUM (Nb) et C103
+
+  Nb pur:
+    k = 53.7 W/m·K
+    T_melt = 2750 K
+    T_max = 2000-2200 K (sous vide!)
+    ρ = 8570 kg/m³
+  
+  C103 (Nb-10Hf-1Ti):
+    k = 44 W/m·K
+    T_melt = 2685 K
+    T_max = 1800-2000 K
+    σ_yield @ 20°C = 310 MPa
+    σ_yield @ 1200°C = 140 MPa
+  
+  ⚠️ OXYDATION:
+    Nb s'oxyde catastrophiquement à T > 700 K dans l'air!
+    → Utilisable uniquement dans le VIDE spatial
+    → Ou avec revêtement siliciure (MoSi2, WSi2)
+  
+  Revêtements protecteurs:
+    - R512E (Si-20Cr-20Fe)
+    - R512A (Si-20Cr-5Ti-5Fe)
+    - Durée: quelques heures à 1600 K
+  
+  Utilisation:
+    - Divergents de moteurs spatiaux
+    - Apollo LM Descent Engine
+    - RL10 (extension de tuyère)
+    - Moteurs d'apogée
+
+B) MOLYBDÈNE (Mo) et TZM
+
+  Mo pur:
+    k = 138 W/m·K (excellent pour réfractaire!)
+    T_melt = 2896 K
+    T_max = 2200-2400 K
+    ρ = 10280 kg/m³
+  
+  TZM (Mo-0.5Ti-0.08Zr):
+    k = 115-125 W/m·K
+    T_melt = 2895 K
+    T_max = 2300-2500 K
+    σ_yield @ 20°C = 700 MPa
+    σ_yield @ 1000°C = 420 MPa
+  
+  ⚠️ OXYDATION:
+    Forme MoO3 volatil à T > 800 K dans l'air
+    → "Peste du molybdène"
+    → Vide ou atmosphère inerte obligatoire
+  
+  Utilisation:
+    - Inserts de col (vide spatial)
+    - Tuyères haute température
+    - Propulsion électrique (résistojets)
+
+C) TUNGSTÈNE (W) et W-Re
+
+  W pur:
+    k = 173 W/m·K
+    T_melt = 3695 K (le plus haut des métaux!)
+    T_max = 2800-3000 K
+    ρ = 19300 kg/m³ (très lourd!)
+    σ_yield @ 20°C = 700-1000 MPa
+  
+  W-Re (W + 3-25% Re):
+    k = 80-120 W/m·K
+    T_melt = 3200-3450 K
+    Meilleure ductilité que W pur
+    σ_yield @ 1500°C = 300 MPa
+  
+  ⚠️ CARACTÉRISTIQUES:
+    - Très fragile à température ambiante
+    - DBTT (ductile-brittle) ≈ 400°C
+    - Usinage très difficile (EDM)
+    - Oxyde à T > 700 K dans l'air
+  
+  Utilisation:
+    - Inserts de col (cas extrêmes)
+    - Propulsion électrique (résistojets, arcjets)
+    - Protection thermique
+
+D) RHÉNIUM (Re)
+
+  Propriétés:
+    k = 47.9 W/m·K
+    T_melt = 3459 K
+    T_max = 2600-2800 K
+    ρ = 21020 kg/m³ (2ème plus dense)
+  
+  ✅ Avantages:
+    - Ductile à toutes températures
+    - Pas de DBTT comme W
+    - Excellente résistance au fluage
+  
+  ❌ Inconvénients:
+    - EXTRÊMEMENT cher (~5000 $/kg)
+    - Rare (production mondiale: 50 tonnes/an)
+    - Lourd
+  
+  Utilisation:
+    - Revêtement sur W ou Ir
+    - Applications spatiales critiques
+    - Très limité (coût prohibitif)
+
+
+7.6 MATÉRIAUX CÉRAMIQUES ET COMPOSITES
+───────────────────────────────────────────────────────────────
+
+A) GRAPHITE
+
+  Propriétés:
+    k = 80-150 W/m·K (selon orientation)
+    T_sublime = 3900 K (pas de fusion!)
+    T_max = 3200-3500 K (vide)
+    ρ = 1800-2200 kg/m³ (léger!)
+  
+  ⚠️ OXYDATION:
+    Brûle à T > 700 K dans l'air!
+    → Vide spatial uniquement
+    → Ou revêtement SiC
+  
+  Utilisation:
+    - Insertions de col (moteurs solides)
+    - Tuyères de rentrée atmosphérique
+
+B) COMPOSITE CARBONE-CARBONE (C/C)
+
+  Propriétés:
+    k = 50-150 W/m·K (selon orientation)
+    T_max = 3000-3200 K
+    ρ = 1600-1900 kg/m³
+    σ_tension = 200-400 MPa
+  
+  ✅ Avantages:
+    - Très léger
+    - k augmente avec T (!!)
+    - Résistance maintenue à haute T
+  
+  ❌ Inconvénients:
+    - Oxydation catastrophique si air
+    - Fabrication longue et coûteuse
+    - Anisotrope
+  
+  Utilisation:
+    - Navette spatiale (bords d'attaque)
+    - Tuyères de moteurs solides
+    - Freins d'avions (non-spatial)
+
+C) CARBURE DE SILICIUM (SiC)
+
+  Propriétés:
+    k = 120 W/m·K
+    T_décompose = 3100 K
+    T_max = 1900-2000 K
+    ρ = 3210 kg/m³
+  
+  ✅ Avantages:
+    - Résistant à l'oxydation
+    - Dur et résistant à l'érosion
+  
+  Utilisation:
+    - Revêtements protecteurs
+    - Échangeurs de chaleur
+
+
+7.7 CRITÈRES DE SÉLECTION DES MATÉRIAUX
+───────────────────────────────────────────────────────────────
+
+POUR LA CHAMBRE ET LE COL (flux max):
+  
+  Priorité 1: k élevé (évacuer la chaleur)
+  Priorité 2: T_max adéquat
+  Priorité 3: Résistance mécanique
+  
+  → CHOIX: CuCr, CuCrZr, GRCop-84
+  
+POUR LE DIVERGENT (flux modéré):
+  
+  Option A: Refroidissement régénératif
+    → CuCr ou transition vers Inconel
+  
+  Option B: Rayonnement (spatial)
+    → Nb/C103, Mo/TZM, ou composites
+  
+POUR PROTOTYPES/TESTS:
+  
+  → AlSi10Mg (impression 3D, économique)
+  → Durée de vie limitée acceptable
+
+ARBRE DE DÉCISION:
+
+  ┌─ Flux > 20 MW/m² ? ─────────────────────────────────────┐
+  │                                                          │
+  │ OUI                              NON                     │
+  │  │                                │                      │
+  │  ↓                                ↓                      │
+  │ CuCr/CuCrZr/GRCop              Inconel ou                │
+  │ (OBLIGATOIRE)                   matériau économique      │
+  │                                                          │
+  └──────────────────────────────────────────────────────────┘
+  
+  ┌─ Réutilisable ? ────────────────────────────────────────┐
+  │                                                          │
+  │ OUI → GRCop-84 (résistance fluage)                       │
+  │ NON → CuCr (économique)                                  │
+  │                                                          │
+  └──────────────────────────────────────────────────────────┘
+  
+  ┌─ Impression 3D ? ───────────────────────────────────────┐
+  │                                                          │
+  │ OUI → GRCop-84 (optimal)                                 │
+  │       Inconel 718 (structures)                           │
+  │       AlSi10Mg (prototypes)                              │
+  │                                                          │
+  │ NON → CuCr forgé/usiné (économique)                      │
+  │                                                          │
+  └──────────────────────────────────────────────────────────┘
+
+
+7.8 EXEMPLES DE MOTEURS RÉELS
+───────────────────────────────────────────────────────────────
+
+MERLIN 1D (SpaceX):
+  - Chambre/col: CuCr (usiné)
+  - Divergent: Nb-C103 (rayonnement)
+  - Épaisseur: 1.5-3 mm
+  - Pression: 97 bar
+
+RS-25 / SSME (NASA/Aerojet):
+  - Chambre: CuCr (fraisé + électroformé Ni)
+  - Col: CuCr
+  - Divergent: Inconel 718
+  - Canaux: 430 canaux de refroidissement
+  - Pression: 206 bar
+
+RAPTOR (SpaceX):
+  - Chambre/col: GRCop-84 ou variante (SLM)
+  - Fabrication additive
+  - Pression: 300+ bar
+
+RD-170/180 (Energomash):
+  - Chambre: CuCrZr (brasé)
+  - Col: CuCrZr
+  - Divergent: Inox + Nb
+  - Canaux: tubes enroulés
+
+BE-4 (Blue Origin):
+  - Chambre: CuCr ou GRCop
+  - Fabrication hybride (SLM + traditionnel)
+  - Pression: 135 bar
+
+VULCAIN 2 (ESA):
+  - Chambre: CuCr (fraisé)
+  - Divergent: Inconel + tubes
+  - Pression: 115 bar
+
+
+8. PROPRIÉTÉS DES COOLANTS - GUIDE COMPLET
+═══════════════════════════════════════════════════════════════
+
+Cette section détaille les propriétés thermophysiques des 
+fluides utilisés pour le refroidissement régénératif.
+
+
+8.1 TABLEAU RÉCAPITULATIF DES COOLANTS
+───────────────────────────────────────────────────────────────
+
+  ┌──────────────┬────────┬────────┬────────┬────────┬────────┐
+  │ Coolant      │Cp J/kg·K│T_boil K│T_crit K│ρ kg/m³ │μ mPa·s │
+  ├──────────────┼────────┼────────┼────────┼────────┼────────┤
+  │ LH2          │ 14300  │  20.3  │  33.2  │   71   │  0.013 │
+  │ LOX          │  1700  │  90.2  │  154.6 │  1141  │  0.19  │
+  │ LN2          │  2040  │  77.4  │  126.2 │   808  │  0.16  │
+  │ CH4 (LCH4)   │  3500  │  111.7 │  190.6 │   422  │  0.12  │
+  │ C2H6 (éthane)│  2500  │  184.6 │  305.3 │   544  │  0.18  │
+  │ C3H8 (propane│  2500  │  231.1 │  369.8 │   582  │  0.20  │
+  │ RP-1         │  2000  │  490   │  678   │   810  │  1.2   │
+  │ Jet-A        │  2100  │  450   │  650   │   800  │  1.5   │
+  │ C2H5OH       │  2440  │  351.4 │  514.0 │   789  │  1.1   │
+  │ CH3OH        │  2530  │  337.8 │  512.6 │   791  │  0.55  │
+  │ N2H4         │  3100  │  387.0 │  653.0 │  1004  │  0.97  │
+  │ MMH          │  2900  │  360.5 │  585.0 │   874  │  0.78  │
+  │ UDMH         │  2750  │  336.0 │  523.0 │   791  │  0.51  │
+  │ H2O          │  4186  │  373.2 │  647.1 │  1000  │  1.0   │
+  │ H2O2 (90%)   │  2800  │  423.0 │  730   │  1390  │  1.2   │
+  │ NH3          │  4700  │  239.8 │  405.4 │   682  │  0.26  │
+  │ N2O          │  1900  │  184.7 │  309.6 │  1220  │  0.14  │
+  └──────────────┴────────┴────────┴────────┴────────┴────────┘
+
+Note: Propriétés au point d'ébullition @ 1 bar sauf indication.
+
+
+8.2 HYDROGÈNE LIQUIDE (LH2) - LE MEILLEUR COOLANT
+───────────────────────────────────────────────────────────────
+
+L'hydrogène liquide est le MEILLEUR coolant pour plusieurs raisons:
+
+PROPRIÉTÉS DÉTAILLÉES:
+  ┌────────────────────────┬──────────────────────────────────┐
+  │ Propriété              │ Valeur                           │
+  ├────────────────────────┼──────────────────────────────────┤
+  │ Masse molaire          │ 2.016 g/mol                      │
+  │ Température ébullition │ 20.3 K (-253°C) @ 1 bar          │
+  │ Température critique   │ 33.2 K                           │
+  │ Pression critique      │ 13.0 bar                         │
+  │ Densité liquide        │ 70.8 kg/m³ @ 20 K                │
+  │ Densité gaz            │ 1.34 kg/m³ @ NBP                 │
+  │ Cp liquide             │ 9,700-14,300 J/kg·K              │
+  │ Cp gaz                 │ 14,300 J/kg·K                    │
+  │ Conductivité (liq)     │ 0.10 W/m·K                       │
+  │ Conductivité (gaz)     │ 0.017 W/m·K                      │
+  │ Viscosité (liq)        │ 13 μPa·s (très faible!)          │
+  │ Prandtl                │ 0.7-1.3                          │
+  │ Chaleur latente        │ 448 kJ/kg                        │
+  └────────────────────────┴──────────────────────────────────┘
+
+✅ AVANTAGES THERMIQUES:
+  - Cp ÉNORME (14,300 J/kg·K) → absorbe beaucoup d'énergie
+  - Viscosité très faible → Re élevé → h_c élevé
+  - k/μ élevé → excellent transfert
+  - h_c typique: 50,000-200,000 W/m²·K!
+
+❌ INCONVÉNIENTS:
+  - Très basse température → isolation critique
+  - Densité très faible → gros réservoirs
+  - Fuit facilement (petite molécule)
+  - Fragilisation hydrogène des métaux
+  - Coût de production/stockage
+
+⚠️ PRÉCAUTIONS:
+  - Matériaux compatibles: Al, Inox 304/316, Inconel
+  - Éviter: aciers au carbone (fragilisation)
+  - Joints: PTFE, Indium, soudures
+  - Risque d'explosion si mélange avec O2!
+
+MOTEURS UTILISANT LH2:
+  - RS-25 / SSME (NASA)
+  - RL10 (Aerojet Rocketdyne)
+  - J-2, J-2X (Saturn V, SLS)
+  - Vulcain (Ariane)
+  - LE-7, LE-9 (Japon)
+  - CE-20 (Inde)
+
+
+8.3 OXYGÈNE LIQUIDE (LOX)
+───────────────────────────────────────────────────────────────
+
+Le LOX est parfois utilisé comme coolant (cycles oxydizer-rich).
+
+PROPRIÉTÉS DÉTAILLÉES:
+  ┌────────────────────────┬──────────────────────────────────┐
+  │ Propriété              │ Valeur                           │
+  ├────────────────────────┼──────────────────────────────────┤
+  │ Masse molaire          │ 32.0 g/mol                       │
+  │ Température ébullition │ 90.2 K (-183°C) @ 1 bar          │
+  │ Température critique   │ 154.6 K                          │
+  │ Pression critique      │ 50.4 bar                         │
+  │ Densité liquide        │ 1141 kg/m³ @ 90 K                │
+  │ Cp liquide             │ 1,700 J/kg·K                     │
+  │ Conductivité (liq)     │ 0.15 W/m·K                       │
+  │ Viscosité (liq)        │ 190 μPa·s                        │
+  │ Prandtl                │ 2.2                              │
+  │ Chaleur latente        │ 213 kJ/kg                        │
+  └────────────────────────┴──────────────────────────────────┘
+
+✅ AVANTAGES:
+  - Disponible (c'est l'oxydant!)
+  - Bonne densité → compact
+  - Température modérée (90 K vs 20 K pour LH2)
+
+❌ INCONVÉNIENTS:
+  - Cp modéré seulement
+  - TRÈS réactif → risques d'ignition
+  - Incompatible avec hydrocarbures chauds
+  - Corrosif à haute température
+
+⚠️ ATTENTION EXTRÊME:
+  - LOX + matière organique = EXPLOSION
+  - Nettoyage LOX obligatoire (dégraissage)
+  - Matériaux: Inox, Monel, Inconel
+  - Éviter: Al (sauf alliages spéciaux), Ti
+
+UTILISATION:
+  - RD-170/180 (cycle oxidizer-rich)
+  - Quelques moteurs à cycle ox-rich
+  - Généralement le FUEL est préféré comme coolant
+
+
+8.4 MÉTHANE LIQUIDE (LCH4)
+───────────────────────────────────────────────────────────────
+
+Le méthane gagne en popularité (Raptor, BE-4, etc.)
+
+PROPRIÉTÉS DÉTAILLÉES:
+  ┌────────────────────────┬──────────────────────────────────┐
+  │ Propriété              │ Valeur                           │
+  ├────────────────────────┼──────────────────────────────────┤
+  │ Masse molaire          │ 16.04 g/mol                      │
+  │ Température ébullition │ 111.7 K (-161°C) @ 1 bar         │
+  │ Température critique   │ 190.6 K                          │
+  │ Pression critique      │ 46.0 bar                         │
+  │ Densité liquide        │ 422 kg/m³ @ 112 K                │
+  │ Cp liquide             │ 3,500 J/kg·K                     │
+  │ Conductivité (liq)     │ 0.19 W/m·K                       │
+  │ Viscosité (liq)        │ 120 μPa·s                        │
+  │ Prandtl                │ 2.2                              │
+  │ Chaleur latente        │ 510 kJ/kg                        │
+  └────────────────────────┴──────────────────────────────────┘
+
+✅ AVANTAGES:
+  - Cp élevé (meilleur que RP-1)
+  - Température modérée (112 K)
+  - PAS DE COKÉFACTION! (propre)
+  - Compatible avec O2 (ISRU Mars)
+  - Densité acceptable
+  - Viscosité faible → bon Re
+
+❌ INCONVÉNIENTS:
+  - Moins dense que RP-1
+  - Cryogénique (infrastructure)
+  - Plage de T plus étroite que H2
+
+AVANTAGE CLÉ - PAS DE COKE:
+  Le méthane ne forme PAS de dépôts carbonés 
+  contrairement au RP-1/kérosène. Les moteurs peuvent 
+  être réutilisés sans nettoyage des canaux!
+
+MOTEURS UTILISANT CH4:
+  - Raptor (SpaceX) - full-flow staged combustion
+  - BE-4 (Blue Origin) - oxygen-rich staged combustion
+  - Prometheus (ESA)
+  - Vulcan Centaur (ULA, via BE-4)
+
+
+8.5 RP-1 / KÉROSÈNE
+───────────────────────────────────────────────────────────────
+
+Le RP-1 est le fuel hydrocarbure le plus utilisé historiquement.
+
+PROPRIÉTÉS DÉTAILLÉES:
+  ┌────────────────────────┬──────────────────────────────────┐
+  │ Propriété              │ Valeur (typique @ 300K)          │
+  ├────────────────────────┼──────────────────────────────────┤
+  │ Composition            │ C12H24 (moyenne)                 │
+  │ Masse molaire          │ ~170 g/mol                       │
+  │ Point éclair           │ 316 K (43°C)                     │
+  │ Température ébullition │ 490-540 K (plage)                │
+  │ Température critique   │ ~678 K                           │
+  │ Densité @ 288 K        │ 799-815 kg/m³                    │
+  │ Cp @ 300 K             │ 2,000 J/kg·K                     │
+  │ Cp @ 400 K             │ 2,300 J/kg·K                     │
+  │ Cp @ 500 K             │ 2,800 J/kg·K                     │
+  │ Conductivité @ 300 K   │ 0.12 W/m·K                       │
+  │ Conductivité @ 400 K   │ 0.10 W/m·K                       │
+  │ Viscosité @ 300 K      │ 1.2 mPa·s                        │
+  │ Viscosité @ 400 K      │ 0.4 mPa·s                        │
+  │ Prandtl @ 300 K        │ 20                               │
+  │ Prandtl @ 400 K        │ 9                                │
+  └────────────────────────┴──────────────────────────────────┘
+
+✅ AVANTAGES:
+  - Stockable à température ambiante!
+  - Haute densité → réservoirs compacts
+  - Infrastructure existante (aviation)
+  - Non toxique (relativement)
+  - Économique
+
+❌ INCONVÉNIENTS MAJEURS:
+
+  ⚠️ COKÉFACTION (problème critique!):
+  
+  À T > 450-500 K, le RP-1 se décompose et dépose du 
+  carbone (coke) sur les parois des canaux:
+  
+    - Réduit la section de passage
+    - Réduit le transfert thermique
+    - Peut boucher les canaux!
+    - Limite la réutilisabilité
+  
+  TEMPÉRATURE LIMITE:
+    T_paroi_froid < 480 K (idéal < 420 K)
+  
+  SOLUTIONS:
+    - RP-2 (version purifiée, moins de soufre)
+    - Additifs anti-coke
+    - Vitesses élevées (moins de temps de résidence)
+    - Canaux larges (plus faciles à nettoyer)
+
+VARIATION DES PROPRIÉTÉS AVEC T:
+  ┌────────────┬────────┬────────┬────────┬────────┐
+  │ T (K)      │  300   │  350   │  400   │  450   │
+  ├────────────┼────────┼────────┼────────┼────────┤
+  │ ρ (kg/m³)  │  810   │  775   │  740   │  700   │
+  │ Cp (J/kg·K)│  2000  │  2150  │  2300  │  2500  │
+  │ k (W/m·K)  │  0.12  │  0.11  │  0.10  │  0.09  │
+  │ μ (mPa·s)  │  1.2   │  0.65  │  0.40  │  0.28  │
+  │ Pr         │  20    │  12.7  │  9.2   │  7.8   │
+  └────────────┴────────┴────────┴────────┴────────┘
+
+MOTEURS UTILISANT RP-1:
+  - Merlin (SpaceX Falcon 9)
+  - RD-180, RD-191 (Atlas V, Angara)
+  - NK-33 (N1)
+  - RS-27 (Delta II)
+  - F-1 (Saturn V)
+  - Rutherford (Rocket Lab) - électropompe
+
+
+8.6 ÉTHANOL (C2H5OH)
+───────────────────────────────────────────────────────────────
+
+Utilisé historiquement et par certains nouveaux acteurs.
+
+PROPRIÉTÉS DÉTAILLÉES:
+  ┌────────────────────────┬──────────────────────────────────┐
+  │ Propriété              │ Valeur @ 300 K                   │
+  ├────────────────────────┼──────────────────────────────────┤
+  │ Masse molaire          │ 46.07 g/mol                      │
+  │ Température ébullition │ 351.4 K (78°C)                   │
+  │ Température critique   │ 514 K                            │
+  │ Pression critique      │ 63 bar                           │
+  │ Densité                │ 789 kg/m³                        │
+  │ Cp                     │ 2,440 J/kg·K                     │
+  │ Conductivité           │ 0.17 W/m·K                       │
+  │ Viscosité              │ 1.1 mPa·s                        │
+  │ Prandtl                │ 16                               │
+  │ Chaleur latente        │ 838 kJ/kg                        │
+  └────────────────────────┴──────────────────────────────────┘
+
+✅ AVANTAGES:
+  - Stockable, non cryogénique
+  - Non toxique, biodégradable
+  - Bonne capacité de refroidissement
+  - Peut contenir de l'eau (refroidissement film)
+  - Production renouvelable possible
+
+❌ INCONVÉNIENTS:
+  - Point d'ébullition bas (78°C)
+  - Risque d'ébullition dans les canaux
+  - Isp inférieure au RP-1
+  - Hygroscopique (absorbe l'eau)
+
+UTILISATION HISTORIQUE:
+  - V-2 (Allemagne WWII)
+  - Redstone (USA)
+  - Moteurs amateurs/universitaires
+
+MOTEURS MODERNES:
+  - MIRA (Espagne)
+  - Copenhagen Suborbitals
+  - Nombreux projets New Space
+
+
+8.7 HYDRAZINE ET DÉRIVÉS (N2H4, MMH, UDMH)
+───────────────────────────────────────────────────────────────
+
+⚠️ TOXIQUES ET DANGEREUX - Usage spatial principalement
+
+A) HYDRAZINE (N2H4)
+
+  ┌────────────────────────┬──────────────────────────────────┐
+  │ Propriété              │ Valeur                           │
+  ├────────────────────────┼──────────────────────────────────┤
+  │ Masse molaire          │ 32.05 g/mol                      │
+  │ Température fusion     │ 274.7 K (1.5°C)                  │
+  │ Température ébullition │ 387 K (114°C)                    │
+  │ Densité                │ 1,004 kg/m³                      │
+  │ Cp                     │ 3,100 J/kg·K                     │
+  │ Conductivité           │ 0.35 W/m·K (élevé!)              │
+  │ Viscosité              │ 0.97 mPa·s                       │
+  └────────────────────────┴──────────────────────────────────┘
+
+  ✅ Avantages: Stockable, hypergolique avec N2O4
+  ❌ Inconvénients: TRÈS TOXIQUE, cancérigène
+
+B) MMH (Monométhylhydrazine - CH3NHNH2)
+
+  Densité: 874 kg/m³
+  T_boil: 360.5 K
+  Cp: 2,900 J/kg·K
+  
+  Moins toxique que N2H4, plus stable.
+  Utilisé: Apollo LM, systèmes orbitaux.
+
+C) UDMH (Diméthylhydrazine asymétrique)
+
+  Densité: 791 kg/m³
+  T_boil: 336 K
+  Cp: 2,750 J/kg·K
+  
+  Plus stable au stockage.
+  Utilisé: Proton (Russie), Longue Marche (Chine).
+
+UTILISATION:
+  - Systèmes orbitaux et interplanétaires
+  - Moteurs vernier et RCS
+  - En diminution (toxicité)
+
+
+8.8 EAU (H2O)
+───────────────────────────────────────────────────────────────
+
+L'eau est un EXCELLENT coolant mais rarement utilisée seule.
+
+PROPRIÉTÉS:
+  ┌────────────────────────┬──────────────────────────────────┐
+  │ Propriété              │ Valeur @ 300 K                   │
+  ├────────────────────────┼──────────────────────────────────┤
+  │ Masse molaire          │ 18.02 g/mol                      │
+  │ Température ébullition │ 373.2 K (100°C)                  │
+  │ Température critique   │ 647.1 K                          │
+  │ Pression critique      │ 220.6 bar                        │
+  │ Densité                │ 1,000 kg/m³                      │
+  │ Cp                     │ 4,186 J/kg·K (très élevé!)       │
+  │ Conductivité           │ 0.60 W/m·K (excellent!)          │
+  │ Viscosité              │ 1.0 mPa·s                        │
+  │ Prandtl                │ 7                                │
+  │ Chaleur latente        │ 2,257 kJ/kg (énorme!)            │
+  └────────────────────────┴──────────────────────────────────┘
+
+✅ AVANTAGES:
+  - Cp très élevé (4,186 J/kg·K)
+  - Conductivité excellente (0.60 W/m·K)
+  - Chaleur latente énorme (ébullition = super refroidissement)
+  - Non toxique, disponible
+  - Économique
+
+❌ INCONVÉNIENTS:
+  - Point d'ébullition bas (100°C @ 1 bar)
+  - Gel à 0°C (problème spatial)
+  - Corrosif si impuretés
+  - Non utilisé comme propergol directement
+
+UTILISATION:
+  - Tests au sol (refroidissement auxiliaire)
+  - Injection pour refroidissement film (mélange éthanol-eau)
+  - Systèmes terrestres
+
+
+8.9 AMMONIAC (NH3)
+───────────────────────────────────────────────────────────────
+
+Utilisé dans certaines applications spatiales.
+
+PROPRIÉTÉS:
+  ┌────────────────────────┬──────────────────────────────────┐
+  │ Propriété              │ Valeur                           │
+  ├────────────────────────┼──────────────────────────────────┤
+  │ Masse molaire          │ 17.03 g/mol                      │
+  │ Température ébullition │ 239.8 K (-33°C)                  │
+  │ Température critique   │ 405.4 K                          │
+  │ Densité liquide        │ 682 kg/m³                        │
+  │ Cp                     │ 4,700 J/kg·K (très élevé!)       │
+  │ Conductivité           │ 0.52 W/m·K                       │
+  │ Viscosité              │ 0.26 mPa·s                       │
+  │ Prandtl                │ 2.4                              │
+  │ Chaleur latente        │ 1,370 kJ/kg                      │
+  └────────────────────────┴──────────────────────────────────┘
+
+✅ AVANTAGES:
+  - Cp élevé (4,700 J/kg·K)
+  - Bonne conductivité
+  - Stockable sous pression modérée
+  - Utilisable comme propergol (avec décomposition)
+
+❌ INCONVÉNIENTS:
+  - Toxique (irritant)
+  - Odeur forte
+  - Corrosif pour cuivre et laiton
+
+UTILISATION:
+  - Systèmes de contrôle thermique (boucles)
+  - Propulsion électrique (résistojets)
+  - ISS (système de refroidissement)
+
+
+8.10 COMPARAISON ET SÉLECTION DU COOLANT
+───────────────────────────────────────────────────────────────
+
+CLASSEMENT PAR CAPACITÉ DE REFROIDISSEMENT:
+
+  ┌────────────────┬────────────┬──────────────────────────────┐
+  │ Rang │ Coolant │ Cp×k/μ     │ Commentaire                  │
+  ├──────┼─────────┼────────────┼──────────────────────────────┤
+  │  1   │ LH2     │ 110,000    │ Le meilleur, mais cryogénique│
+  │  2   │ H2O     │ 2,500      │ Excellent mais T_boil basse  │
+  │  3   │ NH3     │ 1,900      │ Très bon, stockable          │
+  │  4   │ LCH4    │ 550        │ Bon compromis, propre        │
+  │  5   │ LOX     │ 130        │ Correct, mais réactif        │
+  │  6   │ C2H5OH  │ 75         │ Acceptable, non toxique      │
+  │  7   │ RP-1    │ 20         │ Médiocre mais stockable      │
+  └──────┴─────────┴────────────┴──────────────────────────────┘
+
+ARBRE DE DÉCISION:
+
+  ┌─ Cycle propulsif ? ─────────────────────────────────────────┐
+  │                                                              │
+  │ LOX/LH2  → Utiliser LH2 comme coolant (toujours)            │
+  │ LOX/CH4  → Utiliser CH4 comme coolant                        │
+  │ LOX/RP-1 → Utiliser RP-1 (attention cokéfaction)            │
+  │ N2O4/MMH → Utiliser MMH (fuel côté refroidissement)         │
+  │                                                              │
+  └──────────────────────────────────────────────────────────────┘
+
+  ┌─ Fuel ou Ox pour refroidir ? ───────────────────────────────┐
+  │                                                              │
+  │ FUEL PRÉFÉRÉ (99% des cas):                                  │
+  │  - Moins réactif que l'oxydant                               │
+  │  - Généralement meilleur Cp                                  │
+  │  - Pas de risque d'ignition avec matériaux                   │
+  │                                                              │
+  │ OX UTILISÉ (rare):                                           │
+  │  - Cycles oxydizer-rich (RD-170)                             │
+  │  - Nécessite matériaux spéciaux (Monel, Inconel)            │
+  │                                                              │
+  └──────────────────────────────────────────────────────────────┘
+
+DIMENSIONNEMENT DU DÉBIT COOLANT:
+
+  Le débit de coolant doit absorber toute la chaleur:
+  
+  Q_total = ṁ_coolant × Cp × ΔT_coolant
+  
+  ṁ_coolant = Q_total / (Cp × ΔT_max_admissible)
+  
+  Typiquement: ΔT_coolant = 100-300 K selon le fluide
+
+EXEMPLE:
+  Q_total = 5 MW (intégrale du flux sur la surface)
+  Coolant: RP-1, Cp = 2100 J/kg·K, ΔT = 150 K
+  
+  ṁ_coolant = 5×10⁶ / (2100 × 150) = 15.9 kg/s
+  
+  Si ratio O/F = 2.5, et ṁ_total = 50 kg/s:
+  ṁ_fuel = 50/3.5 = 14.3 kg/s
+  
+  → ATTENTION: ṁ_coolant > ṁ_fuel disponible!
+  → Il faut réduire Q ou augmenter h_c
+
+
+8.11 PROPRIÉTÉS EN FONCTION DE LA TEMPÉRATURE
+───────────────────────────────────────────────────────────────
+
+Les propriétés des fluides varient significativement avec T.
+Cela affecte les calculs de h_c.
+
+MÉTHANE (LCH4):
+  ┌──────────┬────────┬────────┬────────┬────────┬────────┐
+  │ T (K)    │  115   │  130   │  150   │  170   │  190   │
+  ├──────────┼────────┼────────┼────────┼────────┼────────┤
+  │ ρ (kg/m³)│  420   │  400   │  370   │  330   │  260   │
+  │ Cp J/kg·K│  3450  │  3600  │  3900  │  4500  │  6000  │
+  │ k W/m·K  │  0.19  │  0.17  │  0.14  │  0.11  │  0.08  │
+  │ μ (μPa·s)│  115   │  90    │  65    │  45    │  30    │
+  └──────────┴────────┴────────┴────────┴────────┴────────┘
+
+HYDROGÈNE (LH2):
+  ┌──────────┬────────┬────────┬────────┬────────┐
+  │ T (K)    │   20   │   25   │   30   │   33   │
+  ├──────────┼────────┼────────┼────────┼────────┤
+  │ ρ (kg/m³)│   71   │   65   │   50   │   31   │
+  │ Cp J/kg·K│  9700  │ 12000  │ 19000  │   ∞    │
+  │ k W/m·K  │  0.10  │  0.10  │  0.09  │  0.07  │
+  │ μ (μPa·s)│   13   │   11   │    8   │    5   │
+  └──────────┴────────┴────────┴────────┴────────┘
+
+Note: À T_critique, Cp → ∞ (transition de phase)
+
+CONSEIL:
+  Toujours utiliser les propriétés à T_film:
+  
+  T_film = (T_wall_cold + T_bulk) / 2
+
+
+9. EXEMPLES DE CALCUL COMPLETS
+═══════════════════════════════════════════════════════════════
+
+Cette section présente plusieurs exemples de calcul détaillés pour
+illustrer l'application des équations thermiques aux moteurs-fusées.
+Chaque exemple suit une méthodologie complète et vérifie les résultats.
+
+
+9.1 EXEMPLE 1 : PETIT MOTEUR LOX/RP-1 (TYPE AMATEUR AVANCÉ)
+───────────────────────────────────────────────────────────────
+
+DONNÉES DU PROBLÈME:
+  ┌─────────────────────────────────────────────────────────┐
+  │ PARAMÈTRES DE CONCEPTION                                │
+  ├─────────────────────────────────────────────────────────┤
+  │ Propergols:        LOX / RP-1                           │
+  │ Pression chambre:  25 bar (2.5 MPa)                     │
+  │ Rapport O/F:       2.4                                  │
+  │ Débit total:       0.8 kg/s                             │
+  │ Diamètre col:      30 mm                                │
+  │ Ratio expansion:   8:1                                  │
+  │ T chambre:         3200 K (calculé CEA)                 │
+  │ γ gaz:             1.21                                 │
+  │ M gaz:             22.5 kg/kmol                         │
+  │ μ gaz:             8.2×10⁻⁵ Pa·s                        │
+  │ Cp gaz:            2100 J/kg·K                          │
+  ├─────────────────────────────────────────────────────────┤
+  │ SYSTÈME DE REFROIDISSEMENT                              │
+  ├─────────────────────────────────────────────────────────┤
+  │ Coolant:           RP-1                                 │
+  │ T entrée coolant:  300 K                                │
+  │ Pression coolant:  30 bar                               │
+  │ Vitesse coolant:   20 m/s                               │
+  │ Dh canal:          4 mm                                 │
+  ├─────────────────────────────────────────────────────────┤
+  │ PAROI                                                   │
+  ├─────────────────────────────────────────────────────────┤
+  │ Matériau:          CuCr1Zr                              │
+  │ Conductivité:      320 W/m·K                            │
+  │ T limite:          723 K (450°C)                        │
+  │ T fusion:          1350 K                               │
+  │ Épaisseur:         3 mm                                 │
+  └─────────────────────────────────────────────────────────┘
+
+ÉTAPE 1 - CALCUL DU COEFFICIENT h_g (ÉQUATION DE BARTZ)
+─────────────────────────────────────────────────────────
+
+Données nécessaires:
+  • Dt = 0.030 m (diamètre col)
+  • At = π × (0.030)² / 4 = 7.07×10⁻⁴ m²
+  • Pc = 25×10⁵ Pa
+  • c* = 1650 m/s (calculé ou table CEA)
+  • Tc = 3200 K
+  • M = 22.5 kg/kmol
+  • γ = 1.21
+  • μ = 8.2×10⁻⁵ Pa·s
+  • Cp = 2100 J/kg·K
+  • Pr = μ × Cp / k_gaz ≈ 0.72
+
+Calcul du nombre de Prandtl:
+  Pr = Cp × μ / k_gaz
+  k_gaz ≈ Cp × μ / Pr = 2100 × 8.2×10⁻⁵ / 0.72 = 0.239 W/m·K
+
+Facteur de correction σ (Bartz):
+  T_wall estimée ≈ 900 K (première itération)
+  T_aw = Tc × [1 + (γ-1)/2 × r × M²]
+  Au col (M=1): T_aw ≈ 0.91 × Tc = 2912 K
+  
+  σ = [0.5 × (T_wall/Tc) × (1 + (γ-1)/2 × M²) + 0.5]^(-0.68)
+  σ = [0.5 × (900/3200) × 1.105 + 0.5]^(-0.68)
+  σ = [0.655]^(-0.68) = 1.38
+
+Équation de Bartz au col:
+  h_g = (0.026 / Dt^0.2) × (μ^0.2 × Cp / Pr^0.6) × (Pc/c*)^0.8 × (Dt/Rc)^0.1 × σ
+
+  Avec Rc = 1.5 × Dt = 0.045 m (rayon de courbure standard):
+  
+  h_g = (0.026 / 0.030^0.2) × (8.2×10⁻⁵)^0.2 × 2100 / 0.72^0.6 
+        × (25×10⁵ / 1650)^0.8 × (0.030/0.045)^0.1 × 1.38
+  
+  Calcul terme par terme:
+    • 0.026 / 0.030^0.2 = 0.026 / 0.494 = 0.0527
+    • (8.2×10⁻⁵)^0.2 = 0.0972
+    • 0.72^0.6 = 0.823
+    • (25×10⁵ / 1650)^0.8 = (1515)^0.8 = 405.7
+    • (0.030/0.045)^0.1 = 0.667^0.1 = 0.960
+    • σ = 1.38
+  
+  h_g = 0.0527 × 0.0972 × 2100 / 0.823 × 405.7 × 0.960 × 1.38
+  
+  h_g = 0.0527 × 247.5 × 405.7 × 0.960 × 1.38
+  
+  h_g ≈ 7,020 W/m²·K
+
+  ⚠️ RÉSULTAT: h_g au col ≈ 7,000 W/m²·K
+
+
+ÉTAPE 2 - CALCUL DU COEFFICIENT h_c (DITTUS-BOELTER)
+─────────────────────────────────────────────────────
+
+Propriétés du RP-1 à T_film ≈ 350 K (estimation):
+  • ρ = 780 kg/m³
+  • μ = 1.2×10⁻³ Pa·s
+  • k = 0.11 W/m·K
+  • Cp = 2100 J/kg·K
+  • Pr = Cp × μ / k = 2100 × 1.2×10⁻³ / 0.11 = 22.9
+
+Nombre de Reynolds:
+  Re = ρ × v × Dh / μ
+  Re = 780 × 20 × 0.004 / (1.2×10⁻³)
+  Re = 52,000
+
+  ✅ Re > 10,000 → Écoulement turbulent, Dittus-Boelter applicable
+
+Nombre de Nusselt (Dittus-Boelter, chauffage):
+  Nu = 0.023 × Re^0.8 × Pr^0.4
+  Nu = 0.023 × (52,000)^0.8 × (22.9)^0.4
+  Nu = 0.023 × 5,893 × 4.05
+  Nu = 549
+
+Coefficient de transfert:
+  h_c = Nu × k / Dh
+  h_c = 549 × 0.11 / 0.004
+  h_c = 15,100 W/m²·K
+
+  ⚠️ RÉSULTAT: h_c ≈ 15,100 W/m²·K
+
+
+ÉTAPE 3 - CALCUL DU FLUX THERMIQUE ET TEMPÉRATURES
+──────────────────────────────────────────────────
+
+Résistance thermique totale:
+  R_total = 1/h_g + e/k + 1/h_c
+  
+  R_gaz    = 1/7,000 = 1.43×10⁻⁴ m²·K/W
+  R_paroi  = 0.003/320 = 9.38×10⁻⁶ m²·K/W
+  R_cool   = 1/15,100 = 6.62×10⁻⁵ m²·K/W
+  
+  R_total = 1.43×10⁻⁴ + 9.38×10⁻⁶ + 6.62×10⁻⁵
+  R_total = 2.19×10⁻⁴ m²·K/W
+
+  Note: La résistance dominante est R_gaz (65% du total)
+
+Flux thermique:
+  ΔT = T_aw - T_coolant = 2912 - 300 = 2612 K
+  
+  q = ΔT / R_total
+  q = 2612 / 2.19×10⁻⁴
+  q = 11.93×10⁶ W/m²
+  
+  ⚠️ RÉSULTAT: q ≈ 12 MW/m²
+
+Distribution des températures:
+  T_wall_cold = T_coolant + q / h_c
+  T_wall_cold = 300 + 11.93×10⁶ / 15,100
+  T_wall_cold = 300 + 790 = 1090 K   ❌ TROP ÉLEVÉ!
+
+  T_wall_hot = T_wall_cold + q × e / k
+  T_wall_hot = 1090 + 11.93×10⁶ × 0.003 / 320
+  T_wall_hot = 1090 + 112 = 1202 K
+
+
+ÉTAPE 4 - ANALYSE ET ITÉRATION
+─────────────────────────────
+
+⚠️ PROBLÈME DÉTECTÉ:
+  T_wall_cold = 1090 K >> T_limite (723 K)
+  La conception actuelle NE FONCTIONNE PAS!
+
+SOLUTIONS POSSIBLES:
+  1. Augmenter la vitesse du coolant
+  2. Augmenter le débit du coolant
+  3. Réduire le diamètre hydraulique
+  4. Ajouter du refroidissement par film
+  5. Changer de coolant (LH2 beaucoup plus efficace)
+
+ITÉRATION - Augmentation vitesse à 40 m/s:
+  Re = 780 × 40 × 0.004 / (1.2×10⁻³) = 104,000
+  Nu = 0.023 × (104,000)^0.8 × (22.9)^0.4 = 956
+  h_c = 956 × 0.11 / 0.004 = 26,300 W/m²·K
+  
+  R_cool = 1/26,300 = 3.80×10⁻⁵ m²·K/W
+  R_total = 1.43×10⁻⁴ + 9.38×10⁻⁶ + 3.80×10⁻⁵ = 1.90×10⁻⁴ m²·K/W
+  
+  q = 2612 / 1.90×10⁻⁴ = 13.7 MW/m²
+  
+  T_wall_cold = 300 + 13.7×10⁶ / 26,300 = 821 K   ❌ Encore trop!
+
+ITÉRATION - Avec refroidissement par film (15% fuel):
+  Efficacité film: η_film ≈ 0.60
+  T_aw_effective = T_coolant + η_film × (T_aw - T_coolant)
+  T_aw_effective = 300 + 0.60 × (2912 - 300) = 1867 K
+  
+  q = (1867 - 300) / 1.90×10⁻⁴ = 8.2 MW/m²
+  
+  T_wall_cold = 300 + 8.2×10⁶ / 26,300 = 612 K   ✅ OK!
+  T_wall_hot = 612 + 8.2×10⁶ × 0.003 / 320 = 689 K   ✅ OK!
+
+  ⚠️ SOLUTION: Vitesse 40 m/s + film cooling 15% → T_wall < T_limite
+
+
+ÉTAPE 5 - CALCUL ÉPAISSEUR CRITIQUE
+───────────────────────────────────
+
+Avec la configuration finale (v=40 m/s, film 15%):
+
+Épaisseur de fusion:
+  e_melt = k × (T_fusion - T_wall_cold) / q
+  e_melt = 320 × (1350 - 612) / 8.2×10⁶
+  e_melt = 320 × 738 / 8.2×10⁶
+  e_melt = 0.0288 m = 28.8 mm
+
+Épaisseur limite opérationnelle:
+  e_max = k × (T_limite - T_wall_cold) / q
+  e_max = 320 × (723 - 612) / 8.2×10⁶
+  e_max = 320 × 111 / 8.2×10⁶
+  e_max = 0.00433 m = 4.33 mm
+
+  ✅ Épaisseur 3 mm < e_max (4.33 mm) → Conception valide
+
+Marge de sécurité sur épaisseur:
+  Marge = (e_max - e_actuelle) / e_actuelle × 100
+  Marge = (4.33 - 3) / 3 × 100 = 44%   ✅ Marge acceptable
+
+
+ÉTAPE 6 - RÉCAPITULATIF CONCEPTION FINALE
+─────────────────────────────────────────
+
+  ┌─────────────────────────────────────────────────────────┐
+  │ RÉSUMÉ DE LA CONCEPTION VALIDÉE                         │
+  ├─────────────────────────────────────────────────────────┤
+  │ Vitesse coolant:      40 m/s                            │
+  │ Film cooling:         15% du débit fuel                 │
+  │ h_g:                  7,000 W/m²·K                      │
+  │ h_c:                  26,300 W/m²·K                     │
+  │ Flux thermique:       8.2 MW/m²                         │
+  │ T_wall_hot:           689 K                             │
+  │ T_wall_cold:          612 K                             │
+  │ Marge vs T_limite:    34 K (5%)                         │
+  │ Épaisseur:            3 mm (marge 44%)                  │
+  └─────────────────────────────────────────────────────────┘
+
+
+9.2 EXEMPLE 2 : MOTEUR LOX/LH2 HAUTE PERFORMANCE
+───────────────────────────────────────────────────────────────
+
+DONNÉES DU PROBLÈME:
+  ┌─────────────────────────────────────────────────────────┐
+  │ PARAMÈTRES DE CONCEPTION                                │
+  ├─────────────────────────────────────────────────────────┤
+  │ Propergols:        LOX / LH2                            │
+  │ Pression chambre:  100 bar (10 MPa)                     │
+  │ Rapport O/F:       6.0                                  │
+  │ Débit total:       25 kg/s                              │
+  │ Diamètre col:      80 mm                                │
+  │ Ratio expansion:   40:1                                 │
+  │ T chambre:         3550 K (calculé CEA)                 │
+  │ γ gaz:             1.14                                 │
+  │ M gaz:             13.5 kg/kmol                         │
+  │ c*:                2350 m/s                             │
+  ├─────────────────────────────────────────────────────────┤
+  │ SYSTÈME DE REFROIDISSEMENT                              │
+  ├─────────────────────────────────────────────────────────┤
+  │ Coolant:           LH2 supercritique                    │
+  │ T entrée coolant:  40 K                                 │
+  │ Pression coolant:  150 bar                              │
+  │ Débit H2:          3.57 kg/s (mdot_fuel)                │
+  │ Dh canal:          2 mm                                 │
+  │ Nombre canaux:     200                                  │
+  ├─────────────────────────────────────────────────────────┤
+  │ PAROI                                                   │
+  ├─────────────────────────────────────────────────────────┤
+  │ Matériau:          NARloy-Z (Cu-Ag-Zr)                  │
+  │ Conductivité:      340 W/m·K                            │
+  │ T limite:          810 K                                │
+  │ T fusion:          1355 K                               │
+  │ Épaisseur:         1.5 mm                               │
+  └─────────────────────────────────────────────────────────┘
+
+ÉTAPE 1 - CALCUL h_g (BARTZ)
+────────────────────────────
+
+  μ_gaz ≈ 7.5×10⁻⁵ Pa·s (à Tc)
+  Cp_gaz = 3800 J/kg·K (H2O/H2 dominant)
+  Pr = 0.68
+
+  σ ≈ 1.42 (avec T_wall estimée 600 K)
+
+  h_g = (0.026 / 0.080^0.2) × (7.5×10⁻⁵)^0.2 × 3800 / 0.68^0.6 
+        × (100×10⁵ / 2350)^0.8 × σ
+  
+  Calcul:
+    • 0.026 / 0.080^0.2 = 0.026 / 0.574 = 0.0453
+    • (7.5×10⁻⁵)^0.2 = 0.0948
+    • 0.68^0.6 = 0.796
+    • (100×10⁵ / 2350)^0.8 = (4255)^0.8 = 846
+  
+  h_g = 0.0453 × 0.0948 × 3800 / 0.796 × 846 × 1.42
+  
+  h_g ≈ 24,600 W/m²·K
+
+  Note: Plus élevé que LOX/RP-1 car Pc plus haute et Cp gaz plus élevé
+
+
+ÉTAPE 2 - CALCUL h_c (LH2 SUPERCRITIQUE)
+────────────────────────────────────────
+
+L'hydrogène supercritique (P > 13 bar, T > 33 K) a des propriétés
+exceptionnelles mais qui varient fortement avec la température.
+
+Propriétés LH2 à 100 K, 150 bar:
+  • ρ = 45 kg/m³
+  • μ = 5.5×10⁻⁶ Pa·s
+  • k = 0.12 W/m·K
+  • Cp = 14,500 J/kg·K (pic pseudo-critique)
+  • Pr = 0.67
+
+Section canal (rectangulaire 2×4 mm):
+  A_canal = 8 mm² = 8×10⁻⁶ m²
+  Périmètre = 12 mm
+  Dh = 4A/P = 4×8/12 = 2.67 mm
+
+Débit par canal:
+  mdot_canal = 3.57 / 200 = 0.0179 kg/s
+  v = mdot / (ρ × A) = 0.0179 / (45 × 8×10⁻⁶) = 49.7 m/s
+
+Nombre de Reynolds:
+  Re = ρ × v × Dh / μ
+  Re = 45 × 49.7 × 0.00267 / (5.5×10⁻⁶)
+  Re = 1,086,000   (très turbulent!)
+
+Corrélation Gnielinski (recommandée pour grandes variations Pr):
+  f = (0.79 × ln(Re) - 1.64)^(-2)
+  f = (0.79 × 13.9 - 1.64)^(-2) = (9.34)^(-2) = 0.0115
+  
+  Nu = (f/8) × (Re - 1000) × Pr / [1 + 12.7×(f/8)^0.5 × (Pr^(2/3) - 1)]
+  Nu = (0.0115/8) × (1,085,000) × 0.67 / [1 + 12.7×(0.0379) × (-0.24)]
+  Nu = 0.00144 × 727,000 / 0.884
+  Nu = 1,183
+
+Coefficient de transfert:
+  h_c = Nu × k / Dh
+  h_c = 1,183 × 0.12 / 0.00267
+  h_c = 53,200 W/m²·K
+
+  ⚠️ RÉSULTAT: h_c ≈ 53,000 W/m²·K (excellent!)
+
+
+ÉTAPE 3 - FLUX ET TEMPÉRATURES
+─────────────────────────────
+
+Résistances thermiques:
+  R_gaz    = 1/24,600 = 4.07×10⁻⁵ m²·K/W
+  R_paroi  = 0.0015/340 = 4.41×10⁻⁶ m²·K/W
+  R_cool   = 1/53,200 = 1.88×10⁻⁵ m²·K/W
+  
+  R_total = 6.39×10⁻⁵ m²·K/W
+
+  Note: Distribution plus équilibrée grâce au h_c élevé
+
+T_aw au col:
+  r = Pr^0.33 = 0.68^0.33 = 0.88
+  T_aw = Tc × [1 + r×(γ-1)/2] = 3550 × [1 + 0.88×0.07] = 3769 K
+  
+  (Pour LOX/LH2, T_aw ≈ 0.90 × Tc au col)
+
+Flux thermique:
+  ΔT = T_aw - T_bulk = 3769 - 100 = 3669 K
+  
+  q = 3669 / 6.39×10⁻⁵ = 57.4 MW/m²
+
+  ⚠️ FLUX TRÈS ÉLEVÉ - typique des moteurs LOX/LH2
+
+Températures paroi:
+  T_wall_cold = 100 + 57.4×10⁶ / 53,200 = 1,179 K   ❌ PROBLÈME!
+  
+  La température dépasse la limite (810 K) et même approche la fusion!
+
+
+ÉTAPE 4 - OPTIMISATION NÉCESSAIRE
+─────────────────────────────────
+
+Le flux de 57 MW/m² est trop intense. Solutions:
+
+1. AUGMENTER LE NOMBRE DE CANAUX:
+   N = 400 canaux → v = 99 m/s → Re = 2.17×10⁶
+   Nu = 2,100 → h_c = 94,400 W/m²·K
+   T_wall_cold = 100 + 57.4×10⁶ / 94,400 = 708 K   ✅ OK!
+
+2. OU RÉDUIRE LE DIAMÈTRE HYDRAULIQUE:
+   Dh = 1.5 mm → Re augmente → h_c augmente
+
+3. OU AJOUTER FILM COOLING:
+   Film H2 5% → efficacité 0.40
+   T_aw_eff = 100 + 0.40×(3769-100) = 1568 K
+   q = (1568-100) / 6.39×10⁻⁵ = 23.0 MW/m²
+   T_wall_cold = 100 + 23.0×10⁶ / 53,200 = 533 K   ✅
+
+CONCEPTION FINALE RETENUE: 400 canaux
+  ┌─────────────────────────────────────────────────────────┐
+  │ RÉSUMÉ LOX/LH2                                          │
+  ├─────────────────────────────────────────────────────────┤
+  │ h_g:                  24,600 W/m²·K                     │
+  │ h_c:                  94,400 W/m²·K                     │
+  │ Flux thermique:       50.2 MW/m² (avec 400 canaux)      │
+  │ T_wall_cold:          632 K                             │
+  │ T_wall_hot:           854 K                             │
+  │ Marge vs T_limite:    -44 K ❌ (besoin film cooling)    │
+  │                                                         │
+  │ AVEC FILM COOLING 3%:                                   │
+  │ Flux effectif:        32 MW/m²                          │
+  │ T_wall_hot:           615 K   ✅                        │
+  └─────────────────────────────────────────────────────────┘
+
+
+9.3 EXEMPLE 3 : MOTEUR LOX/CH4 (NOUVELLE GÉNÉRATION)
+───────────────────────────────────────────────────────────────
+
+Le méthane est un compromis entre RP-1 et LH2, offrant de bonnes
+propriétés de refroidissement sans les contraintes cryogéniques extrêmes.
+
+DONNÉES:
+  ┌─────────────────────────────────────────────────────────┐
+  │ Propergols:        LOX / LCH4                           │
+  │ Pression chambre:  80 bar                               │
+  │ Rapport O/F:       3.6                                  │
+  │ Diamètre col:      150 mm                               │
+  │ T chambre:         3450 K                               │
+  │ Coolant:           LCH4 supercritique (120 K, 100 bar)  │
+  │ Matériau:          C-103 (Nb alloy, k=42 W/m·K)         │
+  │ Épaisseur:         2 mm                                 │
+  └─────────────────────────────────────────────────────────┘
+
+CALCULS RAPIDES:
+
+h_g (Bartz):
+  h_g ≈ 18,500 W/m²·K (estimé avec corrélation)
+
+h_c (CH4 supercritique à 150 K):
+  Propriétés CH4: ρ=200 kg/m³, μ=30×10⁻⁶ Pa·s, k=0.15 W/m·K, Cp=4000 J/kg·K
+  Avec v=30 m/s, Dh=3 mm:
+  Re = 200 × 30 × 0.003 / 30×10⁻⁶ = 600,000
+  Nu = 1,850 (Gnielinski)
+  h_c = 1,850 × 0.15 / 0.003 = 92,500 W/m²·K
+
+Flux et températures:
+  R_total = 1/18,500 + 0.002/42 + 1/92,500 = 1.12×10⁻⁴ m²·K/W
+  T_aw ≈ 0.92 × 3450 = 3174 K
+  q = (3174 - 150) / 1.12×10⁻⁴ = 27.0 MW/m²
+  
+  T_wall_cold = 150 + 27.0×10⁶ / 92,500 = 442 K
+  T_wall_hot = 442 + 27.0×10⁶ × 0.002 / 42 = 1,728 K   ❌
+
+  ⚠️ Le niobium (T_fusion = 2750 K) supporte cette température, mais
+     la durée de vie serait limitée. Une liner en cuivre serait préférable.
+
+SOLUTION: Liner CuCrZr + coque Nb
+  Liner 0.8 mm CuCrZr (k=320) + coque 2 mm Nb
+  R_total = 1/18,500 + 0.0008/320 + 0.002/42 + 1/92,500 = 1.14×10⁻⁴
+  T_wall_hot = 150 + 27×10⁶ × (1/92,500 + 0.0008/320) = 511 K   ✅
+
+
+9.4 EXEMPLE 4 : DIMENSIONNEMENT CANAUX DE REFROIDISSEMENT
+───────────────────────────────────────────────────────────────
+
+Cet exemple montre comment dimensionner les canaux pour atteindre
+un h_c cible avec un Δp acceptable.
+
+OBJECTIF:
+  Atteindre h_c = 50,000 W/m²·K avec RP-1
+  Contrainte: Δp < 10 bar sur 200 mm de longueur
+
+DONNÉES:
+  • Coolant: RP-1 @ 350 K
+  • ρ = 750 kg/m³, μ = 8×10⁻⁴ Pa·s, k = 0.10 W/m·K, Pr = 17
+  • Débit disponible: 2 kg/s
+  • Circonférence col: π × 0.050 = 0.157 m
+
+MÉTHODE DE RÉSOLUTION:
+
+1. Déterminer Nu nécessaire:
+   h_c = Nu × k / Dh
+   50,000 = Nu × 0.10 / Dh
+   Nu × Dh = 5000   ... (Eq. 1)
+
+2. Exprimer Nu en fonction de Re (Dittus-Boelter):
+   Nu = 0.023 × Re^0.8 × 17^0.4 = 0.023 × Re^0.8 × 3.65
+   Nu = 0.084 × Re^0.8   ... (Eq. 2)
+
+3. Exprimer Re en fonction de Dh:
+   Soit N canaux de largeur w et profondeur d
+   Dh = 4×w×d / (2w + 2d)
+   
+   Pour w = 2×d: Dh = 4×2d² / 6d = 1.33d
+   
+   Débit par canal: mdot_c = 2/N
+   Vitesse: v = mdot_c / (ρ × w × d) = 2 / (N × 750 × 2d²)
+   
+   Re = 750 × v × Dh / 8×10⁻⁴
+
+4. Itération:
+   Essai N = 80, d = 1.5 mm, w = 3 mm:
+   Dh = 4×3×1.5 / 9 = 2 mm
+   A_canal = 4.5 mm²
+   v = 2 / (80 × 750 × 4.5×10⁻⁶) = 7.4 m/s
+   Re = 750 × 7.4 × 0.002 / 8×10⁻⁴ = 13,900
+   Nu = 0.084 × 13,900^0.8 = 213
+   h_c = 213 × 0.10 / 0.002 = 10,650 W/m²·K   ❌ Trop bas!
+
+   Essai N = 120, d = 1 mm, w = 2 mm:
+   Dh = 4×2×1 / 6 = 1.33 mm
+   A_canal = 2 mm²
+   v = 2 / (120 × 750 × 2×10⁻⁶) = 11.1 m/s
+   Re = 750 × 11.1 × 0.00133 / 8×10⁻⁴ = 13,850
+   Nu = 0.084 × 13,850^0.8 = 212
+   h_c = 212 × 0.10 / 0.00133 = 15,940 W/m²·K   ❌ Encore trop bas
+
+   Essai N = 150, d = 0.8 mm, w = 1.6 mm (canaux fins):
+   Dh = 4×1.6×0.8 / 4.8 = 1.07 mm
+   v = 2 / (150 × 750 × 1.28×10⁻⁶) = 13.9 m/s
+   Re = 750 × 13.9 × 0.00107 / 8×10⁻⁴ = 13,940
+   h_c = 14,000 W/m²·K   ❌
+   
+   PROBLÈME: avec RP-1, difficile d'atteindre h_c > 30,000 W/m²·K
+   sans pertes de charge excessives.
+
+5. Vérification perte de charge:
+   f = 0.316 / Re^0.25 = 0.316 / 13,940^0.25 = 0.029
+   Δp = f × L/Dh × ρ × v² / 2
+   Δp = 0.029 × 0.2/0.00107 × 750 × 13.9² / 2
+   Δp = 5.42 × 72,560 = 3.93 bar   ✅ OK
+
+CONCLUSION:
+  h_c_max réaliste avec RP-1 ≈ 25,000 W/m²·K
+  Pour h_c = 50,000 W/m²·K, utiliser LH2 ou LCH4
+
+
+9.5 EXEMPLE 5 : CALCUL ÉLÉVATION TEMPÉRATURE COOLANT
+───────────────────────────────────────────────────────────────
+
+Vérifier que le coolant ne surchauffe pas en traversant les canaux.
+
+DONNÉES:
+  • Q_total = 850 kW (puissance thermique totale)
+  • Coolant: RP-1
+  • Débit: 2 kg/s
+  • Cp = 2100 J/kg·K
+  • T_entrée = 300 K
+  • T_ébullition = 490 K à 30 bar
+
+CALCUL:
+  ΔT_coolant = Q_total / (mdot × Cp)
+  ΔT_coolant = 850,000 / (2 × 2100)
+  ΔT_coolant = 202 K
+  
+  T_sortie = 300 + 202 = 502 K   ⚠️ > T_ébullition!
+
+PROBLÈME: Le RP-1 risque de bouillir et former des dépôts (coking)
+
+SOLUTIONS:
+  1. Augmenter le débit coolant (si possible)
+  2. Augmenter la pression coolant pour élever T_ébullition
+  3. Utiliser du refroidissement par film pour réduire Q_total
+  4. Multi-pass cooling (entrée au col, zones froides vers chambre)
+
+AVEC FILM COOLING 20%:
+  Q_effectif = 0.65 × 850 = 552 kW (réduction typique avec film)
+  ΔT_coolant = 552,000 / (2 × 2100) = 132 K
+  T_sortie = 300 + 132 = 432 K   ✅ < T_ébullition
+
+
+9.6 EXEMPLE 6 : ANALYSE DIMENSIONNELLE RAPIDE
+───────────────────────────────────────────────────────────────
+
+Méthode simplifiée pour estimation préliminaire.
+
+RÈGLES EMPIRIQUES (moteurs conventionnels):
+
+  ┌──────────────────────────────────────────────────────────┐
+  │ ESTIMATIONS RAPIDES                                      │
+  ├──────────────────────────────────────────────────────────┤
+  │ h_g au col ≈ 5000 × (Pc/20)^0.8 × (30/Dt)^0.8 W/m²·K    │
+  │   où Pc en bar, Dt en mm                                 │
+  │                                                          │
+  │ q_col ≈ 0.4 × h_g × Tc  (en W/m²)                       │
+  │   approximation avec T_wall typique                      │
+  │                                                          │
+  │ Q_total ≈ q_col × 0.3 × A_totale                        │
+  │   car flux moyen ≈ 30% du flux au col                    │
+  │                                                          │
+  │ ΔT_coolant ≈ Q_total / (mdot_fuel × Cp_fuel)            │
+  └──────────────────────────────────────────────────────────┘
+
+EXEMPLE RAPIDE:
+  Pc = 50 bar, Dt = 60 mm, Tc = 3400 K, LOX/RP-1
+  
+  h_g ≈ 5000 × (50/20)^0.8 × (30/60)^0.8
+  h_g ≈ 5000 × 2.0 × 0.57 = 5,700 W/m²·K
+  
+  q_col ≈ 0.4 × 5700 × 3400 = 7.8 MW/m²
+  
+  Cette estimation est généralement à ±30% de la valeur réelle.
+
+
+9.7 TABLEAU RÉCAPITULATIF DES EXEMPLES
+───────────────────────────────────────────────────────────────
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │ COMPARAISON DES EXEMPLES DE CALCUL                                      │
+  ├───────────┬──────────┬──────────┬──────────┬─────────┬─────────────────┤
+  │ Exemple   │ Pc (bar) │ Dt (mm)  │ q (MW/m²)│ h_g     │ Solution        │
+  ├───────────┼──────────┼──────────┼──────────┼─────────┼─────────────────┤
+  │ LOX/RP-1  │ 25       │ 30       │ 8.2      │ 7,000   │ Film 15% + v↑   │
+  │ LOX/LH2   │ 100      │ 80       │ 32       │ 24,600  │ 400 can + film  │
+  │ LOX/CH4   │ 80       │ 150      │ 27       │ 18,500  │ Liner Cu + Nb   │
+  └───────────┴──────────┴──────────┴──────────┴─────────┴─────────────────┘
+
+TENDANCES OBSERVÉES:
+  • q augmente avec Pc (quasi-linéairement)
+  • h_g augmente quand Dt diminue
+  • LOX/LH2 requiert le refroidissement le plus intense
+  • Le film cooling est souvent nécessaire pour Pc > 50 bar
+
+
+9.8 EXERCICES D'APPLICATION
+───────────────────────────────────────────────────────────────
+
+EXERCICE 1 - Calcul basique:
+  Un moteur LOX/Ethanol a: Pc=15 bar, Dt=25 mm, Tc=3000 K
+  Calculer h_g au col avec l'équation de Bartz.
+  (Réponse: ≈ 4,800 W/m²·K)
+
+EXERCICE 2 - Dimensionnement coolant:
+  Avec q=5 MW/m² et h_c requis=20,000 W/m²·K
+  Quelle élévation de température paroi côté froid?
+  (Réponse: ΔT = q/h_c = 250 K)
+
+EXERCICE 3 - Épaisseur critique:
+  Paroi cuivre (k=360 W/m·K), T_limite=700 K, T_cold=400 K
+  Flux q=15 MW/m². Quelle épaisseur maximale?
+  (Réponse: e_max = k×ΔT/q = 7.2 mm)
+
+EXERCICE 4 - Puissance thermique:
+  Moteur 5 kN de poussée, Isp=280s, Tc=3200 K
+  Estimer la puissance thermique à évacuer.
+  (Réponse: Q ≈ 0.5-1 MW, selon géométrie et flux)
+
+
+10. FORMULES RAPIDES (AIDE-MÉMOIRE COMPLET)
+═══════════════════════════════════════════════════════════════
+
+Cette section rassemble toutes les formules essentielles pour
+la conception thermique des moteurs-fusées, organisées par thème.
+
+
+10.1 ÉQUATIONS FONDAMENTALES DU TRANSFERT THERMIQUE
+───────────────────────────────────────────────────────────────
+
+FLUX THERMIQUE (LOI DE FOURIER):
+  ┌─────────────────────────────────────────────────────────┐
+  │ q = -k × (dT/dx)        [W/m²]                         │
+  │                                                         │
+  │ Pour une paroi plane:                                   │
+  │ q = k × (T₁ - T₂) / e   [W/m²]                         │
+  │                                                         │
+  │ où: k = conductivité thermique [W/m·K]                  │
+  │     e = épaisseur [m]                                   │
+  │     T₁, T₂ = températures aux faces [K]                 │
+  └─────────────────────────────────────────────────────────┘
+
+CONVECTION (LOI DE NEWTON):
+  ┌─────────────────────────────────────────────────────────┐
+  │ q = h × (T_fluide - T_paroi)    [W/m²]                 │
+  │                                                         │
+  │ où: h = coefficient de convection [W/m²·K]              │
+  │     T_fluide = température du fluide [K]                │
+  │     T_paroi = température de la paroi [K]               │
+  └─────────────────────────────────────────────────────────┘
+
+RÉSISTANCES THERMIQUES EN SÉRIE:
+  ┌─────────────────────────────────────────────────────────┐
+  │ R_total = R_gaz + R_paroi + R_coolant                   │
+  │                                                         │
+  │ R_gaz = 1/h_g           [m²·K/W]                       │
+  │ R_paroi = e/k           [m²·K/W]                       │
+  │ R_coolant = 1/h_c       [m²·K/W]                       │
+  │                                                         │
+  │ Flux: q = ΔT_total / R_total                           │
+  └─────────────────────────────────────────────────────────┘
+
+COEFFICIENT GLOBAL DE TRANSFERT:
+  ┌─────────────────────────────────────────────────────────┐
+  │ U = 1 / R_total = 1 / (1/h_g + e/k + 1/h_c)            │
+  │                                                         │
+  │ q = U × (T_gaz - T_coolant)                            │
+  └─────────────────────────────────────────────────────────┘
+
+
+10.2 ÉQUATION DE BARTZ (CÔTÉ GAZ CHAUD)
+───────────────────────────────────────────────────────────────
+
+FORME COMPLÈTE:
+  ┌─────────────────────────────────────────────────────────┐
+  │                     0.026      μ^0.2 × Cp              │
+  │ h_g = σ × ─────── × ────────── × (Pc/c*)^0.8 ×        │
+  │                     Dt^0.2      Pr^0.6                  │
+  │                                                         │
+  │           × (Dt/R_c)^0.1 × (At/A)^0.9                  │
+  └─────────────────────────────────────────────────────────┘
+
+FACTEUR DE CORRECTION σ:
+  ┌─────────────────────────────────────────────────────────┐
+  │ σ = [½(Tw/Tc)(1 + (γ-1)/2 × M²) + ½]^(-0.68) ×        │
+  │     × [1 + (γ-1)/2 × M²]^(-0.12)                       │
+  │                                                         │
+  │ Approximation au col (M=1):                             │
+  │ σ ≈ [0.5 × Tw/Tc × (γ+1)/2 + 0.5]^(-0.68)             │
+  └─────────────────────────────────────────────────────────┘
+
+FORME SIMPLIFIÉE AU COL:
+  ┌─────────────────────────────────────────────────────────┐
+  │ h_g,throat = C × (Pc^0.8 / Dt^1.8) × σ                 │
+  │                                                         │
+  │ où C dépend des propriétés du gaz                       │
+  │                                                         │
+  │ Estimation rapide:                                      │
+  │ h_g ≈ 5000 × (Pc/20)^0.8 × (30/Dt_mm)^1.8 [W/m²·K]    │
+  └─────────────────────────────────────────────────────────┘
+
+VARIATION LE LONG DE LA TUYÈRE:
+  ┌─────────────────────────────────────────────────────────┐
+  │ h_g(x) = h_g,throat × (Dt / D(x))^1.8                  │
+  │                                                         │
+  │ Au col:     h_g = h_g,throat (maximum)                  │
+  │ Chambre:    h_g ≈ 0.3 × h_g,throat                     │
+  │ Sortie:     h_g ≈ 0.05 × h_g,throat                    │
+  └─────────────────────────────────────────────────────────┘
+
+
+10.3 NOMBRES ADIMENSIONNELS
+───────────────────────────────────────────────────────────────
+
+NOMBRE DE REYNOLDS:
+  ┌─────────────────────────────────────────────────────────┐
+  │ Re = ρ × v × D_h / μ = v × D_h / ν                     │
+  │                                                         │
+  │ où: ρ = masse volumique [kg/m³]                         │
+  │     v = vitesse [m/s]                                   │
+  │     D_h = diamètre hydraulique [m]                      │
+  │     μ = viscosité dynamique [Pa·s]                      │
+  │     ν = viscosité cinématique [m²/s]                    │
+  │                                                         │
+  │ Régimes:                                                │
+  │   Re < 2300      : Laminaire                            │
+  │   2300 < Re < 10⁴: Transition                          │
+  │   Re > 10⁴       : Turbulent                           │
+  └─────────────────────────────────────────────────────────┘
+
+NOMBRE DE PRANDTL:
+  ┌─────────────────────────────────────────────────────────┐
+  │ Pr = μ × Cp / k = ν / α                                │
+  │                                                         │
+  │ où: Cp = capacité thermique [J/kg·K]                    │
+  │     k = conductivité thermique [W/m·K]                  │
+  │     α = diffusivité thermique [m²/s]                    │
+  │                                                         │
+  │ Valeurs typiques:                                       │
+  │   Gaz combustion : Pr ≈ 0.7-0.8                        │
+  │   Eau           : Pr ≈ 7 (à 20°C)                      │
+  │   RP-1          : Pr ≈ 15-25                           │
+  │   LH2           : Pr ≈ 0.7-1.5                         │
+  │   Huiles        : Pr ≈ 100-1000                        │
+  └─────────────────────────────────────────────────────────┘
+
+NOMBRE DE NUSSELT:
+  ┌─────────────────────────────────────────────────────────┐
+  │ Nu = h × D_h / k                                       │
+  │                                                         │
+  │ Interprétation: Nu = transfert convectif / conductif    │
+  │                                                         │
+  │ Pour obtenir h:                                         │
+  │ h = Nu × k / D_h    [W/m²·K]                           │
+  └─────────────────────────────────────────────────────────┘
+
+DIAMÈTRE HYDRAULIQUE:
+  ┌─────────────────────────────────────────────────────────┐
+  │ D_h = 4 × A / P                                        │
+  │                                                         │
+  │ où: A = aire de la section [m²]                         │
+  │     P = périmètre mouillé [m]                           │
+  │                                                         │
+  │ Cas particuliers:                                       │
+  │   Tube circulaire:    D_h = D                          │
+  │   Rectangle (a×b):    D_h = 2ab/(a+b)                  │
+  │   Annulaire:          D_h = D_ext - D_int              │
+  │   Carré (côté a):     D_h = a                          │
+  └─────────────────────────────────────────────────────────┘
+
+
+10.4 CORRÉLATIONS DE CONVECTION FORCÉE
+───────────────────────────────────────────────────────────────
+
+DITTUS-BOELTER (turbulent, fluides simples):
+  ┌─────────────────────────────────────────────────────────┐
+  │ Nu = 0.023 × Re^0.8 × Pr^n                             │
+  │                                                         │
+  │ n = 0.4  (chauffage du fluide)                         │
+  │ n = 0.3  (refroidissement du fluide)                   │
+  │                                                         │
+  │ Validité: Re > 10,000                                   │
+  │           0.6 < Pr < 160                                │
+  │           L/D > 10                                      │
+  └─────────────────────────────────────────────────────────┘
+
+SIEDER-TATE (correction viscosité):
+  ┌─────────────────────────────────────────────────────────┐
+  │ Nu = 0.027 × Re^0.8 × Pr^(1/3) × (μ_bulk/μ_wall)^0.14 │
+  │                                                         │
+  │ Recommandé quand:                                       │
+  │   T_wall >> T_bulk (grande variation de μ)             │
+  └─────────────────────────────────────────────────────────┘
+
+GNIELINSKI (transition + turbulent):
+  ┌─────────────────────────────────────────────────────────┐
+  │       (f/8) × (Re - 1000) × Pr                         │
+  │ Nu = ─────────────────────────────────────             │
+  │       1 + 12.7 × (f/8)^0.5 × (Pr^(2/3) - 1)            │
+  │                                                         │
+  │ avec f = (0.79 × ln(Re) - 1.64)^(-2)                   │
+  │                                                         │
+  │ Validité: 2300 < Re < 5×10⁶                            │
+  │           0.5 < Pr < 2000                               │
+  └─────────────────────────────────────────────────────────┘
+
+PETUKHOV (haute précision, turbulent):
+  ┌─────────────────────────────────────────────────────────┐
+  │       (f/8) × Re × Pr                                  │
+  │ Nu = ──────────────────────────────────────            │
+  │       1.07 + 12.7 × (f/8)^0.5 × (Pr^(2/3) - 1)         │
+  │                                                         │
+  │ avec f = (0.790 × ln(Re) - 1.64)^(-2)                  │
+  │                                                         │
+  │ Précision: ±5% pour 10⁴ < Re < 5×10⁶                   │
+  └─────────────────────────────────────────────────────────┘
+
+LAMINAIRE (Re < 2300):
+  ┌─────────────────────────────────────────────────────────┐
+  │ Tube long, T_wall constante:                           │
+  │   Nu = 3.66                                             │
+  │                                                         │
+  │ Tube long, flux constant:                              │
+  │   Nu = 4.36                                             │
+  │                                                         │
+  │ Tube court (développement thermique):                  │
+  │   Nu = 1.86 × (Re × Pr × D/L)^(1/3) × (μ_b/μ_w)^0.14  │
+  └─────────────────────────────────────────────────────────┘
+
+
+10.5 ÉQUATIONS DE TEMPÉRATURE DE PAROI
+───────────────────────────────────────────────────────────────
+
+PROFIL DE TEMPÉRATURE À TRAVERS LA PAROI:
+  ┌─────────────────────────────────────────────────────────┐
+  │ T_gaz ──────▶ T_wall_hot ──────▶ T_wall_cold ──────▶ T_coolant │
+  │         h_g           k/e              h_c              │
+  │                                                         │
+  │ T_wall_hot = T_gaz - q/h_g                             │
+  │                                                         │
+  │ T_wall_cold = T_wall_hot - q×e/k                       │
+  │              = T_coolant + q/h_c                        │
+  │                                                         │
+  │ Vérification: T_wall_hot = T_coolant + q×(1/h_c + e/k) │
+  └─────────────────────────────────────────────────────────┘
+
+TEMPÉRATURE ADIABATIQUE DE PAROI (T_aw):
+  ┌─────────────────────────────────────────────────────────┐
+  │ T_aw = T_statique × [1 + r × (γ-1)/2 × M²]             │
+  │                                                         │
+  │ Facteur de récupération r:                              │
+  │   r = Pr^(1/2)  pour laminaire                         │
+  │   r = Pr^(1/3)  pour turbulent                         │
+  │                                                         │
+  │ Au col (M=1):                                           │
+  │   T_aw ≈ 0.90 × T_c  (gaz combustion typique)          │
+  └─────────────────────────────────────────────────────────┘
+
+TEMPÉRATURE CRITIQUE DE PAROI:
+  ┌─────────────────────────────────────────────────────────┐
+  │ Marge thermique:                                        │
+  │   Marge = T_limite - T_wall_hot                        │
+  │                                                         │
+  │ Condition de sécurité:                                  │
+  │   T_wall_hot < T_limite  (typiquement 20% de marge)    │
+  │                                                         │
+  │ Limite absolue:                                         │
+  │   T_wall_hot << T_fusion  (facteur 1.5 minimum)        │
+  └─────────────────────────────────────────────────────────┘
+
+
+10.6 ÉPAISSEUR DE PAROI
+───────────────────────────────────────────────────────────────
+
+ÉPAISSEUR MAXIMALE (critère thermique):
+  ┌─────────────────────────────────────────────────────────┐
+  │ e_max = k × (T_limite - T_wall_cold) / q               │
+  │                                                         │
+  │ Si e > e_max: T_wall_hot > T_limite → Défaillance!     │
+  └─────────────────────────────────────────────────────────┘
+
+ÉPAISSEUR DE FUSION:
+  ┌─────────────────────────────────────────────────────────┐
+  │ e_melt = k × (T_fusion - T_wall_cold) / q              │
+  │                                                         │
+  │ Si e > e_melt: La paroi fond côté gaz!                 │
+  └─────────────────────────────────────────────────────────┘
+
+ÉPAISSEUR SACRIFICIELLE:
+  ┌─────────────────────────────────────────────────────────┐
+  │ e_sacrif = e_initial - e_melt                          │
+  │                                                         │
+  │ Épaisseur de matériau qui peut fondre sans             │
+  │ compromettre l'intégrité structurelle.                 │
+  │                                                         │
+  │ Condition: e_sacrif > 0 et e_restante > e_min_struct   │
+  └─────────────────────────────────────────────────────────┘
+
+ÉPAISSEUR MINIMALE (critère mécanique):
+  ┌─────────────────────────────────────────────────────────┐
+  │ e_min = Pc × r / σ_admissible                          │
+  │                                                         │
+  │ où: Pc = pression chambre [Pa]                          │
+  │     r = rayon local [m]                                 │
+  │     σ_admissible = contrainte admissible à T [Pa]       │
+  │                                                         │
+  │ Note: σ_admissible diminue avec T!                     │
+  └─────────────────────────────────────────────────────────┘
+
+
+10.7 PUISSANCE ET ÉNERGIE THERMIQUE
+───────────────────────────────────────────────────────────────
+
+PUISSANCE THERMIQUE TOTALE:
+  ┌─────────────────────────────────────────────────────────┐
+  │ Q_total = ∫ q(x) × dA                                  │
+  │                                                         │
+  │ Approximation:                                          │
+  │ Q_total ≈ q_moyen × A_totale                           │
+  │                                                         │
+  │ où: q_moyen ≈ 0.3 × q_col (valeur typique)             │
+  └─────────────────────────────────────────────────────────┘
+
+ÉLÉVATION DE TEMPÉRATURE DU COOLANT:
+  ┌─────────────────────────────────────────────────────────┐
+  │ ΔT_coolant = Q_total / (ṁ_coolant × Cp_coolant)        │
+  │                                                         │
+  │ T_sortie = T_entrée + ΔT_coolant                       │
+  │                                                         │
+  │ Condition: T_sortie < T_ébullition ou T_décomposition  │
+  └─────────────────────────────────────────────────────────┘
+
+FRACTION DE CHALEUR ABSORBÉE:
+  ┌─────────────────────────────────────────────────────────┐
+  │ η_thermique = Q_total / Q_combustion                   │
+  │                                                         │
+  │ Q_combustion = ṁ_propergols × ΔH_combustion            │
+  │                                                         │
+  │ Typiquement: η_thermique ≈ 1-5%                        │
+  └─────────────────────────────────────────────────────────┘
+
+
+10.8 PERTES DE CHARGE
+───────────────────────────────────────────────────────────────
+
+ÉQUATION DE DARCY-WEISBACH:
+  ┌─────────────────────────────────────────────────────────┐
+  │ Δp = f × (L/D_h) × (ρ × v²) / 2                        │
+  │                                                         │
+  │ où: f = facteur de friction                             │
+  │     L = longueur du canal [m]                           │
+  │     D_h = diamètre hydraulique [m]                      │
+  └─────────────────────────────────────────────────────────┘
+
+FACTEUR DE FRICTION:
+  ┌─────────────────────────────────────────────────────────┐
+  │ Laminaire (Re < 2300):                                  │
+  │   f = 64 / Re                                           │
+  │                                                         │
+  │ Turbulent lisse (Blasius, Re < 10⁵):                   │
+  │   f = 0.316 / Re^0.25                                  │
+  │                                                         │
+  │ Turbulent (Petukhov, Re > 3000):                       │
+  │   f = (0.790 × ln(Re) - 1.64)^(-2)                     │
+  │                                                         │
+  │ Avec rugosité (Colebrook-White):                       │
+  │   1/√f = -2×log₁₀(ε/3.7D + 2.51/(Re×√f))              │
+  └─────────────────────────────────────────────────────────┘
+
+PUISSANCE DE POMPAGE:
+  ┌─────────────────────────────────────────────────────────┐
+  │ P_pompe = Δp × Q_volumique / η_pompe                   │
+  │         = Δp × ṁ / (ρ × η_pompe)                       │
+  │                                                         │
+  │ où: Q_volumique = débit volumique [m³/s]                │
+  │     η_pompe = rendement de la pompe                     │
+  └─────────────────────────────────────────────────────────┘
+
+
+10.9 FILM COOLING
+───────────────────────────────────────────────────────────────
+
+EFFICACITÉ DU FILM:
+  ┌─────────────────────────────────────────────────────────┐
+  │ η_film = (T_aw - T_aw,film) / (T_aw - T_coolant)       │
+  │                                                         │
+  │ où: T_aw,film = température adiabatique avec film       │
+  │     T_coolant = température du film injecté             │
+  │                                                         │
+  │ T_aw,effective = T_coolant + η_film × (T_aw - T_coolant)│
+  └─────────────────────────────────────────────────────────┘
+
+DÉBIT DE FILM:
+  ┌─────────────────────────────────────────────────────────┐
+  │ Règle empirique:                                        │
+  │   ṁ_film = 2-5% du débit fuel pour protection locale   │
+  │   ṁ_film = 10-20% pour protection chambre complète     │
+  │                                                         │
+  │ Efficacité typique:                                     │
+  │   η_film ≈ 0.3 - 0.6 selon injection et géométrie      │
+  └─────────────────────────────────────────────────────────┘
+
+RÉDUCTION DE FLUX EFFECTIVE:
+  ┌─────────────────────────────────────────────────────────┐
+  │ q_avec_film = h_g × (T_aw,effective - T_wall_hot)      │
+  │                                                         │
+  │ Réduction typique: 30-60% du flux sans film            │
+  └─────────────────────────────────────────────────────────┘
+
+
+10.10 PROPRIÉTÉS DES GAZ DE COMBUSTION
+───────────────────────────────────────────────────────────────
+
+ESTIMATION DES PROPRIÉTÉS:
+  ┌─────────────────────────────────────────────────────────┐
+  │ Viscosité dynamique (loi de Sutherland):               │
+  │   μ = μ₀ × (T/T₀)^1.5 × (T₀ + S)/(T + S)               │
+  │                                                         │
+  │ Pour gaz de combustion (approximation):                │
+  │   μ ≈ 3×10⁻⁷ × T^0.7  [Pa·s]                          │
+  │                                                         │
+  │ Conductivité thermique:                                │
+  │   k = Cp × μ / Pr                                      │
+  │   k ≈ Cp × μ / 0.72  [W/m·K]                          │
+  │                                                         │
+  │ Cp (J/kg·K) typique:                                   │
+  │   LOX/RP-1: 2000-2200                                  │
+  │   LOX/LH2:  3500-4000                                  │
+  │   LOX/CH4:  2400-2800                                  │
+  └─────────────────────────────────────────────────────────┘
+
+
+10.11 TABLEAU RÉCAPITULATIF DES FORMULES
+───────────────────────────────────────────────────────────────
+
+  ┌──────────────────────────────┬────────────────────────────────────────┐
+  │ GRANDEUR                     │ FORMULE                                │
+  ├──────────────────────────────┼────────────────────────────────────────┤
+  │ Flux thermique               │ q = ΔT / R_total                       │
+  │ Résistance totale            │ R = 1/h_g + e/k + 1/h_c                │
+  │ Coefficient global           │ U = 1/R_total                          │
+  │ T paroi chaude               │ T_hot = T_gaz - q/h_g                  │
+  │ T paroi froide               │ T_cold = T_coolant + q/h_c             │
+  │ Gradient dans paroi          │ ΔT_paroi = q × e / k                   │
+  ├──────────────────────────────┼────────────────────────────────────────┤
+  │ Reynolds                     │ Re = ρ·v·D_h / μ                       │
+  │ Prandtl                      │ Pr = μ·Cp / k                          │
+  │ Nusselt (Dittus-Boelter)     │ Nu = 0.023·Re^0.8·Pr^0.4               │
+  │ h depuis Nu                  │ h = Nu·k / D_h                         │
+  │ Diamètre hydraulique         │ D_h = 4·A / P                          │
+  ├──────────────────────────────┼────────────────────────────────────────┤
+  │ Épaisseur max thermique      │ e_max = k·(T_lim - T_cold) / q         │
+  │ Épaisseur fusion             │ e_melt = k·(T_fus - T_cold) / q        │
+  │ Épaisseur min mécanique      │ e_min = P·r / σ_adm                    │
+  ├──────────────────────────────┼────────────────────────────────────────┤
+  │ Puissance thermique          │ Q = ∫q·dA ≈ q_moy × A                  │
+  │ ΔT coolant                   │ ΔT = Q / (ṁ·Cp)                        │
+  │ Perte de charge              │ Δp = f·(L/D_h)·ρ·v²/2                  │
+  └──────────────────────────────┴────────────────────────────────────────┘
+
+
+10.12 ORDRES DE GRANDEUR TYPIQUES
+───────────────────────────────────────────────────────────────
+
+FLUX THERMIQUE AU COL:
+  ┌─────────────────────────────────────────────────────────┐
+  │ Moteur amateur (Pc < 10 bar):      1 - 5 MW/m²         │
+  │ Petit moteur (Pc ~ 20-50 bar):     5 - 20 MW/m²        │
+  │ Moteur orbital (Pc ~ 50-100 bar):  15 - 50 MW/m²       │
+  │ Moteur haute Pc (> 150 bar):       30 - 80 MW/m²       │
+  │ Record (SSME au col):              130 MW/m²           │
+  └─────────────────────────────────────────────────────────┘
+
+COEFFICIENTS DE TRANSFERT:
+  ┌─────────────────────────────────────────────────────────┐
+  │ h_g au col:                                             │
+  │   Pc = 20 bar:     3,000 - 8,000 W/m²·K                │
+  │   Pc = 50 bar:     8,000 - 20,000 W/m²·K               │
+  │   Pc = 100 bar:    15,000 - 40,000 W/m²·K              │
+  │   Pc = 200 bar:    30,000 - 80,000 W/m²·K              │
+  │                                                         │
+  │ h_c (coolant):                                          │
+  │   RP-1:            5,000 - 30,000 W/m²·K               │
+  │   LCH4:            20,000 - 80,000 W/m²·K              │
+  │   LH2:             50,000 - 200,000 W/m²·K             │
+  │   Eau:             5,000 - 50,000 W/m²·K               │
+  └─────────────────────────────────────────────────────────┘
+
+TEMPÉRATURES:
+  ┌─────────────────────────────────────────────────────────┐
+  │ T chambre:                                              │
+  │   LOX/RP-1:        3200 - 3500 K                       │
+  │   LOX/LH2:         3400 - 3600 K                       │
+  │   LOX/CH4:         3300 - 3500 K                       │
+  │   N2O4/UDMH:       3000 - 3200 K                       │
+  │                                                         │
+  │ T paroi hot typique:                                    │
+  │   Cuivre allié:    500 - 800 K                         │
+  │   Ni superalliage: 800 - 1100 K                        │
+  │   Réfractaires:    1200 - 2000 K                       │
+  └─────────────────────────────────────────────────────────┘
+
+GÉOMÉTRIE:
+  ┌─────────────────────────────────────────────────────────┐
+  │ Épaisseur paroi:   0.5 - 10 mm                         │
+  │ Largeur canal:     1 - 5 mm                            │
+  │ Profondeur canal:  1 - 10 mm                           │
+  │ Nombre canaux:     20 - 500                            │
+  │ Vitesse coolant:   5 - 50 m/s                          │
+  │ Δp canaux:         2 - 20 bar                          │
+  └─────────────────────────────────────────────────────────┘
+
+
+10.13 CONVERSIONS UTILES
+───────────────────────────────────────────────────────────────
+
+  ┌────────────────────────────────────────────────────────────────┐
+  │ TEMPÉRATURE                                                     │
+  │   K = °C + 273.15                                               │
+  │   °C = (°F - 32) × 5/9                                         │
+  │   K = (°F + 459.67) × 5/9                                      │
+  ├────────────────────────────────────────────────────────────────┤
+  │ PRESSION                                                        │
+  │   1 bar = 100,000 Pa = 0.1 MPa                                 │
+  │   1 bar = 14.504 psi                                           │
+  │   1 atm = 101,325 Pa = 1.01325 bar                             │
+  ├────────────────────────────────────────────────────────────────┤
+  │ ÉNERGIE / PUISSANCE                                            │
+  │   1 MW = 10⁶ W                                                 │
+  │   1 kW = 1.341 hp                                              │
+  │   1 BTU/s = 1055 W                                             │
+  ├────────────────────────────────────────────────────────────────┤
+  │ FLUX THERMIQUE                                                  │
+  │   1 MW/m² = 10⁶ W/m²                                           │
+  │   1 BTU/(h·ft²) = 3.155 W/m²                                   │
+  ├────────────────────────────────────────────────────────────────┤
+  │ COEFFICIENT DE TRANSFERT                                        │
+  │   1 W/(m²·K) = 0.1761 BTU/(h·ft²·°F)                           │
+  │   1 BTU/(h·ft²·°F) = 5.678 W/(m²·K)                            │
+  ├────────────────────────────────────────────────────────────────┤
+  │ CONDUCTIVITÉ THERMIQUE                                          │
+  │   1 W/(m·K) = 0.5778 BTU/(h·ft·°F)                             │
+  └────────────────────────────────────────────────────────────────┘
+
+
+10.14 CONSTANTES PHYSIQUES
+───────────────────────────────────────────────────────────────
+
+  ┌─────────────────────────────────────────────────────────┐
+  │ Constante des gaz parfaits:                             │
+  │   R = 8.314 J/(mol·K)                                   │
+  │                                                         │
+  │ Constante de Stefan-Boltzmann:                         │
+  │   σ = 5.67×10⁻⁸ W/(m²·K⁴)                              │
+  │                                                         │
+  │ Nombre d'Avogadro:                                     │
+  │   N_A = 6.022×10²³ mol⁻¹                               │
+  │                                                         │
+  │ Accélération gravitationnelle:                         │
+  │   g₀ = 9.80665 m/s²                                    │
+  └─────────────────────────────────────────────────────────┘
+
+
+RÉFÉRENCES BIBLIOGRAPHIQUES
+═══════════════════════════════════════════════════════════════
+
+OUVRAGES DE RÉFÉRENCE:
+  ┌─────────────────────────────────────────────────────────┐
+  │ • Sutton & Biblarz - "Rocket Propulsion Elements"       │
+  │   (9th ed., 2016) - Référence principale               │
+  │                                                         │
+  │ • Humble, Henry & Larson - "Space Propulsion Analysis  │
+  │   and Design" (1995) - Conception détaillée            │
+  │                                                         │
+  │ • Huzel & Huang - "Modern Engineering for Design of    │
+  │   Liquid-Propellant Rocket Engines" (1992)             │
+  │                                                         │
+  │ • Hill & Peterson - "Mechanics and Thermodynamics      │
+  │   of Propulsion" (1992)                                 │
+  └─────────────────────────────────────────────────────────┘
+
+PUBLICATIONS TECHNIQUES:
+  ┌─────────────────────────────────────────────────────────┐
+  │ • Bartz, D.R. (1957) - "A Simple Equation for Rapid    │
+  │   Estimation of Rocket Nozzle Convective Heat Transfer │
+  │   Coefficients" - Jet Propulsion, Vol. 27, No. 1       │
+  │                                                         │
+  │ • Dittus, F.W. & Boelter, L.M.K. (1930) - "Heat        │
+  │   Transfer in Automobile Radiators of the Tubular Type"│
+  │   University of California Publications, Vol. 2        │
+  │                                                         │
+  │ • Gnielinski, V. (1976) - "New Equations for Heat and  │
+  │   Mass Transfer in Turbulent Pipe and Channel Flow"    │
+  │   Int. Chem. Eng., Vol. 16, No. 2                      │
+  │                                                         │
+  │ • Sieder, E.N. & Tate, G.E. (1936) - "Heat Transfer    │
+  │   and Pressure Drop of Liquids in Tubes"               │
+  │   Industrial & Engineering Chemistry, Vol. 28          │
+  └─────────────────────────────────────────────────────────┘
+
+DOCUMENTS NASA:
+  ┌─────────────────────────────────────────────────────────┐
+  │ • NASA SP-125 - "Design of Liquid Propellant Rocket    │
+  │   Engines" (Huzel & Huang, 1967)                       │
+  │                                                         │
+  │ • NASA SP-8014 - "Entry Thermal Protection" (1968)     │
+  │                                                         │
+  │ • NASA TM-X-52386 - "Regenerative Cooling of Rocket    │
+  │   Engines" (1967)                                       │
+  │                                                         │
+  │ • NASA CR-134806 - "High Pressure LOX/Hydrogen         │
+  │   Regenerative Cooling" (1975)                         │
+  └─────────────────────────────────────────────────────────┘
+
+LOGICIELS ET BASES DE DONNÉES:
+  ┌─────────────────────────────────────────────────────────┐
+  │ • CEA (Chemical Equilibrium with Applications)         │
+  │   NASA Glenn Research Center                           │
+  │   https://www.grc.nasa.gov/WWW/CEAWeb/                 │
+  │                                                         │
+  │ • NIST Chemistry WebBook                               │
+  │   https://webbook.nist.gov/chemistry/                  │
+  │                                                         │
+  │ • RocketCEA (Python wrapper)                           │
+  │   https://rocketcea.readthedocs.io/                    │
+  └─────────────────────────────────────────────────────────┘
+
+═══════════════════════════════════════════════════════════════
+Document généré par Rocket Motor Design Plotter v6 - Décembre 2025
+'''
+        
+        # Insérer le contenu avec formatage
+        lines = content.split('\n')
+        for line in lines:
+            if line.startswith('🔥') or line.startswith('═══'):
+                self.wiki_text.insert(tk.END, line + '\n', "h1")
+            elif line.strip().startswith(('1.', '2.', '3.', '4.', '5.', '6.', '7.', '8.', '9.', '10.')) and 'INTRODUCTION' in line or 'THÉORIE' in line or 'MODÈLE' in line or 'CALCUL' in line or 'CORRÉLATION' in line or 'ÉPAISSEUR' in line or 'PROPRIÉTÉS' in line or 'EXEMPLE' in line or 'FORMULES' in line or 'RÉFÉRENCES' in line:
+                self.wiki_text.insert(tk.END, line + '\n', "h2")
+            elif line.strip().startswith(('1.', '2.', '3.', '4.', '5.', '6.', '7.', '8.', '9.', '10.')):
+                self.wiki_text.insert(tk.END, line + '\n', "h2")
+            elif line.strip().startswith(('2.1', '2.2', '2.3', '3.1', '3.2', '3.3', '4.1', '4.2', '5.1', '5.2', '5.3', '6.1', '6.2', '6.3')):
+                self.wiki_text.insert(tk.END, line + '\n', "h3")
+            elif line.strip().startswith('───'):
+                self.wiki_text.insert(tk.END, line + '\n', "h2")
+            elif '=' in line and ('q =' in line or 'Nu =' in line or 'Re =' in line or 'Pr =' in line or 'h_' in line or 'T_' in line or 'e_' in line):
+                self.wiki_text.insert(tk.END, line + '\n', "formula")
+            elif line.strip().startswith(('⚠️', '💀', '🔥', '✅', '❌')):
+                self.wiki_text.insert(tk.END, line + '\n', "important")
+            elif line.strip().startswith(('┌', '├', '└', '│')):
+                self.wiki_text.insert(tk.END, line + '\n', "code")
+            elif 'ÉTAPE' in line:
+                self.wiki_text.insert(tk.END, line + '\n', "h3")
+            else:
+                self.wiki_text.insert(tk.END, line + '\n', "normal")
+        
+        self.wiki_text.config(state=tk.DISABLED)
+    
+    def wiki_search(self):
+        """Recherche dans le wiki"""
+        search_term = self.wiki_search_var.get()
+        if not search_term:
+            return
+        
+        # Supprimer les highlights précédents
+        self.wiki_text.tag_remove("highlight", "1.0", tk.END)
+        
+        # Chercher depuis le début
+        self.wiki_search_pos = "1.0"
+        self.wiki_search_next()
+    
+    def wiki_search_next(self):
+        """Trouve l'occurrence suivante"""
+        search_term = self.wiki_search_var.get()
+        if not search_term:
+            return
+        
+        # Chercher
+        pos = self.wiki_text.search(search_term, self.wiki_search_pos, nocase=True, stopindex=tk.END)
+        
+        if pos:
+            # Calculer la fin
+            end_pos = f"{pos}+{len(search_term)}c"
+            
+            # Highlight
+            self.wiki_text.tag_add("highlight", pos, end_pos)
+            
+            # Scroll vers la position
+            self.wiki_text.see(pos)
+            
+            # Préparer pour la prochaine recherche
+            self.wiki_search_pos = end_pos
+        else:
+            # Revenir au début
+            self.wiki_search_pos = "1.0"
+            messagebox.showinfo("Recherche", f"Fin du document atteinte pour '{search_term}'")
+    
+    def wiki_goto_section(self, event):
+        """Aller à une section du sommaire"""
+        selection = self.wiki_toc.curselection()
+        if not selection:
+            return
+        
+        item = self.wiki_toc.get(selection[0])
+        
+        # Extraire le numéro de section
+        section_map = {
+            "1.": "1. INTRODUCTION",
+            "1.1": "1.1 POURQUOI LE REFROIDISSEMENT",
+            "1.2": "1.2 LES DIFFÉRENTES STRATÉGIES",
+            "1.3": "1.3 SCHÉMA DU TRANSFERT",
+            "1.4": "1.4 ÉQUATIONS FONDAMENTALES",
+            "1.5": "1.5 ORDRES DE GRANDEUR",
+            "2.": "2. THÉORIE DÉTAILLÉE",
+            "2.1": "2.1 LA CONDUCTION THERMIQUE",
+            "2.2": "2.2 LA CONVECTION THERMIQUE",
+            "2.3": "2.3 LES NOMBRES ADIMENSIONNELS",
+            "3.": "3. MODÈLE DE BARTZ",
+            "3.1": "3.1 HISTORIQUE",
+            "3.2": "3.2 ÉQUATION COMPLÈTE",
+            "3.3": "3.3 FORMULE SIMPLIFIÉE",
+            "3.4": "3.4 PROPRIÉTÉS DES GAZ",
+            "3.5": "3.5 VALEURS TYPIQUES DE h_g",
+            "3.6": "3.6 LIMITATIONS",
+            "3.7": "3.7 COMPARAISON",
+            "4.": "4. CALCUL DES TEMPÉRATURES",
+            "4.1": "4.1 SYSTÈME D'ÉQUATIONS",
+            "4.2": "4.2 CALCUL DE T_WALL_HOT",
+            "4.3": "4.3 CALCUL DE T_WALL_COLD",
+            "4.4": "4.4 PROFIL DE TEMPÉRATURE",
+            "4.5": "4.5 CONTRAINTES THERMIQUES",
+            "4.6": "4.6 RÉGIME TRANSITOIRE",
+            "4.7": "4.7 TEMPÉRATURE ADIABATIQUE",
+            "4.8": "4.8 CALCUL ITÉRATIF",
+            "5.": "5. CORRÉLATIONS CÔTÉ COOLANT",
+            "5.1": "5.1 CORRÉLATION DE DITTUS",
+            "5.2": "5.2 CORRÉLATION DE GNIELINSKI",
+            "5.3": "5.3 RÉGIME LAMINAIRE",
+            "5.4": "5.4 RÉGIME TRANSITOIRE",
+            "5.5": "5.5 ÉBULLITION SOUS-REFROIDIE",
+            "5.6": "5.6 EFFETS DE LA GÉOMÉTRIE",
+            "5.7": "5.7 PERTES DE CHARGE",
+            "5.8": "5.8 VALEURS TYPIQUES DE h_c",
+            "6.": "6. ÉPAISSEUR CRITIQUE",
+            "6.1": "6.1 ÉPAISSEUR CRITIQUE DE FUSION",
+            "6.2": "6.2 ÉPAISSEUR DE SERVICE",
+            "6.3": "6.3 PROCESSUS D'ABLATION",
+            "6.4": "6.4 ÉPAISSEUR SACRIFICIELLE",
+            "6.5": "6.5 TEMPS D'ABLATION",
+            "6.6": "6.6 QUAND L'ABLATION",
+            "6.7": "6.7 DIMENSIONNEMENT",
+            "6.8": "6.8 CARTE THERMIQUE",
+            "7.": "7. PROPRIÉTÉS DES MATÉRIAUX",
+            "7.1": "7.1 TABLEAU RÉCAPITULATIF",
+            "7.2": "7.2 ALLIAGES DE CUIVRE",
+            "7.3": "7.3 SUPERALLIAGES BASE NICKEL",
+            "7.4": "7.4 ALLIAGES D'ALUMINIUM",
+            "7.5": "7.5 MÉTAUX RÉFRACTAIRES",
+            "7.6": "7.6 MATÉRIAUX CÉRAMIQUES",
+            "7.7": "7.7 CRITÈRES DE SÉLECTION",
+            "7.8": "7.8 EXEMPLES DE MOTEURS",
+            "8.": "8. PROPRIÉTÉS DES COOLANTS",
+            "8.1": "8.1 TABLEAU RÉCAPITULATIF",
+            "8.2": "8.2 HYDROGÈNE LIQUIDE",
+            "8.3": "8.3 OXYGÈNE LIQUIDE",
+            "8.4": "8.4 MÉTHANE LIQUIDE",
+            "8.5": "8.5 RP-1",
+            "8.6": "8.6 ÉTHANOL",
+            "8.7": "8.7 HYDRAZINE",
+            "8.8": "8.8 EAU",
+            "8.9": "8.9 AMMONIAC",
+            "8.10": "8.10 COMPARAISON",
+            "8.11": "8.11 PROPRIÉTÉS EN FONCTION",
+            "9.": "9. EXEMPLES DE CALCUL",
+            "9.1": "9.1 EXEMPLE 1",
+            "9.2": "9.2 EXEMPLE 2",
+            "9.3": "9.3 EXEMPLE 3",
+            "9.4": "9.4 EXEMPLE 4",
+            "9.5": "9.5 EXEMPLE 5",
+            "9.6": "9.6 EXEMPLE 6",
+            "9.7": "9.7 TABLEAU RÉCAPITULATIF",
+            "9.8": "9.8 EXERCICES",
+            "10.": "10. FORMULES RAPIDES",
+            "10.1": "10.1 ÉQUATIONS FONDAMENTALES",
+            "10.2": "10.2 ÉQUATION DE BARTZ",
+            "10.3": "10.3 NOMBRES ADIMENSIONNELS",
+            "10.4": "10.4 CORRÉLATIONS DE CONVECTION",
+            "10.5": "10.5 ÉQUATIONS DE TEMPÉRATURE",
+            "10.6": "10.6 ÉPAISSEUR DE PAROI",
+            "10.7": "10.7 PUISSANCE ET ÉNERGIE",
+            "10.8": "10.8 PERTES DE CHARGE",
+            "10.9": "10.9 FILM COOLING",
+            "10.10": "10.10 PROPRIÉTÉS DES GAZ",
+            "10.11": "10.11 TABLEAU RÉCAPITULATIF",
+            "10.12": "10.12 ORDRES DE GRANDEUR",
+            "10.13": "10.13 CONVERSIONS",
+            "10.14": "10.14 CONSTANTES",
+            "Réf": "RÉFÉRENCES",
+        }
+        
+        # Chercher le texte correspondant
+        search_text = None
+        for key, value in section_map.items():
+            if item.strip().startswith(key):
+                search_text = value
+                break
+        
+        if search_text:
+            pos = self.wiki_text.search(search_text, "1.0", nocase=True)
+            if pos:
+                self.wiki_text.see(pos)
+
     def load_database(self):
         """Charge tous les propergols depuis RocketCEA"""
         from rocketcea.blends import fuelCards, oxCards, getFuelRefTempDegK, getOxRefTempDegK, getFloatTokenFromCards
@@ -1366,8 +7076,25 @@ class RocketApp:
             
             Q_total_kW = Q_total_W / 1000
             
-            # Stocker Q_total_kW dans self.results pour l'accès depuis les analyses paramétriques
+            # Stocker les résultats thermiques pour l'accès depuis le solveur coolant
             self.results["Q_total_kW"] = Q_total_kW
+            self.results["q_max"] = q_max  # MW/m²
+            self.results["q_mean"] = q_mean  # MW/m²
+            self.results["t_wall_hot_max"] = t_wall_hot_max
+            self.results["wall_thickness_mm"] = wall_thickness_m * 1000
+            self.results["fuel"] = fuel
+            self.results["A_cooled"] = sum([2 * np.pi * (Y_m[i] + Y_m[i+1]) / 2 * abs(X_mm[i+1] - X_mm[i]) / 1000 for i in range(len(X_mm) - 1)])
+            
+            # Stocker les données du profil thermique pour le graphique du solveur
+            self.results["thermal_profile"] = {
+                "X_mm": list(X_mm),
+                "Y_mm": list(Y_mm),
+                "Flux_MW": Flux_list,
+                "T_gas": T_gas_list,
+                "T_wall_hot": T_wall_hot_list,
+                "T_wall_cold": t_wall_limit,
+                "hg_throat": hg_throat,
+            }
             
             # --- PROPRIÉTÉS DU COOLANT (via RocketCEA ou Custom) ---
             # Option: utiliser le fuel, un autre propergol, ou un coolant custom
@@ -1711,8 +7438,10 @@ class RocketApp:
             self.results["Q_total_kW"] = Q_total_kW
             
             # --- PLOTS ---
-            self.ax_flux.clear()
-            self.ax_temp.clear()
+            # Nettoyer complètement les axes
+            for ax in [self.ax_flux, self.ax_temp]:
+                ax.clear()
+                ax.set_facecolor(self.bg_surface)
             self.apply_dark_axes([self.ax_flux, self.ax_temp])
             
             # Graphe Flux avec projections
@@ -1781,9 +7510,8 @@ class RocketApp:
             self.ax_temp.grid(True, color=self.grid_color, alpha=0.35)
             
             # Forcer le rafraîchissement complet de la figure
-            self.fig_thermal.tight_layout()
-            self.canvas_thermal.draw_idle()
-            self.canvas_thermal.flush_events()
+            self.fig_thermal.subplots_adjust(hspace=0.35, left=0.12, right=0.95, top=0.95, bottom=0.1)
+            self.canvas_thermal.draw()
             
             # Géométrie 2D
             self.draw_engine(X_mm, Y_mm)
@@ -1876,6 +7604,7 @@ Débit Oxydant   : {mdot_ox_available:.4f} kg/s
     # ==========================================================================
     def draw_engine(self, X, Y):
         self.ax_visu.clear()
+        self.ax_visu.set_facecolor(self.bg_surface)
         self.apply_dark_axes(self.ax_visu)
         self.ax_visu.plot(X, Y, color=self.accent, linewidth=2)
         self.ax_visu.plot(X, -Y, color=self.accent, linewidth=2)
