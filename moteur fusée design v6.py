@@ -35,6 +35,13 @@ try:
 except ImportError:
     HAS_NUMPY_STL = False
 
+# Essayer d'importer cadquery pour l'export STEP
+try:
+    import cadquery as cq
+    HAS_CADQUERY = True
+except ImportError:
+    HAS_CADQUERY = False
+
 class RocketApp:
     def __init__(self, root):
         self.root = root
@@ -1071,9 +1078,9 @@ class RocketApp:
         export_frame.pack(fill=tk.X, pady=5)
         
         ttk.Label(export_frame, text="Format:").grid(row=0, column=0, sticky="w", pady=2)
-        self.cad_format = ttk.Combobox(export_frame, values=["STL (Mesh)", "DXF (Profil)", "OBJ (Mesh)"], 
+        self.cad_format = ttk.Combobox(export_frame, values=["STEP (CAD)", "STL (Mesh)", "DXF (Profil)"], 
                                         state="readonly", width=15)
-        self.cad_format.set("STL (Mesh)")
+        self.cad_format.set("STEP (CAD)")
         self.cad_format.grid(row=0, column=1, padx=5, pady=2)
         
         ttk.Label(export_frame, text="Unités:").grid(row=1, column=0, sticky="w", pady=2)
@@ -1090,8 +1097,9 @@ class RocketApp:
         btn_frame.pack(fill=tk.X, pady=10)
         
         ttk.Button(btn_frame, text="🔄 Prévisualiser", command=self.update_cad_preview).pack(fill=tk.X, pady=2)
+        ttk.Button(btn_frame, text="📐 Exporter STEP", command=self.export_step).pack(fill=tk.X, pady=2)
         ttk.Button(btn_frame, text="💾 Exporter STL", command=self.export_stl).pack(fill=tk.X, pady=2)
-        ttk.Button(btn_frame, text="📐 Exporter DXF", command=self.export_dxf).pack(fill=tk.X, pady=2)
+        ttk.Button(btn_frame, text="📏 Exporter DXF", command=self.export_dxf).pack(fill=tk.X, pady=2)
         
         # Informations
         info_frame = ttk.LabelFrame(ctrl_panel, text="📊 Informations Modèle", padding=5)
@@ -1370,6 +1378,148 @@ class RocketApp:
             
         except Exception as e:
             messagebox.showerror("Erreur", f"Erreur lors de l'export STL:\n{e}")
+
+    def export_step(self):
+        """Exporte le modèle 3D au format STEP (solide paramétrique)."""
+        if not self.results or not self.geometry_profile:
+            messagebox.showwarning("Attention", "Calculez d'abord le moteur!")
+            return
+        
+        # Vérifier si CadQuery est disponible
+        if HAS_CADQUERY:
+            self._export_step_cadquery()
+        else:
+            # Proposer des alternatives
+            result = messagebox.askyesno("Export STEP", 
+                "CadQuery n'est pas installé.\n\n"
+                "Pour l'installer:\n"
+                "  py -3.10 -m pip install cadquery-ocp\n\n"
+                "Voulez-vous exporter en format DXF à la place?\n"
+                "(Le DXF peut être importé dans Fusion 360/SolidWorks\n"
+                "et utilisé pour créer un solide de révolution)")
+            if result:
+                self._export_dxf_for_cad()
+
+    def _export_step_cadquery(self):
+        """Export STEP via CadQuery."""
+        f = filedialog.asksaveasfilename(defaultextension=".step", 
+                                          filetypes=[("STEP files", "*.step"), ("STEP files", "*.stp")],
+                                          initialfilename=f"{self.get_val('name')}_nozzle.step")
+        if not f:
+            return
+        
+        try:
+            X_profile, Y_profile = self.geometry_profile
+            X_mm = np.array(X_profile)
+            R_inner = np.array(Y_profile)
+            wall_thickness = self.results.get("wall_thickness_mm", 3.0)
+            R_outer = R_inner + wall_thickness
+            
+            # Créer le profil de révolution
+            inner_points = [(X_mm[i], R_inner[i]) for i in range(len(X_mm))]
+            outer_points = [(X_mm[i], R_outer[i]) for i in range(len(X_mm)-1, -1, -1)]
+            all_points = inner_points + outer_points
+            all_points.append(inner_points[0])
+            
+            profile = cq.Workplane("XZ")
+            profile = profile.moveTo(all_points[0][0], all_points[0][1])
+            for pt in all_points[1:]:
+                profile = profile.lineTo(pt[0], pt[1])
+            profile = profile.close()
+            
+            nozzle = profile.revolve(360, (0, 0, 0), (1, 0, 0))
+            cq.exporters.export(nozzle, f)
+            
+            messagebox.showinfo("Succès", f"Fichier STEP exporté:\n{f}")
+            
+        except Exception as e:
+            messagebox.showerror("Erreur", f"Erreur export STEP:\n{e}")
+
+    def _export_dxf_for_cad(self):
+        """Exporte un DXF optimisé pour import CAD (profil de révolution)."""
+        if not HAS_EZDXF:
+            messagebox.showwarning("Attention", "Module ezdxf non installé.\npip install ezdxf")
+            return
+        
+        f = filedialog.asksaveasfilename(defaultextension=".dxf", 
+                                          filetypes=[("DXF files", "*.dxf")],
+                                          initialfilename=f"{self.get_val('name')}_profile_CAD.dxf")
+        if not f:
+            return
+        
+        try:
+            X_profile, Y_profile = self.geometry_profile
+            X_mm = np.array(X_profile)
+            R_inner = np.array(Y_profile)
+            wall_thickness = self.results.get("wall_thickness_mm", 3.0)
+            R_outer = R_inner + wall_thickness
+            
+            # Créer le document DXF
+            doc = ezdxf.new('R2010')
+            msp = doc.modelspace()
+            
+            # Profil fermé pour révolution
+            # Layer pour le profil de révolution
+            doc.layers.add("PROFILE_REVOLUTION", color=1)  # Rouge
+            doc.layers.add("AXE_REVOLUTION", color=5)      # Bleu
+            doc.layers.add("DIMENSIONS", color=3)          # Vert
+            
+            # Tracer l'axe de révolution (ligne centrale)
+            msp.add_line((X_mm[0] - 10, 0), (X_mm[-1] + 10, 0), 
+                        dxfattribs={"layer": "AXE_REVOLUTION", "linetype": "CENTER"})
+            
+            # Créer le profil fermé (polyline)
+            # Intérieur: de gauche à droite
+            points = []
+            for i in range(len(X_mm)):
+                points.append((X_mm[i], R_inner[i]))
+            
+            # Extérieur: de droite à gauche
+            for i in range(len(X_mm)-1, -1, -1):
+                points.append((X_mm[i], R_outer[i]))
+            
+            # Fermer le profil
+            points.append(points[0])
+            
+            # Ajouter la polyline fermée
+            msp.add_lwpolyline(points, dxfattribs={"layer": "PROFILE_REVOLUTION"}, close=True)
+            
+            # Ajouter des dimensions clés
+            # Diamètre col
+            idx_throat = np.argmin(R_inner)
+            x_throat = X_mm[idx_throat]
+            r_throat = R_inner[idx_throat]
+            
+            msp.add_text(f"Ø Col = {2*r_throat:.2f} mm", 
+                        dxfattribs={"layer": "DIMENSIONS", "height": 2}).set_placement((x_throat, -5))
+            
+            # Diamètre sortie
+            msp.add_text(f"Ø Sortie = {2*R_inner[-1]:.2f} mm",
+                        dxfattribs={"layer": "DIMENSIONS", "height": 2}).set_placement((X_mm[-1], -5))
+            
+            # Épaisseur paroi
+            msp.add_text(f"Épaisseur = {wall_thickness:.2f} mm",
+                        dxfattribs={"layer": "DIMENSIONS", "height": 2}).set_placement((X_mm[0], R_outer[0] + 5))
+            
+            # Instructions
+            msp.add_text("INSTRUCTIONS: Importer dans CAD, sélectionner PROFILE_REVOLUTION,",
+                        dxfattribs={"layer": "DIMENSIONS", "height": 1.5}).set_placement((X_mm[0], -15))
+            msp.add_text("faire Revolve 360° autour de l'axe AXE_REVOLUTION",
+                        dxfattribs={"layer": "DIMENSIONS", "height": 1.5}).set_placement((X_mm[0], -18))
+            
+            doc.saveas(f)
+            
+            messagebox.showinfo("Succès", 
+                f"Fichier DXF exporté:\n{f}\n\n"
+                f"📌 INSTRUCTIONS:\n"
+                f"1. Importer dans Fusion 360 / SolidWorks\n"
+                f"2. Sélectionner le profil fermé (layer PROFILE_REVOLUTION)\n"
+                f"3. Utiliser l'outil 'Revolve' (360°)\n"
+                f"4. Axe = ligne centrale (layer AXE_REVOLUTION)\n\n"
+                f"Cela créera un solide 3D paramétrique!")
+            
+        except Exception as e:
+            messagebox.showerror("Erreur", f"Erreur export DXF:\n{e}")
 
     # =====================================================================
     # ONGLET OPTIMISEUR AUTOMATIQUE
@@ -2520,8 +2670,15 @@ class RocketApp:
         
         # Masse thermique
         A_wall = self.results.get("A_cooled", 0.05)  # m²
+        if A_wall is None or A_wall <= 0:
+            A_wall = 0.05  # Valeur par défaut
         m_wall = rho_wall * A_wall * wall_t  # kg
         C_th = m_wall * cp_wall  # Capacité thermique (J/K)
+        
+        # Vérification pour éviter division par zéro
+        if C_th <= 0 or not np.isfinite(C_th):
+            messagebox.showerror("Erreur", "Capacité thermique invalide. Vérifiez les paramètres.")
+            return
         
         # Simulation transitoire (modèle simple 1D)
         for i in range(1, n_steps):
