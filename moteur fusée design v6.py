@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import ttk, messagebox, scrolledtext, filedialog
+from tkinter import ttk, messagebox, scrolledtext, filedialog, font as tkfont
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from mpl_toolkits.mplot3d import Axes3D
@@ -22,7 +22,46 @@ class RocketApp:
     def __init__(self, root):
         self.root = root
         self.root.title("SITH MISCHUNG COMBUSTION : LIGHT SIDE EDITION v6.2")
-        self.root.geometry("1600x1000")
+        self.root.geometry("1700x1080")
+        self.root.state('zoomed')  # Maximize for large displays
+
+        # Zoom options for UI (defined early for create_inputs)
+        self.zoom_options = ["Auto", "1.0", "1.15", "1.25", "1.35", "1.5"]
+
+        # --- THEME (OLED + Néon) ---
+        self.bg_main = "#05060e"
+        self.bg_panel = "#0b1020"
+        self.bg_surface = "#0f172c"
+        self.accent = "#00eaff"       # cyan néon
+        self.accent_alt = "#ff5af1"   # magenta néon
+        self.accent_alt2 = "#9dff6a"  # vert néon doux
+        self.accent_alt3 = "#ffb347"  # orange chaud
+        self.accent_alt4 = "#7b9bff"  # lavande
+        self.text_primary = "#e8f1ff"
+        self.text_muted = "#9fb4d3"
+        self.grid_color = "#1f2a3d"
+
+        self.tab_accent = {
+            "summary": self.accent,
+            "visu": self.accent_alt3,
+            "thermal": self.accent_alt,
+            "graphs": self.accent,
+            "cea": self.accent_alt2,
+            "database": self.accent_alt4,
+        }
+
+        plt.rcParams.update({
+            "figure.facecolor": self.bg_main,
+            "axes.facecolor": self.bg_surface,
+            "axes.edgecolor": self.accent,
+            "axes.labelcolor": self.text_primary,
+            "xtick.color": self.text_primary,
+            "ytick.color": self.text_primary,
+            "grid.color": self.grid_color,
+            "text.color": self.text_primary,
+            "axes.titlecolor": self.text_primary,
+            "axes.prop_cycle": plt.cycler(color=[self.accent, self.accent_alt, self.accent_alt2, self.accent_alt3, "#7b9bff"]),
+        })
         
         # --- VARIABLES ---
         self.inputs = {}
@@ -31,9 +70,39 @@ class RocketApp:
         
         style = ttk.Style()
         style.theme_use('clam')
-        
+        self.root.configure(bg=self.bg_main)
+        style.configure(".", background=self.bg_main, foreground=self.text_primary)
+        style.configure("TFrame", background=self.bg_main)
+        style.configure("TLabelFrame", background=self.bg_surface, foreground=self.accent, bordercolor=self.accent, borderwidth=1, relief="solid")
+        style.configure("TLabelFrame.Label", background=self.bg_surface, foreground=self.accent)
+        style.configure("TLabel", background=self.bg_main, foreground=self.text_primary)
+        style.configure("TNotebook", background=self.bg_main, borderwidth=0)
+        style.configure("TNotebook.Tab", background=self.bg_surface, foreground=self.text_primary, padding=(12, 8))
+        style.map("TNotebook.Tab", background=[("selected", self.accent)], foreground=[("selected", "#05060e")])
+        style.configure("TButton", background=self.accent, foreground="#05060e", padding=(10, 6), borderwidth=0, focusthickness=3, focuscolor=self.accent_alt)
+        style.map("TButton", background=[("active", self.accent_alt)], foreground=[("disabled", "#55607a")])
+        style.configure("Primary.TButton", background=self.accent, foreground="#05060e", padding=(10, 6), borderwidth=0, focusthickness=3, focuscolor=self.accent_alt)
+        style.map("Primary.TButton", background=[("active", self.accent_alt)], foreground=[("disabled", "#55607a")])
+        style.configure("Secondary.TButton", background=self.accent_alt, foreground="#05060e", padding=(10, 6), borderwidth=0, focusthickness=3, focuscolor=self.accent)
+        style.map("Secondary.TButton", background=[("active", self.accent)], foreground=[("disabled", "#55607a")])
+        style.configure("Success.TButton", background=self.accent_alt2, foreground="#05060e", padding=(10, 6), borderwidth=0, focusthickness=3, focuscolor=self.accent_alt)
+        style.map("Success.TButton", background=[("active", self.accent_alt3)], foreground=[("disabled", "#55607a")])
+        style.configure("Warning.TButton", background=self.accent_alt3, foreground="#05060e", padding=(10, 6), borderwidth=0, focusthickness=3, focuscolor=self.accent_alt)
+        style.map("Warning.TButton", background=[("active", self.accent_alt2)], foreground=[("disabled", "#55607a")])
+        style.configure("TEntry", fieldbackground=self.bg_surface, foreground=self.text_primary, insertcolor=self.accent)
+        style.configure("TCombobox", fieldbackground=self.bg_surface, background=self.bg_surface, foreground=self.text_primary, arrowcolor=self.accent)
+        style.map("TCombobox", fieldbackground=[("readonly", self.bg_surface)], foreground=[("readonly", self.text_primary)])
+        style.configure("TSpinbox", fieldbackground=self.bg_surface, background=self.bg_surface, foreground=self.text_primary, arrowcolor=self.accent, insertcolor=self.accent)
+        style.map("TSpinbox", fieldbackground=[("!disabled", self.bg_surface)], foreground=[("!disabled", self.text_primary)])
+        style.configure("TCheckbutton", background=self.bg_main, foreground=self.text_primary)
+        style.configure("Treeview", background=self.bg_surface, fieldbackground=self.bg_surface, foreground=self.text_primary, bordercolor=self.bg_surface, rowheight=22)
+        style.configure("Treeview.Heading", background=self.bg_main, foreground=self.accent, bordercolor=self.bg_surface)
+        style.map("Treeview", background=[("selected", "#123042")], foreground=[("selected", self.text_primary)])
+        style.configure("Vertical.TScrollbar", background=self.bg_main, troughcolor=self.bg_surface, arrowcolor=self.accent)
+        style.configure("Horizontal.TProgressbar", background=self.accent, troughcolor=self.bg_surface, lightcolor=self.accent, darkcolor=self.accent)
+
         # --- LAYOUT PRINCIPAL ---
-        main_frame = ttk.Frame(root)
+        main_frame = ttk.Frame(self.root)
         main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
         # Panneau Gauche
@@ -69,7 +138,56 @@ class RocketApp:
         self.init_graphs_tab()
         self.init_database_tab()
 
+        # Apply UI scaling after layout is ready
+        self.ui_scale = self.auto_scale_from_display()
+        self.apply_ui_scale(self.ui_scale)
+
+    def auto_scale_from_display(self):
+        """Calcule un facteur de zoom en fonction de la résolution écran."""
+        try:
+            width = self.root.winfo_screenwidth()
+            height = self.root.winfo_screenheight()
+            # Heuristique simple: 1080p -> 1.0, 1440p -> 1.25, 4K -> 1.5
+            if width >= 3800 or height >= 2100:
+                return 1.5
+            if width >= 2500 or height >= 1400:
+                return 1.25
+            return 1.0
+        except Exception:
+            return 1.0
+
+    def apply_ui_scale(self, scale: float):
+        """Applique le zoom Tk et agrandit les polices de base."""
+        try:
+            self.root.tk.call('tk', 'scaling', scale)
+        except tk.TclError:
+            pass
+        for fname in ("TkDefaultFont", "TkTextFont", "TkFixedFont", "TkMenuFont", "TkHeadingFont", "TkTooltipFont"):
+            try:
+                f = tkfont.nametofont(fname)
+                f.configure(size=max(8, int(f.cget("size") * scale)))
+            except tk.TclError:
+                continue
+
+    def set_ui_scale_from_control(self):
+        val = self.zoom_var.get()
+        if val == "Auto":
+            scale = self.auto_scale_from_display()
+        else:
+            try:
+                scale = float(val)
+            except ValueError:
+                return
+        self.apply_ui_scale(scale)
+
     def create_inputs(self, parent):
+        # Zoom UI selector
+        ttk.Label(parent, text="Zoom UI:").grid(row=0, column=0, sticky="w", padx=5, pady=2)
+        self.zoom_var = tk.StringVar(value="Auto")
+        zoom_combo = ttk.Combobox(parent, textvariable=self.zoom_var, values=self.zoom_options, state="readonly", width=8)
+        zoom_combo.grid(row=0, column=1, sticky="ew", padx=5, pady=2)
+        zoom_combo.bind("<<ComboboxSelected>>", lambda e: self.set_ui_scale_from_control())
+
         self.param_defs = [
             ("Nom du Moteur", "name", "Moteur_Propane", str),
             ("Oxydant (CEA)", "ox", "O2", str),
@@ -102,6 +220,7 @@ class RocketApp:
         ]
         
         row = 0
+        row = 1  # start after zoom row
         for label, key, default, type_ in self.param_defs:
             lbl = ttk.Label(parent, text=label)
             lbl.grid(row=row, column=0, sticky="w", padx=5, pady=2)
@@ -114,19 +233,19 @@ class RocketApp:
         ttk.Separator(parent, orient='horizontal').grid(row=row, column=0, columnspan=2, sticky="ew", pady=10)
         row += 1
         
-        ttk.Button(parent, text="🔥 CALCULER TOUT (CEA + THERMIQUE)", command=self.run_simulation).grid(row=row, column=0, columnspan=2, pady=5, sticky="ew")
+        ttk.Button(parent, text="🔥 CALCULER TOUT (CEA + THERMIQUE)", command=self.run_simulation, style="Primary.TButton").grid(row=row, column=0, columnspan=2, pady=5, sticky="ew")
         row += 1
         
         # Boutons de sauvegarde/chargement
-        ttk.Button(parent, text="💾 Sauvegarder Paramètres", command=self.save_design).grid(row=row, column=0, columnspan=2, pady=5, sticky="ew")
+        ttk.Button(parent, text="💾 Sauvegarder Paramètres", command=self.save_design, style="Secondary.TButton").grid(row=row, column=0, columnspan=2, pady=5, sticky="ew")
         row += 1
-        ttk.Button(parent, text="📂 Charger Paramètres", command=self.load_design).grid(row=row, column=0, columnspan=2, pady=5, sticky="ew")
+        ttk.Button(parent, text="📂 Charger Paramètres", command=self.load_design, style="Success.TButton").grid(row=row, column=0, columnspan=2, pady=5, sticky="ew")
         row += 1
         
         # Bouton d'export DXF et graphes
-        ttk.Button(parent, text="💾 EXPORTER DXF", command=self.export_dxf).grid(row=row, column=0, columnspan=2, pady=5, sticky="ew")
+        ttk.Button(parent, text="💾 EXPORTER DXF", command=self.export_dxf, style="Warning.TButton").grid(row=row, column=0, columnspan=2, pady=5, sticky="ew")
         row += 1
-        ttk.Button(parent, text="📊 Exporter Graphes HD", command=self.export_graphs_hd).grid(row=row, column=0, columnspan=2, pady=5, sticky="ew")
+        ttk.Button(parent, text="📊 Exporter Graphes HD", command=self.export_graphs_hd, style="Primary.TButton").grid(row=row, column=0, columnspan=2, pady=5, sticky="ew")
 
     def get_val(self, key):
         var, type_ = self.inputs[key]
@@ -135,33 +254,61 @@ class RocketApp:
     # --- TABS INIT ---
     def init_summary_tab(self):
         """Onglet Résumé - Affiche les résultats des calculs"""
+        tk.Frame(self.tab_summary, height=4, bg=self.tab_accent.get("summary", self.accent)).pack(fill=tk.X)
         summary_frame = ttk.Frame(self.tab_summary)
         summary_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
-        self.txt_summary = tk.Text(summary_frame, bg="#f0f0f0", font=("Consolas", 10))
+        self.txt_summary = tk.Text(
+            summary_frame,
+            bg=self.bg_surface,
+            fg=self.text_primary,
+            insertbackground=self.accent,
+            font=("Consolas", 10),
+            highlightthickness=0,
+            bd=0,
+        )
         self.txt_summary.pack(fill=tk.BOTH, expand=True)
         
         # Ajouter une scrollbar
-        scrollbar = ttk.Scrollbar(self.txt_summary, command=self.txt_summary.yview)
+        scrollbar = ttk.Scrollbar(self.txt_summary, command=self.txt_summary.yview, style="Vertical.TScrollbar")
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         self.txt_summary.config(yscrollcommand=scrollbar.set)
 
     def init_visu_tab(self):
+        tk.Frame(self.tab_visu, height=4, bg=self.tab_accent.get("visu", self.accent_alt3)).pack(fill=tk.X)
         self.fig_visu, self.ax_visu = plt.subplots(figsize=(5, 5))
+        self.fig_visu.patch.set_facecolor(self.bg_main)
+        self.apply_dark_axes(self.ax_visu)
         self.canvas_visu = FigureCanvasTkAgg(self.fig_visu, master=self.tab_visu)
+        self.canvas_visu.get_tk_widget().configure(bg=self.bg_main, highlightthickness=0)
         self.canvas_visu.get_tk_widget().pack(fill=tk.BOTH, expand=True)
 
     def init_cea_tab(self):
-        self.txt_cea = scrolledtext.ScrolledText(self.tab_cea, font=("Consolas", 10), state='disabled')
+        tk.Frame(self.tab_cea, height=4, bg=self.tab_accent.get("cea", self.accent_alt2)).pack(fill=tk.X)
+        self.txt_cea = scrolledtext.ScrolledText(
+            self.tab_cea,
+            font=("Consolas", 10),
+            state='disabled',
+            bg=self.bg_surface,
+            fg=self.text_primary,
+            insertbackground=self.accent,
+            highlightthickness=0,
+            bd=0,
+        )
         self.txt_cea.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
     def init_thermal_tab(self):
+        tk.Frame(self.tab_thermal, height=4, bg=self.tab_accent.get("thermal", self.accent_alt)).pack(fill=tk.X)
         self.fig_thermal, (self.ax_flux, self.ax_temp) = plt.subplots(2, 1, figsize=(6, 6), sharex=True)
+        self.fig_thermal.patch.set_facecolor(self.bg_main)
+        self.apply_dark_axes([self.ax_flux, self.ax_temp])
         self.canvas_thermal = FigureCanvasTkAgg(self.fig_thermal, master=self.tab_thermal)
+        self.canvas_thermal.get_tk_widget().configure(bg=self.bg_main, highlightthickness=0)
         self.canvas_thermal.get_tk_widget().pack(fill=tk.BOTH, expand=True)
         self.fig_thermal.subplots_adjust(hspace=0.3)
 
     def init_graphs_tab(self):
+        tk.Frame(self.tab_graphs, height=4, bg=self.tab_accent.get("graphs", self.accent)).pack(fill=tk.X)
         ctrl_frame = ttk.LabelFrame(self.tab_graphs, text="Configuration Analyse Paramétrique", padding=10)
         ctrl_frame.pack(side=tk.TOP, fill=tk.X, padx=10, pady=5)
         
@@ -192,7 +339,7 @@ class RocketApp:
         self.combo_mode.bind("<<ComboboxSelected>>", self.update_mode_display)
         
         ttk.Label(row1, text="Résolution:").pack(side=tk.LEFT, padx=(15, 0))
-        self.spin_res = ttk.Spinbox(row1, from_=5, to=100, width=5)
+        self.spin_res = ttk.Spinbox(row1, from_=5, to=100, width=5, style="TSpinbox")
         self.spin_res.set(20)
         self.spin_res.pack(side=tk.LEFT, padx=5)
         
@@ -307,11 +454,43 @@ class RocketApp:
         self.progress.pack(side=tk.TOP, fill=tk.X, padx=10)
         
         self.fig_graph = plt.Figure(figsize=(5, 4), dpi=100)
+        self.fig_graph.patch.set_facecolor(self.bg_main)
         self.canvas_graph = FigureCanvasTkAgg(self.fig_graph, master=self.tab_graphs)
+        self.canvas_graph.get_tk_widget().configure(bg=self.bg_main, highlightthickness=0)
         self.canvas_graph.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+
+    def apply_dark_axes(self, axes):
+        """Applique le thème sombre aux axes matplotlib."""
+        if not isinstance(axes, (list, tuple)):
+            axes = [axes]
+        for ax in axes:
+            ax.set_facecolor(self.bg_surface)
+            ax.tick_params(colors=self.text_primary)
+            if hasattr(ax, "xaxis"):
+                ax.xaxis.label.set_color(self.text_primary)
+            if hasattr(ax, "yaxis"):
+                ax.yaxis.label.set_color(self.text_primary)
+            if hasattr(ax, "zaxis"):
+                ax.zaxis.label.set_color(self.text_primary)
+                ax.zaxis.set_tick_params(colors=self.text_primary)
+            if ax.get_title():
+                ax.title.set_color(self.text_primary)
+            for spine in getattr(ax, "spines", {}).values():
+                spine.set_color(self.accent)
+            ax.grid(True, color=self.grid_color, alpha=0.35)
+
+    def get_category_color(self):
+        palette = {
+            "🚀 Performances CEA": self.accent,
+            "🌡️ Thermique Paroi": self.accent_alt,
+            "💧 Refroidissement": self.accent_alt2,
+            "📐 Géométrie": self.accent_alt3,
+        }
+        return palette.get(self.combo_category.get(), self.accent)
 
     def init_database_tab(self):
         """Onglet Base de Données - Explorateur de propergols RocketCEA"""
+        tk.Frame(self.tab_database, height=4, bg=self.tab_accent.get("database", self.accent_alt4)).pack(fill=tk.X)
         
         # Frame de contrôle en haut
         ctrl_frame = ttk.LabelFrame(self.tab_database, text="🔍 Recherche dans la Base de Données RocketCEA", padding=10)
@@ -369,8 +548,18 @@ class RocketApp:
         detail_frame = ttk.LabelFrame(content_frame, text="Détails du Propergol", padding=10)
         detail_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(5, 0))
         
-        self.db_details = scrolledtext.ScrolledText(detail_frame, font=("Consolas", 10), 
-                                                      width=50, height=25, state='disabled')
+        self.db_details = scrolledtext.ScrolledText(
+            detail_frame,
+            font=("Consolas", 10),
+            width=50,
+            height=25,
+            state='disabled',
+            bg=self.bg_surface,
+            fg=self.text_primary,
+            insertbackground=self.accent,
+            highlightthickness=0,
+            bd=0,
+        )
         self.db_details.pack(fill=tk.BOTH, expand=True)
         
         # Charger la base de données au démarrage
@@ -1278,12 +1467,13 @@ T référence     : {t_ref:.2f} K ({t_ref-273.15:.1f}°C)
             # --- PLOTS ---
             self.ax_flux.clear()
             self.ax_temp.clear()
+            self.apply_dark_axes([self.ax_flux, self.ax_temp])
             
             # Graphe Flux avec projections
             self.ax_flux.plot(X_mm, Flux_list, 'r-', linewidth=2, label='Flux thermique')
             self.ax_flux.set_ylabel("Flux (MW/m²)", color='r')
             self.ax_flux.set_title("Profil de Flux Thermique (Bartz)")
-            self.ax_flux.grid(True, alpha=0.3)
+            self.ax_flux.grid(True, color=self.grid_color, alpha=0.35)
             
             # Ligne moyenne
             self.ax_flux.axhline(q_mean, color='green', linestyle='-.', linewidth=1.5, 
@@ -1311,8 +1501,8 @@ T référence     : {t_ref:.2f} K ({t_ref-273.15:.1f}°C)
                                  xytext=(10, 10), textcoords='offset points',
                                  color='darkred', fontsize=10, fontweight='bold')
             
-            self.ax_flux.legend(loc='upper right', fontsize=8)
-            self.ax_flux.axhline(0, color='gray', linestyle='-', alpha=0.3)
+            self.ax_flux.legend(loc='upper right', fontsize=8, facecolor=self.bg_surface, edgecolor=self.accent)
+            self.ax_flux.axhline(0, color=self.grid_color, linestyle='-', alpha=0.4)
             
             # Graphe Température avec projections
             self.ax_temp.plot(X_mm, T_gas_list, 'orange', linewidth=2, label="T gaz (adiabatique)")
@@ -1341,8 +1531,8 @@ T référence     : {t_ref:.2f} K ({t_ref-273.15:.1f}°C)
             
             self.ax_temp.set_ylabel("Température (K)")
             self.ax_temp.set_xlabel("Position Axiale (mm)")
-            self.ax_temp.legend(loc='upper right', fontsize=8)
-            self.ax_temp.grid(True, alpha=0.3)
+            self.ax_temp.legend(loc='upper right', fontsize=8, facecolor=self.bg_surface, edgecolor=self.accent)
+            self.ax_temp.grid(True, color=self.grid_color, alpha=0.35)
             
             self.canvas_thermal.draw()
             
@@ -1354,7 +1544,7 @@ T référence     : {t_ref:.2f} K ({t_ref-273.15:.1f}°C)
             thrust_kn = thrust_n / 1000  # Convertir en kN
             
             summary = f"""═══════════════════════════════════
-    PROMETHEUS v6.1 - ENGINE REPORT
+    SITH MISCHUNG COMBUSTION : LIGHT SIDE EDITION v6.2
 ═══════════════════════════════════
 
 --- THERMIQUE (BARTZ) ---
@@ -1437,16 +1627,17 @@ Débit Oxydant   : {mdot_ox_available:.4f} kg/s
     # ==========================================================================
     def draw_engine(self, X, Y):
         self.ax_visu.clear()
-        self.ax_visu.plot(X, Y, 'k', linewidth=2)
-        self.ax_visu.plot(X, -Y, 'k', linewidth=2)
-        self.ax_visu.fill_between(X, Y, -Y, color='#ff7f50', alpha=0.2)
+        self.apply_dark_axes(self.ax_visu)
+        self.ax_visu.plot(X, Y, color=self.accent, linewidth=2)
+        self.ax_visu.plot(X, -Y, color=self.accent, linewidth=2)
+        self.ax_visu.fill_between(X, Y, -Y, color=self.accent, alpha=0.12)
         self.ax_visu.set_aspect('equal')
         self.ax_visu.set_title(f"Géométrie Moteur - {self.get_val('name')}")
         self.ax_visu.set_xlabel("Position axiale (mm)")
         self.ax_visu.set_ylabel("Rayon (mm)")
-        self.ax_visu.grid(True, alpha=0.3)
-        self.ax_visu.axvline(0, color='red', linestyle='--', alpha=0.5, label='Col')
-        self.ax_visu.legend()
+        self.ax_visu.grid(True, color=self.grid_color, alpha=0.35)
+        self.ax_visu.axvline(0, color=self.accent_alt, linestyle='--', alpha=0.7, label='Col')
+        self.ax_visu.legend(facecolor=self.bg_surface, edgecolor=self.accent)
         self.canvas_visu.draw()
 
     # ==========================================================================
@@ -1563,15 +1754,15 @@ Débit Oxydant   : {mdot_ox_available:.4f} kg/s
             
             # Export en PNG (haute résolution)
             png_file = os.path.join(export_folder, f"{title}.png")
-            self.fig_graph.savefig(png_file, dpi=300, bbox_inches='tight', facecolor='white')
+            self.fig_graph.savefig(png_file, dpi=300, bbox_inches='tight', facecolor=self.bg_main)
             
             # Export en PDF (vecteur)
             pdf_file = os.path.join(export_folder, f"{title}.pdf")
-            self.fig_graph.savefig(pdf_file, format='pdf', bbox_inches='tight', facecolor='white')
+            self.fig_graph.savefig(pdf_file, format='pdf', bbox_inches='tight', facecolor=self.bg_main)
             
             # Export en SVG (vecteur)
             svg_file = os.path.join(export_folder, f"{title}.svg")
-            self.fig_graph.savefig(svg_file, format='svg', bbox_inches='tight', facecolor='white')
+            self.fig_graph.savefig(svg_file, format='svg', bbox_inches='tight', facecolor=self.bg_main)
             
             messagebox.showinfo("Succès", 
                 f"Graphes exportés en haute résolution dans:\n"
@@ -1606,6 +1797,7 @@ Débit Oxydant   : {mdot_ox_available:.4f} kg/s
     def update_mode_display(self, event=None):
         """Affiche/masque l'axe Y selon le mode sélectionné"""
         mode = self.combo_mode.get()
+        category = self.combo_category.get()
         
         if "3D" in mode:
             # Afficher l'axe Y et les ranges en mode 3D
@@ -1667,6 +1859,7 @@ Débit Oxydant   : {mdot_ox_available:.4f} kg/s
     def plot_2d(self):
         self.fig_graph.clear()
         ax = self.fig_graph.add_subplot(111)
+        self.apply_dark_axes(ax)
         
         steps = int(self.spin_res.get())
         try:
@@ -1716,11 +1909,11 @@ Débit Oxydant   : {mdot_ox_available:.4f} kg/s
                 Y_vals.append(result)
         
         if X_vals:
-            ax.plot(X_vals, Y_vals, 'b-', linewidth=2, marker='o', markersize=3)
+            ax.plot(X_vals, Y_vals, '-', linewidth=2, marker='o', markersize=3, color=self.get_category_color())
             ax.set_xlabel(mode_x)
             ax.set_ylabel(var_out)
             ax.set_title(f"{var_out} vs {mode_x}")
-            ax.grid(True, alpha=0.3)
+            ax.grid(True, color=self.grid_color, alpha=0.35)
             
             # Annotation du max
             y_max = max(Y_vals)
@@ -1735,6 +1928,7 @@ Débit Oxydant   : {mdot_ox_available:.4f} kg/s
     def plot_3d(self):
         self.fig_graph.clear()
         ax = self.fig_graph.add_subplot(111, projection='3d')
+        self.apply_dark_axes(ax)
         
         steps = int(self.spin_res.get())
         if steps > 30:
@@ -1816,7 +2010,9 @@ Débit Oxydant   : {mdot_ox_available:.4f} kg/s
         ax.set_xlabel(mode_x.split(" ")[0])
         ax.set_ylabel(mode_y.split(" ")[0])
         ax.set_zlabel(var_z.split(" ")[0])
-        self.fig_graph.colorbar(surf, shrink=0.5, aspect=5)
+        cb = self.fig_graph.colorbar(surf, shrink=0.5, aspect=5)
+        cb.ax.yaxis.set_tick_params(color=self.text_primary)
+        plt.setp(cb.ax.get_yticklabels(), color=self.text_primary)
         
         self.canvas_graph.draw()
 
@@ -1827,6 +2023,7 @@ Débit Oxydant   : {mdot_ox_available:.4f} kg/s
         """Analyse paramétrique thermique - T paroi vs épaisseur, conductivité, etc."""
         self.fig_graph.clear()
         ax = self.fig_graph.add_subplot(111)
+        self.apply_dark_axes(ax)
         
         steps = int(self.spin_res.get())
         try:
@@ -1974,8 +2171,15 @@ Débit Oxydant   : {mdot_ox_available:.4f} kg/s
         ax.set_xlabel(mode_x)
         ax.set_ylabel(var_out)
         ax.set_title(f"Analyse Thermique: {var_out} vs {mode_x}")
-        ax.grid(True, alpha=0.3)
-        ax.legend(loc='best', fontsize=7, ncol=min(2, len(materials_to_plot)+1), framealpha=0.95)
+        ax.grid(True, color=self.grid_color, alpha=0.35)
+        ax.legend(
+            loc='best',
+            fontsize=7,
+            ncol=min(2, len(materials_to_plot)+1),
+            framealpha=0.9,
+            facecolor=self.bg_surface,
+            edgecolor=self.accent,
+        )
         
         # Zone de danger (rouge) si température
         if "T Paroi" in var_out:
@@ -1995,6 +2199,7 @@ Débit Oxydant   : {mdot_ox_available:.4f} kg/s
         """Analyse paramétrique du refroidissement"""
         self.fig_graph.clear()
         ax = self.fig_graph.add_subplot(111)
+        self.apply_dark_axes(ax)
         
         steps = int(self.spin_res.get())
         try:
@@ -2067,7 +2272,7 @@ Débit Oxydant   : {mdot_ox_available:.4f} kg/s
             else:
                 Y_vals.append(t_out)
         
-        ax.plot(X_vals, Y_vals, 'b-', linewidth=2, marker='o', markersize=3)
+        ax.plot(X_vals, Y_vals, '-', linewidth=2, marker='o', markersize=3, color=self.get_category_color())
         
         # Ligne d'ébullition si température
         if "T Sortie" in var_out:
@@ -2077,7 +2282,7 @@ Débit Oxydant   : {mdot_ox_available:.4f} kg/s
         ax.set_xlabel(mode_x)
         ax.set_ylabel(var_out)
         ax.set_title(f"Analyse Refroidissement: {var_out} vs {mode_x}")
-        ax.grid(True, alpha=0.3)
+        ax.grid(True, color=self.grid_color, alpha=0.35)
         
         self.canvas_graph.draw()
 
@@ -2085,6 +2290,7 @@ Débit Oxydant   : {mdot_ox_available:.4f} kg/s
         """Analyse paramétrique géométrique"""
         self.fig_graph.clear()
         ax = self.fig_graph.add_subplot(111)
+        self.apply_dark_axes(ax)
         
         steps = int(self.spin_res.get())
         try:
@@ -2230,11 +2436,11 @@ Débit Oxydant   : {mdot_ox_available:.4f} kg/s
             else:
                 Y_vals.append(l_total)
         
-        ax.plot(X_vals, Y_vals, 'g-', linewidth=2, marker='s', markersize=4)
+        ax.plot(X_vals, Y_vals, '-', linewidth=2, marker='s', markersize=4, color=self.get_category_color())
         ax.set_xlabel(mode_x)
         ax.set_ylabel(var_out)
         ax.set_title(f"Analyse Géométrie: {var_out} vs {mode_x}")
-        ax.grid(True, alpha=0.3)
+        ax.grid(True, color=self.grid_color, alpha=0.35)
         
         self.canvas_graph.draw()
 
