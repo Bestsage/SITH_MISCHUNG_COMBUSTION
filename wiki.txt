@@ -1,3 +1,204 @@
+﻿🔥 GUIDE ULTIME DE CONCEPTION : SITH MISCHUNG COMBUSTION
+════════════════════════════════════════════════════════════════════
+Bienvenue dans la documentation officielle. Ce guide est structuré pour vous emmener du niveau "Débutant" au niveau "Ingénieur Aérospatial".
+
+📖 SOMMAIRE GÉNÉRAL
+─────────────────────
+PARTIE 1 : LES BASES (Niveau Débutant)
+   1. Introduction : Comment ça vole ?
+   2. La Tuyère de Laval : Accélérer le son
+   3. Pourquoi ça chauffe autant ?
+   4. Le principe du Refroidissement Régénératif
+
+PARTIE 2 : THÉORIE AVANCÉE & MATHÉMATIQUES (Niveau Ingénieur)
+   5. Chimie de Combustion (NASA CEA)
+   6. Transfert Thermique : L'Équation de Bartz
+   7. Dimensionnement des Canaux de Refroidissement
+   8. Mécanique des Fluides & Pertes de Charge
+
+PARTIE 3 : SCIENCE DES MATÉRIAUX
+   9. Critères de Sélection
+   10. Base de Données Détaillée
+
+PARTIE 4 : GUIDE DU LOGICIEL
+   11. Utilisation de l'Optimiseur
+   12. Export & Fabrication
+
+PARTIE 5 : DOCUMENTATION TECHNIQUE APPROFONDIE
+   13. Analyse Thermique Complète
+   14. Modèle de Bartz Détaillé
+   15. Propriétés des Matériaux
+   16. Propriétés des Coolants
+   17. Exemples de Calculs
+   18. Références & Bibliographie
+
+════════════════════════════════════════════════════════════════════
+   PARTIE 1 : LES BASES (POUR COMPRENDRE)
+════════════════════════════════════════════════════════════════════
+
+1. INTRODUCTION : LE PRINCIPE D'ACTION-RÉACTION
+────────────────────────────────────────────────────────────────────
+Une fusée ne "pousse" pas sur l'air (elle marche dans le vide). Elle pousse sur sa propre matière qu'elle éjecte.
+C'est la 3ème loi de Newton : Pour chaque action, il y a une réaction égale et opposée.
+
+• La masse éjectée (mdot) : Plus on jette de matière, plus on pousse.
+• La vitesse d'éjection (V_e) : Plus on jette la matière vite, plus on pousse fort.
+
+L'efficacité d'un moteur se mesure en ISP (Impulsion Spécifique).
+👉 Imaginez l'ISP comme la "consommation au 100km" de votre voiture, mais à l'envers. Plus l'ISP est haute, moins vous consommez pour la même poussée.
+
+2. LA TUYÈRE DE LAVAL : PASSER LE MUR DU SON
+────────────────────────────────────────────────────────────────────
+Pour accélérer un gaz au-delà de la vitesse du son (Mach 1), il faut une forme très spécifique : un sablier.
+
+• Convergent : Le gaz est subsonique. On rétrécit le passage, le gaz accélère (comme un tuyau d'arrosage pincé).
+• Col (Throat) : C'est le point le plus étroit. Le gaz atteint EXACTEMENT la vitesse du son (Mach 1). On ne peut pas aller plus vite ici (phénomène de blocage sonique).
+• Divergent : Le gaz est supersonique. Contre-intuitivement, pour l'accélérer encore, il faut ÉLARGIR le passage. Le gaz se détend et transforme sa chaleur en vitesse cinétique.
+
+3. LE PROBLÈME THERMIQUE
+────────────────────────────────────────────────────────────────────
+Dans la chambre, la température atteint 3000°C à 3600°C.
+• L'acier fond à ~1400°C.
+• Le cuivre fond à ~1080°C.
+• L'aluminium fond à ~600°C.
+
+Conclusion : Sans refroidissement actif, le moteur fond instantanément.
+Le point le plus critique est le COL. C'est là que le transfert de chaleur est le plus violent (flux thermique max).
+
+4. LE REFROIDISSEMENT RÉGÉNÉRATIF
+────────────────────────────────────────────────────────────────────
+L'astuce de génie des fusées modernes : utiliser le carburant pour refroidir le moteur AVANT de le brûler.
+
+1. Le carburant froid (ex: Kérosène) arrive du réservoir.
+2. Il circule dans des doubles parois (canaux) autour de la chambre et de la tuyère.
+3. Il absorbe la chaleur de la paroi métallique.
+4. Il ressort chaud (parfois gazeux) et est injecté dans le moteur.
+
+C'est "régénératif" car on ne perd pas l'énergie thermique : elle est réinjectée dans la combustion.
+
+════════════════════════════════════════════════════════════════════
+   PARTIE 2 : THÉORIE AVANCÉE (POUR CONCEVOIR)
+════════════════════════════════════════════════════════════════════
+
+5. CHIMIE DE COMBUSTION (NASA CEA)
+────────────────────────────────────────────────────────────────────
+Le logiciel intègre ou simule le code NASA CEA (Chemical Equilibrium with Applications).
+
+Variables Clés :
+• Rapport de Mélange (MR ou O/F) : Masse d'oxydant / Masse de carburant.
+  - O/F Optimal : Donne l'ISP max.
+  - O/F Stoichiométrique : Combustion complète parfaite (souvent trop chaud).
+• C* (Vitesse Caractéristique) : Mesure l'efficacité de la chambre de combustion indépendamment de la tuyère.
+  C* = P_chambre * A_col / mdot
+
+6. TRANSFERT THERMIQUE : L'ÉQUATION DE BARTZ
+────────────────────────────────────────────────────────────────────
+Pour estimer la chaleur qui attaque la paroi (h_g : coefficient de convection gaz), on utilise l'équation semi-empirique de Bartz :
+
+   h_g = (0.026 / Dt^0.2) * ( (µ^0.2 * Cp) / Pr^0.6 ) * (Pc / c*)^0.8 * σ
+
+• Dt : Diamètre au col
+• µ, Cp, Pr : Propriétés du gaz (Viscosité, Chaleur spécifique, Prandtl)
+• Pc : Pression chambre
+• σ : Facteur de correction de couche limite
+
+Ce que ça veut dire pour vous :
+👉 Plus la pression est haute, plus ça chauffe (exposant 0.8).
+👉 Plus le moteur est petit (petit diamètre Dt), plus ça chauffe ! (Les petits moteurs sont plus durs à refroidir).
+
+7. DIMENSIONNEMENT DES CANAUX (SOLVEUR COOLANT)
+────────────────────────────────────────────────────────────────────
+Le transfert de chaleur suit le chemin : Gaz -> Paroi -> Coolant.
+
+Flux (q) = h_g * (T_gaz - T_paroi_chaude) = (k / e) * (T_paroi_chaude - T_paroi_froide) = h_c * (T_paroi_froide - T_coolant)
+
+L'objectif du solveur est de trouver l'épaisseur (e) et le coefficient du coolant (h_c) pour que T_paroi_chaude < T_fusion.
+
+Pour le Coolant, on utilise souvent la corrélation de Dittus-Boelter ou Gnielinski :
+   Nu = 0.023 * Re^0.8 * Pr^0.4
+
+👉 Astuce de design : Pour augmenter le refroidissement (h_c), il faut augmenter la vitesse du fluide. Pour cela, on réduit la taille des canaux (Hauteur/Largeur). Mais attention, cela augmente la pression nécessaire (Pertes de charge) !
+
+8. MÉCANIQUE : CONTRAINTES & PRESSION
+────────────────────────────────────────────────────────────────────
+La paroi subit deux forces majeures qui tentent de la détruire :
+
+A. La Pression (Contrainte Hoop) :
+   σ_hoop = (P_interne * Rayon) / Épaisseur
+   Elle tente d'éclater le moteur comme un ballon.
+
+B. La Chaleur (Contrainte Thermique) :
+   σ_th = E * α * ΔT / (1 - ν)
+   La face chaude veut se dilater, la face froide la retient. Cela crée des contraintes colossales.
+   • E : Module de Young (Rigidité)
+   • α : Coefficient de dilatation
+   • ΔT : Différence de temp. entre face chaude et froide.
+
+👉 C'est souvent la contrainte thermique qui tue le moteur (fatigue oligocyclique), pas la pression. C'est pourquoi le Cuivre (qui réduit le ΔT grâce à sa conductivité) est meilleur que l'Acier, même si l'Acier est plus "solide".
+
+════════════════════════════════════════════════════════════════════
+   PARTIE 3 : SCIENCE DES MATÉRIAUX
+════════════════════════════════════════════════════════════════════
+
+9. CRITÈRES DE SÉLECTION
+────────────────────────────────────────────────────────────────────
+Pour une chambre de combustion, on cherche le compromis impossible :
+1. Conductivité Thermique (k) ÉLEVÉE : Pour évacuer la chaleur.
+2. Température de Fusion ÉLEVÉE : Pour ne pas fondre.
+3. Résistance Mécanique (σ_y) ÉLEVÉE : Pour tenir la pression.
+
+10. BASE DE DONNÉES DÉTAILLÉE
+────────────────────────────────────────────────────────────────────
+
+🟢 LES CUIVRES (Le choix standard)
+• Cuivre pur (Cu-OFHC) : Conductivité extrême (390 W/mK), mais très mou. Ne tient pas la pression à chaud.
+• Cuivre-Chrome (CuCr) : Le compromis classique. Bonne conductivité (~320), résistance correcte.
+• Cuivre-Zirconium (CuZr) : Similaire au CuCr, utilisé dans les applications haute température.
+• GlidCop (Al-15) : Cuivre dopé à l'alumine. Reste dur même très proche de son point de fusion. Très utilisé par la NASA.
+• CuCrNb (GRCop-42) : Le roi actuel (développé pour SpaceX/Raptor). Excellente tenue au fluage, imprimable en 3D.
+
+⚪ LES SUPERALLIAGES (Pour les gros moteurs ou les tuyères)
+• Inconel 718 / 625 : Alliages Nickel-Chrome. Tiennent très chaud (1200°C+) et très fort. MAIS conductivité pourrie (10-12 W/mK). Utilisés si le refroidissement est mauvais ou pour les extensions de tuyère.
+• Monel 400 : Résiste exceptionnellement bien à l'oxygène pur (évite de brûler avec le moteur).
+
+🔘 LES ALUMINIUMS (Pour les petits moteurs simples)
+• AlSi10Mg : Aluminium de fonderie (Impression 3D). Conductivité correcte (110-130), très léger. Mais fond très vite (570°C). Demandent un refroidissement parfait.
+
+🟣 LES RÉFRACTAIRES (L'exotisme)
+• Niobium C-103 : Utilisé pour les extensions de tuyère radiatives (Apollo, Merlin Vacuum). Tient 2200°C mais s'oxyde instantanément à l'air (nécessite un revêtement siliciure).
+• Tungstène : Tient 3400°C. Très lourd, cassant. Utilisé pour les cols non refroidis.
+
+════════════════════════════════════════════════════════════════════
+   PARTIE 4 : GUIDE DU LOGICIEL SITH MISCHUNG
+════════════════════════════════════════════════════════════════════
+
+11. UTILISATION DE L'OPTIMISEUR
+────────────────────────────────────────────────────────────────────
+L'onglet "Optimiseur" utilise l'algorithme "Differential Evolution" (Scipy). Il lance des centaines de simulations en faisant varier vos paramètres.
+
+Comment configurer :
+1. Variables : Cochez ce que l'ordi peut modifier (ex: Épaisseur paroi, Nombre de canaux). Donnez des bornes réalistes (ex: paroi entre 1mm et 5mm).
+2. Contraintes : Cochez ce qui est INTERDIT (ex: T_paroi > 1000 K).
+3. Objectif :
+   - Min Masse : Utile pour le vol.
+   - Max Marge : Utile pour la sécurité/durée de vie.
+   - Min Delta P : Utile si vos pompes sont faibles.
+
+12. EXPORT CAD & FABRICATION
+────────────────────────────────────────────────────────────────────
+Le logiciel génère des fichiers pour la CAO (Fusion 360, SolidWorks).
+
+• STEP : Exporte le solide complet (Volume). Idéal pour la simulation CFD ou thermique externe.
+• DXF : Exporte le profil 2D. Importez-le dans un "Sketch" et faites une "Révolution" (Revolve).
+• STL : Maillage triangulé. Utile pour l'impression 3D rapide ou le rendu visuel.
+
+⚠️ Note sur les canaux : Les canaux générés sont simplifiés (rectangulaires). Pour l'impression 3D, vous devrez peut-être ajouter des congés (fillets) ou modifier la forme pour qu'elle soit auto-portante (forme en goutte d'eau).
+
+════════════════════════════════════════════════════════════════════
+   PARTIE 5 : DOCUMENTATION TECHNIQUE APPROFONDIE
+════════════════════════════════════════════════════════════════════
+"May the Thrust be with you."
+
 🔥 ANALYSE THERMIQUE DES MOTEURS-FUSÉES - GUIDE COMPLET
 ═══════════════════════════════════════════════════════════════
 
@@ -5,10 +206,10 @@ Ce guide exhaustif couvre tous les aspects du refroidissement
 régénératif des moteurs-fusées à propergols liquides.
 
 
-1. INTRODUCTION ET CONCEPTS FONDAMENTAUX
+13. INTRODUCTION ET CONCEPTS FONDAMENTAUX
 ═══════════════════════════════════════════════════════════════
 
-1.1 POURQUOI LE REFROIDISSEMENT EST-IL CRITIQUE ?
+13.1 POURQUOI LE REFROIDISSEMENT EST-IL CRITIQUE ?
 ───────────────────────────────────────────────────────────────
 
 Un moteur-fusée à propergols liquides génère des températures 
@@ -48,7 +249,7 @@ EXEMPLE NUMÉRIQUE - Temps avant fusion sans refroidissement:
    de fusion sans refroidissement actif!
 
 
-1.2 LES DIFFÉRENTES STRATÉGIES DE REFROIDISSEMENT
+13.2 LES DIFFÉRENTES STRATÉGIES DE REFROIDISSEMENT
 ───────────────────────────────────────────────────────────────
 
 Il existe plusieurs méthodes pour gérer la charge thermique:
@@ -121,7 +322,7 @@ E) TRANSPIRATION (Sweat Cooling)
    ❌ Rarement utilisé en pratique
 
 
-1.3 SCHÉMA DU TRANSFERT THERMIQUE
+13.3 SCHÉMA DU TRANSFERT THERMIQUE
 ───────────────────────────────────────────────────────────────
 
 Vue en coupe de la paroi d'un moteur à refroidissement régénératif:
@@ -169,7 +370,7 @@ En régime permanent (steady-state), le flux est CONSTANT
   q = h_g×(T_gaz - T_wh) = (k/e)×(T_wh - T_wc) = h_c×(T_wc - T_cool)
 
 
-1.4 ÉQUATIONS FONDAMENTALES DU TRANSFERT
+13.4 ÉQUATIONS FONDAMENTALES DU TRANSFERT
 ───────────────────────────────────────────────────────────────
 
 La résolution du problème thermique repose sur l'ANALOGIE 
@@ -202,7 +403,7 @@ paroi plane. En réalité:
   - Les propriétés varient avec T
 
 
-1.5 ORDRES DE GRANDEUR TYPIQUES
+13.5 ORDRES DE GRANDEUR TYPIQUES
 ───────────────────────────────────────────────────────────────
 
 Pour un moteur LOX/RP-1 de 100 kN:
@@ -255,14 +456,14 @@ TEMPÉRATURES DE PAROI:
   └────────────────────────┴──────────────────────────────┘
 
 
-2. THÉORIE DÉTAILLÉE DU TRANSFERT THERMIQUE
+14. THÉORIE DÉTAILLÉE DU TRANSFERT THERMIQUE
 ═══════════════════════════════════════════════════════════════
 
 Cette section développe les fondements physiques et 
 mathématiques du transfert de chaleur dans les moteurs-fusées.
 
 
-2.1 LA CONDUCTION THERMIQUE
+14.1 LA CONDUCTION THERMIQUE
 ───────────────────────────────────────────────────────────────
 
 2.1.1 Loi de Fourier
@@ -366,10 +567,10 @@ Pour des parois minces (e << r_moy), on peut approximer:
   R_cyl ≈ e / (k × A_moy)  où A_moy = 2π × r_moy × L
 
 
-2.2 LA CONVECTION THERMIQUE
+14.2 LA CONVECTION THERMIQUE
 ───────────────────────────────────────────────────────────────
 
-2.2.1 Loi de Newton du refroidissement
+14.2.1 Loi de Newton du refroidissement
 
 La convection est le transfert d'énergie entre une surface 
 solide et un fluide en mouvement.
@@ -434,14 +635,14 @@ LIEN AVEC h:
 Plus la couche limite est mince, plus h est élevé.
 
 
-2.3 LES NOMBRES ADIMENSIONNELS
+14.3 LES NOMBRES ADIMENSIONNELS
 ───────────────────────────────────────────────────────────────
 
 Les corrélations de transfert thermique utilisent des 
 groupements adimensionnels permettant de généraliser les 
 résultats expérimentaux.
 
-2.3.1 Nombre de Reynolds (Re)
+14.3.1 Nombre de Reynolds (Re)
 
 DÉFINITION:
   Re = ρ × v × D_h / μ = v × D_h / ν
@@ -603,7 +804,7 @@ NOMBRE DE MACH (Ma):
   Important côté gaz: effets de compressibilité.
 
 
-3. MODÈLE DE BARTZ POUR h_g
+15. MODÈLE DE BARTZ POUR h_g
 ═══════════════════════════════════════════════════════════════
 
 L'équation de Bartz est la corrélation de référence pour 
@@ -611,7 +812,7 @@ calculer le coefficient de transfert convectif côté gaz
 chaud dans les moteurs-fusées.
 
 
-3.1 HISTORIQUE ET DÉVELOPPEMENT
+15.1 HISTORIQUE ET DÉVELOPPEMENT
 ───────────────────────────────────────────────────────────────
 
 David R. Bartz a développé cette corrélation en 1957 au 
@@ -635,7 +836,7 @@ PUBLICATION ORIGINALE:
   Jet Propulsion, Vol. 27, No. 1, 1957, pp. 49-51
 
 
-3.2 ÉQUATION COMPLÈTE DE BARTZ
+15.2 ÉQUATION COMPLÈTE DE BARTZ
 ───────────────────────────────────────────────────────────────
 
 FORME GÉNÉRALE:
@@ -675,7 +876,7 @@ SIMPLIFICATION COURANTE:
 Pour les calculs préliminaires, on utilise souvent σ ≈ 1.0-1.2
 
 
-3.3 FORMULE SIMPLIFIÉE (utilisée dans le code)
+15.3 FORMULE SIMPLIFIÉE (utilisée dans le code)
 ───────────────────────────────────────────────────────────────
 
 Pour simplifier l'implémentation, on utilise:
@@ -703,7 +904,7 @@ JUSTIFICATION DE L'EXPOSANT 1.8:
   - Dans le divergent: A croissant, h_g décroissant rapidement
 
 
-3.4 PROPRIÉTÉS DES GAZ DE COMBUSTION
+15.4 PROPRIÉTÉS DES GAZ DE COMBUSTION
 ───────────────────────────────────────────────────────────────
 
 Les propriétés thermo-physiques des gaz de combustion sont 
@@ -738,7 +939,7 @@ EFFET SUR h_g:
   - h_g varie peu avec O/F (effets compensatoires)
 
 
-3.5 VALEURS TYPIQUES DE h_g
+15.5 VALEURS TYPIQUES DE h_g
 ───────────────────────────────────────────────────────────────
 
   ┌─────────────────┬────────────────────┬──────────────────────┐
@@ -767,7 +968,7 @@ FACTEURS INFLUENÇANT h_g:
   └────────────────────┴────────────────────────────────────────┘
 
 
-3.6 LIMITATIONS DU MODÈLE DE BARTZ
+15.6 LIMITATIONS DU MODÈLE DE BARTZ
 ───────────────────────────────────────────────────────────────
 
 Le modèle de Bartz a des limitations importantes:
@@ -793,7 +994,7 @@ Le modèle de Bartz a des limitations importantes:
   - Comparer avec d'autres corrélations (Rao, Cinjarew)
 
 
-3.7 COMPARAISON AVEC AUTRES CORRÉLATIONS
+15.7 COMPARAISON AVEC AUTRES CORRÉLATIONS
 ───────────────────────────────────────────────────────────────
 
 CORRÉLATION DE RAO (1960):
@@ -811,7 +1012,7 @@ APPROCHE CFD MODERNE:
   - Utilisée pour la conception finale
 
 
-4. CALCUL DES TEMPÉRATURES DE PAROI
+16. CALCUL DES TEMPÉRATURES DE PAROI
 ═══════════════════════════════════════════════════════════════
 
 Le calcul précis des températures de paroi est l'objectif 
@@ -819,7 +1020,7 @@ principal de l'analyse thermique. C'est ce qui détermine
 si le moteur survivra ou non.
 
 
-4.1 SYSTÈME D'ÉQUATIONS THERMIQUES
+16.1 SYSTÈME D'ÉQUATIONS THERMIQUES
 ───────────────────────────────────────────────────────────────
 
 En régime permanent, le flux thermique est constant à travers 
@@ -844,7 +1045,7 @@ Cette équation est FONDAMENTALE. Elle permet de calculer q
 connaissant les températures des fluides et les résistances.
 
 
-4.2 CALCUL DE T_WALL_HOT (température critique)
+16.2 CALCUL DE T_WALL_HOT (température critique)
 ───────────────────────────────────────────────────────────────
 
 C'est la température la plus importante car c'est elle qui 
@@ -885,7 +1086,7 @@ INFLUENCE DES PARAMÈTRES SUR T_wall_hot:
   └────────────────────┴────────────────────────────────────────┘
 
 
-4.3 CALCUL DE T_WALL_COLD
+16.3 CALCUL DE T_WALL_COLD
 ───────────────────────────────────────────────────────────────
 
 MÉTHODE 1 - À partir du flux:
@@ -926,7 +1127,7 @@ TEMPÉRATURES D'ÉBULLITION (à pression atmosphérique):
 À haute pression, T_boil augmente (selon courbe de saturation).
 
 
-4.4 PROFIL DE TEMPÉRATURE DANS LA PAROI
+16.4 PROFIL DE TEMPÉRATURE DANS LA PAROI
 ───────────────────────────────────────────────────────────────
 
 En régime permanent avec flux constant, le profil est LINÉAIRE:
@@ -966,7 +1167,7 @@ Pour une épaisseur e = 2 mm:
   ΔT = 62.5 × 2 = 125 K
 
 
-4.5 CONTRAINTES THERMIQUES (STRESS THERMIQUE)
+16.5 CONTRAINTES THERMIQUES (STRESS THERMIQUE)
 ───────────────────────────────────────────────────────────────
 
 Le gradient de température crée des contraintes mécaniques 
@@ -1006,7 +1207,7 @@ EXEMPLE DE CALCUL:
 Cette contrainte s'ajoute aux contraintes de pression!
 
 
-4.6 RÉGIME TRANSITOIRE (DÉMARRAGE/ARRÊT)
+16.6 RÉGIME TRANSITOIRE (DÉMARRAGE/ARRÊT)
 ───────────────────────────────────────────────────────────────
 
 Pendant les phases de démarrage et d'arrêt, le régime n'est 
@@ -1050,7 +1251,7 @@ Le coolant peut ne pas être à plein débit quand les gaz
 chauds arrivent → surchauffe critique possible!
 
 
-4.7 TEMPÉRATURE ADIABATIQUE DE PAROI
+16.7 TEMPÉRATURE ADIABATIQUE DE PAROI
 ───────────────────────────────────────────────────────────────
 
 En réalité, on n'utilise pas directement T_chambre mais la 
@@ -1080,7 +1281,7 @@ EFFET:
 Typiquement: T_aw ≈ 0.9 × T_stagnation au col
 
 
-4.8 CALCUL ITÉRATIF COMPLET
+16.8 CALCUL ITÉRATIF COMPLET
 ───────────────────────────────────────────────────────────────
 
 En pratique, le calcul est itératif car h_g et h_c dépendent 
@@ -1106,14 +1307,14 @@ CRITÈRE DE CONVERGENCE:
 Typiquement convergence en 3-5 itérations.
 
 
-5. CORRÉLATIONS CÔTÉ COOLANT - ANALYSE DÉTAILLÉE
+17. CORRÉLATIONS CÔTÉ COOLANT - ANALYSE DÉTAILLÉE
 ═══════════════════════════════════════════════════════════════
 
 Le calcul précis de h_c est crucial pour une conception fiable.
 Cette section détaille les principales corrélations utilisées.
 
 
-5.1 CORRÉLATION DE DITTUS-BOELTER
+17.1 CORRÉLATION DE DITTUS-BOELTER
 ───────────────────────────────────────────────────────────────
 
 C'est la corrélation la plus utilisée pour l'écoulement 
@@ -1430,14 +1631,14 @@ CLASSEMENT PAR CAPACITÉ DE REFROIDISSEMENT:
   7. N2H4 (toxique, éviter si possible)
 
 
-6. ÉPAISSEUR CRITIQUE, SERVICE ET ABLATION
+18. ÉPAISSEUR CRITIQUE, SERVICE ET ABLATION
 ═══════════════════════════════════════════════════════════════
 
 Cette section traite des critères d'épaisseur et du 
 phénomène d'ablation pour les parois trop épaisses.
 
 
-6.1 ÉPAISSEUR CRITIQUE DE FUSION (e_melt)
+18.1 ÉPAISSEUR CRITIQUE DE FUSION (e_melt)
 ───────────────────────────────────────────────────────────────
 
 L'épaisseur critique est l'épaisseur MAXIMALE pour laquelle 
@@ -1773,14 +1974,14 @@ PROFIL TYPIQUE D'UN MOTEUR MODERNE:
   - Divergent: e = 2-4 mm (CuCr) ou transition vers acier
 
 
-7. PROPRIÉTÉS DES MATÉRIAUX POUR MOTEURS-FUSÉES
+19. PROPRIÉTÉS DES MATÉRIAUX POUR MOTEURS-FUSÉES
 ═══════════════════════════════════════════════════════════════
 
 Cette section détaille les matériaux utilisés pour les parois 
 de chambres de combustion et tuyères à refroidissement régénératif.
 
 
-7.1 TABLEAU RÉCAPITULATIF DES PROPRIÉTÉS
+19.1 TABLEAU RÉCAPITULATIF DES PROPRIÉTÉS
 ───────────────────────────────────────────────────────────────
 
   ┌──────────────────┬───────┬─────────┬─────────┬─────────┐
@@ -2361,14 +2562,14 @@ VULCAIN 2 (ESA):
   - Pression: 115 bar
 
 
-8. PROPRIÉTÉS DES COOLANTS - GUIDE COMPLET
+20. PROPRIÉTÉS DES COOLANTS - GUIDE COMPLET
 ═══════════════════════════════════════════════════════════════
 
 Cette section détaille les propriétés thermophysiques des 
 fluides utilisés pour le refroidissement régénératif.
 
 
-8.1 TABLEAU RÉCAPITULATIF DES COOLANTS
+20.1 TABLEAU RÉCAPITULATIF DES COOLANTS
 ───────────────────────────────────────────────────────────────
 
   ┌──────────────┬────────┬────────┬────────┬────────┬────────┐
@@ -2878,7 +3079,7 @@ CONSEIL:
   T_film = (T_wall_cold + T_bulk) / 2
 
 
-9. EXEMPLES DE CALCUL COMPLETS
+21. EXEMPLES DE CALCUL COMPLETS
 ═══════════════════════════════════════════════════════════════
 
 Cette section présente plusieurs exemples de calcul détaillés pour
@@ -2886,7 +3087,7 @@ illustrer l'application des équations thermiques aux moteurs-fusées.
 Chaque exemple suit une méthodologie complète et vérifie les résultats.
 
 
-9.1 EXEMPLE 1 : PETIT MOTEUR LOX/RP-1 (TYPE AMATEUR AVANCÉ)
+21.1 EXEMPLE 1 : PETIT MOTEUR LOX/RP-1 (TYPE AMATEUR AVANCÉ)
 ───────────────────────────────────────────────────────────────
 
 DONNÉES DU PROBLÈME:
@@ -3526,14 +3727,14 @@ EXERCICE 4 - Puissance thermique:
   (Réponse: Q ≈ 0.5-1 MW, selon géométrie et flux)
 
 
-10. FORMULES RAPIDES (AIDE-MÉMOIRE COMPLET)
+22. FORMULES RAPIDES (AIDE-MÉMOIRE COMPLET)
 ═══════════════════════════════════════════════════════════════
 
 Cette section rassemble toutes les formules essentielles pour
 la conception thermique des moteurs-fusées, organisées par thème.
 
 
-10.1 ÉQUATIONS FONDAMENTALES DU TRANSFERT THERMIQUE
+22.1 ÉQUATIONS FONDAMENTALES DU TRANSFERT THERMIQUE
 ───────────────────────────────────────────────────────────────
 
 FLUX THERMIQUE (LOI DE FOURIER):
@@ -4135,14 +4336,14 @@ LOGICIELS ET BASES DE DONNÉES:
 
 ═══════════════════════════════════════════════════════════════
 
-11. CARTE THERMIQUE ET ANALYSE 2D/3D
+23. CARTE THERMIQUE ET ANALYSE 2D/3D
 ═══════════════════════════════════════════════════════════════
 
 L'analyse thermique 1D (Bartz + Dittus-Boelter) donne une moyenne.
 L'onglet "Heatmap" permet d'affiner cette analyse en visualisant
 les gradients locaux, notamment entre les canaux de refroidissement.
 
-11.1 EFFET D'AILETTE (FIN EFFECT)
+23.1 EFFET D'AILETTE (FIN EFFECT)
 ───────────────────────────────────────────────────────────────
 Dans un moteur à canaux fraisés, la "nervure" (rib) entre deux
 canaux agit comme une ailette de refroidissement.
@@ -4198,13 +4399,13 @@ C) SURFACE 3D:
    Utile pour vérifier la continuité du refroidissement.
 
 
-12. EXPORT CAD ET GÉOMÉTRIE
+24. EXPORT CAD ET GÉOMÉTRIE
 ═══════════════════════════════════════════════════════════════
 
 L'onglet "CAD" génère la géométrie solide du moteur pour la
 fabrication (CAM) ou l'intégration (CAD).
 
-12.1 GÉNÉRATION DU PROFIL (LAVAL)
+24.1 GÉNÉRATION DU PROFIL (LAVAL)
 ───────────────────────────────────────────────────────────────
 Le profil interne est généré par des courbes mathématiques:
 
@@ -4251,13 +4452,13 @@ C) DXF (.dxf):
    - Utile pour le tournage (Lathe) ou la découpe jet d'eau
 
 
-13. OPTIMISATION AUTOMATIQUE (ALGORITHME)
+25. OPTIMISATION AUTOMATIQUE (ALGORITHME)
 ═══════════════════════════════════════════════════════════════
 
 L'optimiseur cherche la "meilleure" configuration de refroidissement
 sans intervention manuelle, en résolvant un problème mathématique.
 
-13.1 FONCTION OBJECTIF (COST FUNCTION)
+25.1 FONCTION OBJECTIF (COST FUNCTION)
 ───────────────────────────────────────────────────────────────
 On cherche à minimiser une fonction de coût J(x):
 
@@ -4303,13 +4504,13 @@ RÉSULTAT:
   et larges dans le divergent (faible perte de charge).
 
 
-14. ANALYSE DES CONTRAINTES MÉCANIQUES
+26. ANALYSE DES CONTRAINTES MÉCANIQUES
 ═══════════════════════════════════════════════════════════════
 
 La paroi du moteur subit des charges extrêmes combinant pression
 et dilatation thermique.
 
-14.1 CONTRAINTES PRIMAIRES (PRESSION)
+26.1 CONTRAINTES PRIMAIRES (PRESSION)
 ───────────────────────────────────────────────────────────────
 Modèle du tube à paroi mince (Thin-walled pressure vessel):
 
@@ -4369,13 +4570,13 @@ LOI DE COFFIN-MANSON:
   - Pour du réutilisable (RLV), il faut viser FoS > 1.2.
 
 
-15. SIMULATION TRANSITOIRE (DÉMARRAGE)
+27. SIMULATION TRANSITOIRE (DÉMARRAGE)
 ═══════════════════════════════════════════════════════════════
 
 Le régime permanent (Steady State) n'est atteint qu'après
 plusieurs secondes. Le pic de température peut survenir avant.
 
-15.1 ÉQUATION DE LA CHALEUR INSTATIONNAIRE
+27.1 ÉQUATION DE LA CHALEUR INSTATIONNAIRE
 ───────────────────────────────────────────────────────────────
   ρ × Cp × (∂T/∂t) = ∇ · (k ∇T)
 
@@ -4418,3 +4619,4 @@ C) SOAK-BACK (ARRÊT):
 RÉFÉRENCES BIBLIOGRAPHIQUES
 ═══════════════════════════════════════════════════════════════
 Document généré par Rocket Motor Design Plotter v6 - Décembre 2025
+
