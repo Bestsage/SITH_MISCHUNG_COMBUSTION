@@ -5110,171 +5110,80 @@ class RocketApp:
             messagebox.showinfo("Recherche", f"Fin du document atteinte pour '{search_term}'")
     
     def wiki_goto_section(self, event):
-        """Aller à une section du sommaire"""
+        """Aller à une section du sommaire - Navigation améliorée avec support complet des sous-sections"""
         selection = self.wiki_toc.curselection()
         if not selection:
             return
         
         item = self.wiki_toc.get(selection[0])
-        
-        # Extraire le numéro de section
-        section_map = {
-            # PARTIE 1 : LES BASES
-            "1.": "1. INTRODUCTION : LE PRINCIPE",
-            "2.": "2. LA TUYÈRE DE LAVAL",
-            "3.": "3. LE PROBLÈME THERMIQUE",
-            "4.": "4. LE REFROIDISSEMENT RÉGÉNÉRATIF",
-            # PARTIE 2 : THÉORIE AVANCÉE
-            "5.": "5. CHIMIE DE COMBUSTION",
-            "6.": "6. TRANSFERT THERMIQUE : L'ÉQUATION",
-            "7.": "7. DIMENSIONNEMENT DES CANAUX",
-            "8.": "8. MÉCANIQUE : CONTRAINTES",
-            # PARTIE 3 : MATÉRIAUX
-            "9.": "9. CRITÈRES DE SÉLECTION",
-            "10.": "10. BASE DE DONNÉES DÉTAILLÉE",
-            # PARTIE 4 : LOGICIEL
-            "11.": "11. UTILISATION DE L'OPTIMISEUR",
-            "12.": "12. EXPORT CAD",
-            # PARTIE 5 : DOCUMENTATION APPROFONDIE
-            "13.": "13. INTRODUCTION ET CONCEPTS",
-            "13.1": "13.1 POURQUOI LE REFROIDISSEMENT",
-            "13.2": "13.2 LES DIFFÉRENTES STRATÉGIES",
-            "13.3": "13.3 SCHÉMA DU TRANSFERT",
-            "13.4": "13.4 ÉQUATIONS FONDAMENTALES",
-            "13.5": "13.5 ORDRES DE GRANDEUR",
-            "14.": "14. THÉORIE DÉTAILLÉE",
-            "14.1": "14.1 LA CONDUCTION THERMIQUE",
-            "14.2": "14.2 LA CONVECTION THERMIQUE",
-            "14.3": "14.3 LES NOMBRES ADIMENSIONNELS",
-            "15.": "15. MODÈLE DE BARTZ",
-            "15.1": "15.1 HISTORIQUE",
-            "15.2": "15.2 ÉQUATION COMPLÈTE",
-            "15.3": "15.3 FORMULE SIMPLIFIÉE",
-            "15.4": "15.4 PROPRIÉTÉS DES GAZ",
-            "15.5": "15.5 VALEURS TYPIQUES DE h_g",
-            "15.6": "15.6 LIMITATIONS",
-            "15.7": "15.7 COMPARAISON",
-            "16.": "16. CALCUL DES TEMPÉRATURES",
-            "16.1": "16.1 SYSTÈME D'ÉQUATIONS",
-            "16.2": "16.2 CALCUL DE T_WALL_HOT",
-            "16.3": "16.3 CALCUL DE T_WALL_COLD",
-            "16.4": "16.4 PROFIL DE TEMPÉRATURE",
-            "16.5": "16.5 CONTRAINTES THERMIQUES",
-            "16.6": "16.6 RÉGIME TRANSITOIRE",
-            "16.7": "16.7 TEMPÉRATURE ADIABATIQUE",
-            "16.8": "16.8 CALCUL ITÉRATIF",
-            "17.": "17. CORRÉLATIONS CÔTÉ COOLANT",
-            "17.1": "17.1 CORRÉLATION DE DITTUS",
-            "17.2": "17.2 CORRÉLATION DE GNIELINSKI",
-            "17.3": "17.3 RÉGIME LAMINAIRE",
-            "17.4": "17.4 RÉGIME TRANSITOIRE",
-            "17.5": "17.5 ÉBULLITION SOUS-REFROIDIE",
-            "17.6": "17.6 EFFETS DE LA GÉOMÉTRIE",
-            "17.7": "17.7 PERTES DE CHARGE",
-            "17.8": "17.8 VALEURS TYPIQUES DE h_c",
-            "18.": "18. ÉPAISSEUR CRITIQUE",
-            "18.1": "18.1 ÉPAISSEUR CRITIQUE DE FUSION",
-            "18.2": "18.2 ÉPAISSEUR DE SERVICE",
-            "18.3": "18.3 PROCESSUS D'ABLATION",
-            "18.4": "18.4 ÉPAISSEUR SACRIFICIELLE",
-            "18.5": "18.5 TEMPS D'ABLATION",
-            "18.6": "18.6 QUAND L'ABLATION",
-            "18.7": "18.7 DIMENSIONNEMENT",
-            "18.8": "18.8 CARTE THERMIQUE",
-            "19.": "19. PROPRIÉTÉS DES MATÉRIAUX",
-            "19.1": "19.1 TABLEAU RÉCAPITULATIF",
-            "19.2": "19.2 ALLIAGES DE CUIVRE",
-            "19.3": "19.3 SUPERALLIAGES BASE NICKEL",
-            "19.4": "19.4 ALLIAGES D'ALUMINIUM",
-            "19.5": "19.5 MÉTAUX RÉFRACTAIRES",
-            "19.6": "19.6 MATÉRIAUX CÉRAMIQUES",
-            "19.7": "19.7 CRITÈRES DE SÉLECTION",
-            "19.8": "19.8 EXEMPLES DE MOTEURS",
-            "20.": "20. PROPRIÉTÉS DES COOLANTS",
-            "20.1": "20.1 TABLEAU RÉCAPITULATIF",
-            "20.2": "20.2 HYDROGÈNE LIQUIDE",
-            "20.3": "20.3 OXYGÈNE LIQUIDE",
-            "20.4": "20.4 MÉTHANE LIQUIDE",
-            "20.5": "20.5 RP-1",
-            "20.6": "20.6 ÉTHANOL",
-            "20.7": "20.7 HYDRAZINE",
-            "20.8": "20.8 EAU",
-            "20.9": "20.9 AMMONIAC",
-            "20.10": "20.10 COMPARAISON",
-            "20.11": "20.11 PROPRIÉTÉS EN FONCTION",
-            "21.": "21. EXEMPLES DE CALCUL",
-            "21.1": "21.1 EXEMPLE 1",
-            "21.2": "21.2 EXEMPLE 2",
-            "21.3": "21.3 EXEMPLE 3",
-            "21.4": "21.4 EXEMPLE 4",
-            "21.5": "21.5 EXEMPLE 5",
-            "21.6": "21.6 EXEMPLE 6",
-            "21.7": "21.7 TABLEAU RÉCAPITULATIF",
-            "21.8": "21.8 EXERCICES",
-            "22.": "22. FORMULES RAPIDES",
-            "22.1": "22.1 ÉQUATIONS FONDAMENTALES",
-            "22.2": "22.2 ÉQUATION DE BARTZ",
-            "22.3": "22.3 NOMBRES ADIMENSIONNELS",
-            "22.4": "22.4 CORRÉLATIONS DE CONVECTION",
-            "22.5": "22.5 ÉQUATIONS DE TEMPÉRATURE",
-            "22.6": "22.6 ÉPAISSEUR DE PAROI",
-            "22.7": "22.7 PUISSANCE ET ÉNERGIE",
-            "22.8": "22.8 PERTES DE CHARGE",
-            "22.9": "22.9 FILM COOLING",
-            "22.10": "22.10 PROPRIÉTÉS DES GAZ",
-            "22.11": "22.11 TABLEAU RÉCAPITULATIF",
-            "22.12": "22.12 ORDRES DE GRANDEUR",
-            "22.13": "22.13 CONVERSIONS",
-            "22.14": "22.14 CONSTANTES",
-            "23.": "23. CARTE THERMIQUE ET ANALYSE 2D/3D",
-            "23.1": "23.1 EFFET D'AILETTE",
-            "23.2": "23.2 INTERPOLATION THERMIQUE 2D",
-            "23.3": "23.3 VISUALISATIONS DISPONIBLES",
-            "24.": "24. EXPORT CAD ET GÉOMÉTRIE",
-            "24.1": "24.1 GÉNÉRATION DU PROFIL",
-            "24.2": "24.2 MODÉLISATION DES CANAUX",
-            "24.3": "24.3 FORMATS D'EXPORT",
-            "25.": "25. OPTIMISATION AUTOMATIQUE",
-            "25.1": "25.1 FONCTION OBJECTIF",
-            "25.2": "25.2 VARIABLES DE DÉCISION",
-            "25.3": "25.3 CONTRAINTES",
-            "25.4": "25.4 ALGORITHME SLSQP",
-            "26.": "26. ANALYSE DES CONTRAINTES MÉCANIQUES",
-            "26.1": "26.1 CONTRAINTES PRIMAIRES",
-            "26.2": "26.2 CONTRAINTES THERMIQUES",
-            "26.3": "26.3 CRITÈRE DE VON MISES",
-            "26.4": "26.4 FATIGUE OLIGOCYCLIQUE",
-            "27.": "27. SIMULATION TRANSITOIRE",
-            "27.1": "27.1 ÉQUATION DE LA CHALEUR",
-            "27.2": "27.2 STABILITÉ NUMÉRIQUE",
-            "27.3": "27.3 PHÉNOMÈNES TRANSITOIRES",
-            "Réf": "RÉFÉRENCES",
-            # Titres des PARTIES
-            "PARTIE 1": "PARTIE 1 : LES BASES",
-            "PARTIE 2": "PARTIE 2 : THÉORIE AVANCÉE",
-            "PARTIE 3": "PARTIE 3 : SCIENCE DES MATÉRIAUX",
-            "PARTIE 4": "PARTIE 4 : GUIDE DU LOGICIEL",
-            "PARTIE 5": "PARTIE 5 : DOCUMENTATION TECHNIQUE",
-        }
-        
-        # Chercher le texte correspondant
-        # Trier les clés par longueur décroissante pour que "3.1" soit testé avant "3."
-        search_text = None
         item_stripped = item.strip()
         
         # Ignorer les lignes vides ou les séparateurs
         if not item_stripped or item_stripped.startswith("════"):
             return
-            
-        for key in sorted(section_map.keys(), key=len, reverse=True):
-            if item_stripped.startswith(key + " ") or item_stripped.startswith(key + ".") or item_stripped == key:
-                search_text = section_map[key]
-                break
         
-        if search_text:
-            pos = self.wiki_text.search(search_text, "1.0", nocase=True)
+        # Extraire le numéro de section du TOC item
+        import re
+        
+        # Pattern pour extraire le numéro (ex: "13.1" de "   13.1 Pourquoi refroidir ?")
+        section_match = re.match(r'^\s*(\d+\.?\d*)\s+', item_stripped)
+        
+        if section_match:
+            section_num = section_match.group(1)
+            
+            # Rechercher directement le pattern dans le wiki
+            # On cherche "13.1 " au début d'une ligne (case insensitive)
+            search_pattern = section_num + " "
+            
+            # Commencer la recherche depuis le début
+            pos = self.wiki_text.search(search_pattern, "1.0", nocase=True, regexp=False)
+            
+            if pos:
+                # Vérifier que c'est bien le début d'une ligne
+                line_start = self.wiki_text.index(f"{pos} linestart")
+                if line_start == pos or self.wiki_text.get(line_start, pos).strip() == "":
+                    self.wiki_text.see(pos)
+                    # Highlight la ligne brièvement pour feedback visuel
+                    line_end = self.wiki_text.index(f"{pos} lineend")
+                    self.wiki_text.tag_remove("highlight", "1.0", tk.END)
+                    self.wiki_text.tag_add("highlight", pos, line_end)
+                    # Retirer le highlight après 2 secondes
+                    self.root.after(2000, lambda: self.wiki_text.tag_remove("highlight", "1.0", tk.END))
+                    return
+        
+        # Fallback: recherche par texte partiel si le pattern numérique ne marche pas
+        # Ceci gère les cas comme "PARTIE 1", "Références", etc.
+        search_terms = []
+        
+        if "PARTIE" in item_stripped:
+            # Extraire "PARTIE 1", "PARTIE 2", etc.
+            partie_match = re.search(r'PARTIE\s+\d+', item_stripped)
+            if partie_match:
+                search_terms.append(partie_match.group(0))
+        elif "Réf" in item_stripped or "Biblio" in item_stripped:
+            search_terms.append("RÉFÉRENCES")
+        else:
+            # Extraire les premiers mots du titre (après le numéro)
+            words_match = re.match(r'^\s*\d+\.?\d*\s+(.+)', item_stripped)
+            if words_match:
+                title_text = words_match.group(1)
+                # Prendre les 3 premiers mots
+                words = title_text.split()[:3]
+                if words:
+                    search_terms.append(" ".join(words))
+        
+        # Essayer chaque terme de recherche
+        for term in search_terms:
+            pos = self.wiki_text.search(term, "1.0", nocase=True)
             if pos:
                 self.wiki_text.see(pos)
+                # Highlight la ligne brièvement pour feedback visuel
+                line_end = self.wiki_text.index(f"{pos} lineend")
+                self.wiki_text.tag_remove("highlight", "1.0", tk.END)
+                self.wiki_text.tag_add("highlight", pos, line_end)
+                # Retirer le highlight après 2 secondes
+                self.root.after(2000, lambda: self.wiki_text.tag_remove("highlight", "1.0", tk.END))
+                return
 
     def load_database(self):
         """Charge tous les propergols depuis RocketCEA"""
