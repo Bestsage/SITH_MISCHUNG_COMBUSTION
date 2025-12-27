@@ -64,7 +64,7 @@ C'est ce qu'on appelle le **refroidissement régénératif**.
 Le terme "régénératif" signifie qu'on **récupère** l'énergie thermique au lieu de la perdre :
 
 - ❌ **Sans régénération :** L'énergie s'échappe dans l'espace → perte
-- ✅ **Avec régénération :** L'énergie préchauffé le carburant → améliore la combustion et l'ISP
+- ✅ **Avec régénération :** L'énergie préchauffe le carburant → améliore la combustion et l'ISP
 
 **C'est comme un échangeur de chaleur intelligent !** 🔥 → ⚡
 
