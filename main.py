@@ -9,6 +9,7 @@ import numpy as np
 import math
 import json
 import os
+import re
 from datetime import datetime
 
 #this code only works with python 3.10 and below, 3.11, 3.13, and 3.14 dont support rocketcea.
@@ -4905,16 +4906,26 @@ class RocketApp:
         self.wiki_text.config(yscrollcommand=scrollbar.set)
         self.wiki_text.pack(fill=tk.BOTH, expand=True)
         
-        # Configurer les tags de style
-        self.wiki_text.tag_configure("h1", font=("Segoe UI", 18, "bold"), foreground="#ff79c6", spacing3=10)
-        self.wiki_text.tag_configure("h2", font=("Segoe UI", 14, "bold"), foreground="#ffb86c", spacing1=15, spacing3=5)
-        self.wiki_text.tag_configure("h3", font=("Segoe UI", 12, "bold"), foreground="#8be9fd", spacing1=10, spacing3=3)
-        self.wiki_text.tag_configure("code", font=("Consolas", 10), background="#1a1a2e", foreground="#50fa7b")
-        self.wiki_text.tag_configure("formula", font=("Consolas", 11), foreground="#bd93f9")
-        self.wiki_text.tag_configure("important", foreground="#ff5555", font=("Consolas", 11, "bold"))
-        self.wiki_text.tag_configure("table_header", font=("Consolas", 10, "bold"), foreground="#8be9fd")
+        # Configurer les tags de style (améliorés pour meilleur rendu visuel)
+        self.wiki_text.tag_configure("h1", font=("Segoe UI", 20, "bold"), foreground="#ff79c6", spacing1=20, spacing3=15)
+        self.wiki_text.tag_configure("separator_main", font=("Consolas", 10), foreground="#ff79c6", spacing3=15)
+        self.wiki_text.tag_configure("h2", font=("Segoe UI", 15, "bold"), foreground="#ffb86c", spacing1=18, spacing3=8)
+        self.wiki_text.tag_configure("separator_h2", font=("Consolas", 10), foreground="#ffb86c", spacing3=8)
+        self.wiki_text.tag_configure("h3", font=("Segoe UI", 13, "bold"), foreground="#8be9fd", spacing1=12, spacing3=5)
+        self.wiki_text.tag_configure("separator_h3", font=("Consolas", 10), foreground="#8be9fd", spacing3=5)
+        self.wiki_text.tag_configure("h4", font=("Segoe UI", 12, "bold"), foreground="#bd93f9", spacing1=8, spacing3=3)
+        self.wiki_text.tag_configure("bullet", font=("Segoe UI", 11), foreground=self.text_primary, lmargin1=30, lmargin2=50, spacing1=2)
+        self.wiki_text.tag_configure("bullet_emoji", font=("Segoe UI", 11, "bold"), foreground="#50fa7b", lmargin1=30, lmargin2=50, spacing1=2)
+        self.wiki_text.tag_configure("numbered_list", font=("Segoe UI", 11), foreground=self.text_primary, lmargin1=30, lmargin2=50, spacing1=2)
+        self.wiki_text.tag_configure("code", font=("Consolas", 10), background="#1a1a2e", foreground="#50fa7b", lmargin1=40, lmargin2=40, spacing1=1)
+        self.wiki_text.tag_configure("formula", font=("Consolas", 11, "bold"), foreground="#bd93f9", background="#1a1a2e", lmargin1=40, lmargin2=40, spacing1=3, spacing3=3)
+        self.wiki_text.tag_configure("important", foreground="#ff5555", font=("Segoe UI", 11, "bold"), lmargin1=20, lmargin2=40, spacing1=3, spacing3=3)
+        self.wiki_text.tag_configure("warning", foreground="#ffb347", font=("Segoe UI", 11, "bold"), background="#2a1a0a", lmargin1=20, lmargin2=40, spacing1=3, spacing3=3)
+        self.wiki_text.tag_configure("success", foreground="#50fa7b", font=("Segoe UI", 11, "bold"), lmargin1=20, lmargin2=40, spacing1=3, spacing3=3)
+        self.wiki_text.tag_configure("quote", font=("Segoe UI", 11, "italic"), foreground="#9fb4d3", lmargin1=50, lmargin2=50, spacing1=5, spacing3=5)
+        self.wiki_text.tag_configure("table_header", font=("Consolas", 10, "bold"), foreground="#8be9fd", background="#1a1a2e")
         self.wiki_text.tag_configure("highlight", background="#3d3d00", foreground="#ffff00")
-        self.wiki_text.tag_configure("normal", font=("Consolas", 11), foreground=self.text_primary)
+        self.wiki_text.tag_configure("normal", font=("Segoe UI", 11), foreground=self.text_primary, spacing1=2)
         
         # Variable pour la recherche
         self.wiki_search_pos = "1.0"
@@ -4923,7 +4934,7 @@ class RocketApp:
         self.load_wiki_content()
     
     def load_wiki_content(self):
-        """Charge le contenu du wiki depuis un fichier externe"""
+        """Charge le contenu du wiki depuis un fichier externe avec formatage amélioré"""
         self.wiki_text.config(state=tk.NORMAL)
         self.wiki_text.delete(1.0, tk.END)
         
@@ -4931,35 +4942,130 @@ class RocketApp:
         import os
         wiki_file = os.path.join(os.path.dirname(__file__), 'wiki.txt')
         try:
-            with open(wiki_file, 'r', encoding='utf-8') as f:
+            with open(wiki_file, 'r', encoding='utf-8-sig') as f:
                 content = f.read()
         except FileNotFoundError:
             content = "Erreur: Fichier wiki.txt non trouvé.\n\nPlacez le fichier wiki.txt dans le même répertoire que ce script."
         except Exception as e:
             content = f"Erreur lors du chargement du wiki: {str(e)}"
         
-        # Insérer le contenu avec formatage
-        import re
+        # Insérer le contenu avec formatage amélioré
+        # Compiler les regex patterns une seule fois pour de meilleures performances
+        pattern_partie = re.compile(r'^\s*(PARTIE\s+\d+|RÉFÉRENCES)', re.IGNORECASE)
+        pattern_h2 = re.compile(r'^\d+\.\s+[A-ZÀ-ÖØ-Þ\(\)\']+')
+        pattern_h3 = re.compile(r'^\d+\.\d+\s+[A-ZÀ-ÖØ-Þ\(\)\']+')
+        pattern_h4_dot = re.compile(r'^[A-Z]\.\s+[A-Z]')
+        pattern_h4_paren = re.compile(r'^[A-Z]\)\s+[A-Z]')
+        pattern_important = re.compile(r'^\s*[💀❌]')
+        pattern_warning = re.compile(r'^\s*⚠️')
+        pattern_success = re.compile(r'^\s*[✅👉]')
+        pattern_bullet_emoji = re.compile(r'^\s*[🟢🔘⚪🟣🔴🟡🟤⚫🟠]')
+        pattern_bullet = re.compile(r'^\s*[•\-\*]\s+')
+        pattern_numbered = re.compile(r'^\s*\d+\.\s+[a-zà-ÿ]', re.IGNORECASE)
+        pattern_formula_var = re.compile(r'[a-zA-Z_][a-zA-Z0-9_]*\s*[=<>≈≤≥]')
+        pattern_formula_terms = re.compile(r'(q\s*=|Nu\s*=|Re\s*=|Pr\s*=|h_|T_|σ_|ΔT|MW/m)')
+        pattern_box_drawing = re.compile(r'^\s*[┌├└│┐┤┘─━═]')
+        
         lines = content.split('\n')
+        
         for line in lines:
-            if line.startswith('🔥') or line.startswith('═══'):
+            # Ligne vide - ajouter de l'espace
+            if not line.strip():
+                self.wiki_text.insert(tk.END, '\n')
+                continue
+            
+            # Titre principal avec emoji feu ou double ligne ═══
+            if line.startswith('🔥') or (line.strip() and all(c in '═' for c in line.strip())):
+                if line.startswith('🔥'):
+                    self.wiki_text.insert(tk.END, line + '\n', "h1")
+                else:
+                    self.wiki_text.insert(tk.END, line + '\n', "separator_main")
+                continue
+            
+            # Titres de parties (PARTIE 1, PARTIE 2, etc.)
+            if pattern_partie.match(line):
                 self.wiki_text.insert(tk.END, line + '\n', "h1")
-            elif re.match(r'^\s*\d+\.\s+[A-ZÀ-ÖØ-Þ]', line) or line.strip().startswith("RÉFÉRENCES"):
+                continue
+            
+            # Titres de niveau 2 : "13." ou "13. TITRE"
+            if pattern_h2.match(line):
                 self.wiki_text.insert(tk.END, line + '\n', "h2")
-            elif re.match(r'^\s*\d+\.\d+', line):
+                continue
+            
+            # Séparateurs de niveau 2 (───)
+            if line.strip() and all(c in '─' for c in line.strip()):
+                self.wiki_text.insert(tk.END, line + '\n', "separator_h2")
+                continue
+            
+            # Titres de niveau 3 : "13.1" ou "13.1 TITRE"
+            if pattern_h3.match(line):
                 self.wiki_text.insert(tk.END, line + '\n', "h3")
-            elif line.strip().startswith('───'):
-                self.wiki_text.insert(tk.END, line + '\n', "h2")
-            elif '=' in line and ('q =' in line or 'Nu =' in line or 'Re =' in line or 'Pr =' in line or 'h_' in line or 'T_' in line or 'e_' in line):
-                self.wiki_text.insert(tk.END, line + '\n', "formula")
-            elif line.strip().startswith(('⚠️', '💀', '🔥', '✅', '❌')):
+                continue
+            
+            # Titres de niveau 4 : "A." ou "A) Titre"
+            if pattern_h4_dot.match(line) or pattern_h4_paren.match(line):
+                self.wiki_text.insert(tk.END, line + '\n', "h4")
+                continue
+            
+            # IMPORTANT: L'ordre des patterns est critique!
+            # Les patterns sont évalués séquentiellement, le premier qui correspond est appliqué.
+            
+            # Warnings avec emoji ⚠️ (vérifié AVANT important car plus spécifique)
+            # Pattern: ⚠️ au début → style 'warning' (jaune/orange avec fond)
+            if pattern_warning.match(line.strip()):
+                self.wiki_text.insert(tk.END, line + '\n', "warning")
+                continue
+            
+            # Avertissements importants (💀, ❌)
+            # Pattern: 💀 ou ❌ au début → style 'important' (rouge sans fond)
+            if pattern_important.match(line.strip()):
                 self.wiki_text.insert(tk.END, line + '\n', "important")
-            elif line.strip().startswith(('┌', '├', '└', '│')):
+                continue
+            
+            # Success / Checks (✅, 👉)
+            if pattern_success.match(line.strip()):
+                self.wiki_text.insert(tk.END, line + '\n', "success")
+                continue
+            
+            # Listes à puces avec emojis colorés (🟢, 🔘, ⚪, 🟣, etc.)
+            if pattern_bullet_emoji.match(line.strip()):
+                self.wiki_text.insert(tk.END, line + '\n', "bullet_emoji")
+                continue
+            
+            # Listes à puces normales (•, -, *)
+            if pattern_bullet.match(line):
+                self.wiki_text.insert(tk.END, line + '\n', "bullet")
+                continue
+            
+            # Listes numérotées (1., 2., etc. - pour les listes minuscules uniquement)
+            # NOTE: Ce pattern ne match QUE les lignes avec lettres minuscules après le nombre
+            # Les titres comme "13. INTRODUCTION" ont déjà été capturés par pattern_h2 plus haut
+            # Donc ce pattern capture seulement les vraies listes: "1. premier item"
+            if pattern_numbered.match(line):
+                self.wiki_text.insert(tk.END, line + '\n', "numbered_list")
+                continue
+            
+            # Formules mathématiques et équations
+            # Deux patterns sont utilisés en OR pour plus de couverture:
+            # 1. pattern_formula_var: détecte variable = valeur (ex: "h_g = 1000")
+            # 2. pattern_formula_terms: détecte termes spécifiques (q =, Nu =, h_, T_, etc.)
+            # Si SOIT l'un SOIT l'autre match, la ligne est formatée comme formule
+            if ('=' in line and pattern_formula_var.search(line)) or pattern_formula_terms.search(line):
+                self.wiki_text.insert(tk.END, line + '\n', "formula")
+                continue
+            
+            # Citations ou blocs de texte importants (commence par "  " ou indentation forte)
+            if line.startswith('   ') and not line.startswith('    •'):
+                self.wiki_text.insert(tk.END, line + '\n', "quote")
+                continue
+            
+            # Box drawing characters (pour tableaux/diagrammes)
+            if pattern_box_drawing.match(line.strip()):
                 self.wiki_text.insert(tk.END, line + '\n', "code")
-            elif 'ÉTAPE' in line:
-                self.wiki_text.insert(tk.END, line + '\n', "h3")
-            else:
-                self.wiki_text.insert(tk.END, line + '\n', "normal")
+                continue
+            
+            # Ligne normale
+            self.wiki_text.insert(tk.END, line + '\n', "normal")
         
         self.wiki_text.config(state=tk.DISABLED)
 
@@ -5002,172 +5108,80 @@ class RocketApp:
             self.wiki_search_pos = "1.0"
             messagebox.showinfo("Recherche", f"Fin du document atteinte pour '{search_term}'")
     
+    def _highlight_wiki_line(self, pos, duration=2000):
+        """Highlight une ligne du wiki pour feedback visuel puis retire le highlight après un délai"""
+        if not pos:
+            return
+        
+        line_end = self.wiki_text.index(f"{pos} lineend")
+        self.wiki_text.tag_remove("highlight", "1.0", tk.END)
+        self.wiki_text.tag_add("highlight", pos, line_end)
+        
+        # Retirer le highlight après le délai spécifié
+        self.root.after(duration, lambda: self.wiki_text.tag_remove("highlight", "1.0", tk.END))
+    
     def wiki_goto_section(self, event):
-        """Aller à une section du sommaire"""
+        """Aller à une section du sommaire - Navigation améliorée avec support complet des sous-sections"""
         selection = self.wiki_toc.curselection()
         if not selection:
             return
         
         item = self.wiki_toc.get(selection[0])
-        
-        # Extraire le numéro de section
-        section_map = {
-            # PARTIE 1 : LES BASES
-            "1.": "1. INTRODUCTION : LE PRINCIPE",
-            "2.": "2. LA TUYÈRE DE LAVAL",
-            "3.": "3. LE PROBLÈME THERMIQUE",
-            "4.": "4. LE REFROIDISSEMENT RÉGÉNÉRATIF",
-            # PARTIE 2 : THÉORIE AVANCÉE
-            "5.": "5. CHIMIE DE COMBUSTION",
-            "6.": "6. TRANSFERT THERMIQUE : L'ÉQUATION",
-            "7.": "7. DIMENSIONNEMENT DES CANAUX",
-            "8.": "8. MÉCANIQUE : CONTRAINTES",
-            # PARTIE 3 : MATÉRIAUX
-            "9.": "9. CRITÈRES DE SÉLECTION",
-            "10.": "10. BASE DE DONNÉES DÉTAILLÉE",
-            # PARTIE 4 : LOGICIEL
-            "11.": "11. UTILISATION DE L'OPTIMISEUR",
-            "12.": "12. EXPORT CAD",
-            # PARTIE 5 : DOCUMENTATION APPROFONDIE
-            "13.": "13. INTRODUCTION ET CONCEPTS",
-            "13.1": "13.1 POURQUOI LE REFROIDISSEMENT",
-            "13.2": "13.2 LES DIFFÉRENTES STRATÉGIES",
-            "13.3": "13.3 SCHÉMA DU TRANSFERT",
-            "13.4": "13.4 ÉQUATIONS FONDAMENTALES",
-            "13.5": "13.5 ORDRES DE GRANDEUR",
-            "14.": "14. THÉORIE DÉTAILLÉE",
-            "14.1": "14.1 LA CONDUCTION THERMIQUE",
-            "14.2": "14.2 LA CONVECTION THERMIQUE",
-            "14.3": "14.3 LES NOMBRES ADIMENSIONNELS",
-            "15.": "15. MODÈLE DE BARTZ",
-            "15.1": "15.1 HISTORIQUE",
-            "15.2": "15.2 ÉQUATION COMPLÈTE",
-            "15.3": "15.3 FORMULE SIMPLIFIÉE",
-            "15.4": "15.4 PROPRIÉTÉS DES GAZ",
-            "15.5": "15.5 VALEURS TYPIQUES DE h_g",
-            "15.6": "15.6 LIMITATIONS",
-            "15.7": "15.7 COMPARAISON",
-            "16.": "16. CALCUL DES TEMPÉRATURES",
-            "16.1": "16.1 SYSTÈME D'ÉQUATIONS",
-            "16.2": "16.2 CALCUL DE T_WALL_HOT",
-            "16.3": "16.3 CALCUL DE T_WALL_COLD",
-            "16.4": "16.4 PROFIL DE TEMPÉRATURE",
-            "16.5": "16.5 CONTRAINTES THERMIQUES",
-            "16.6": "16.6 RÉGIME TRANSITOIRE",
-            "16.7": "16.7 TEMPÉRATURE ADIABATIQUE",
-            "16.8": "16.8 CALCUL ITÉRATIF",
-            "17.": "17. CORRÉLATIONS CÔTÉ COOLANT",
-            "17.1": "17.1 CORRÉLATION DE DITTUS",
-            "17.2": "17.2 CORRÉLATION DE GNIELINSKI",
-            "17.3": "17.3 RÉGIME LAMINAIRE",
-            "17.4": "17.4 RÉGIME TRANSITOIRE",
-            "17.5": "17.5 ÉBULLITION SOUS-REFROIDIE",
-            "17.6": "17.6 EFFETS DE LA GÉOMÉTRIE",
-            "17.7": "17.7 PERTES DE CHARGE",
-            "17.8": "17.8 VALEURS TYPIQUES DE h_c",
-            "18.": "18. ÉPAISSEUR CRITIQUE",
-            "18.1": "18.1 ÉPAISSEUR CRITIQUE DE FUSION",
-            "18.2": "18.2 ÉPAISSEUR DE SERVICE",
-            "18.3": "18.3 PROCESSUS D'ABLATION",
-            "18.4": "18.4 ÉPAISSEUR SACRIFICIELLE",
-            "18.5": "18.5 TEMPS D'ABLATION",
-            "18.6": "18.6 QUAND L'ABLATION",
-            "18.7": "18.7 DIMENSIONNEMENT",
-            "18.8": "18.8 CARTE THERMIQUE",
-            "19.": "19. PROPRIÉTÉS DES MATÉRIAUX",
-            "19.1": "19.1 TABLEAU RÉCAPITULATIF",
-            "19.2": "19.2 ALLIAGES DE CUIVRE",
-            "19.3": "19.3 SUPERALLIAGES BASE NICKEL",
-            "19.4": "19.4 ALLIAGES D'ALUMINIUM",
-            "19.5": "19.5 MÉTAUX RÉFRACTAIRES",
-            "19.6": "19.6 MATÉRIAUX CÉRAMIQUES",
-            "19.7": "19.7 CRITÈRES DE SÉLECTION",
-            "19.8": "19.8 EXEMPLES DE MOTEURS",
-            "20.": "20. PROPRIÉTÉS DES COOLANTS",
-            "20.1": "20.1 TABLEAU RÉCAPITULATIF",
-            "20.2": "20.2 HYDROGÈNE LIQUIDE",
-            "20.3": "20.3 OXYGÈNE LIQUIDE",
-            "20.4": "20.4 MÉTHANE LIQUIDE",
-            "20.5": "20.5 RP-1",
-            "20.6": "20.6 ÉTHANOL",
-            "20.7": "20.7 HYDRAZINE",
-            "20.8": "20.8 EAU",
-            "20.9": "20.9 AMMONIAC",
-            "20.10": "20.10 COMPARAISON",
-            "20.11": "20.11 PROPRIÉTÉS EN FONCTION",
-            "21.": "21. EXEMPLES DE CALCUL",
-            "21.1": "21.1 EXEMPLE 1",
-            "21.2": "21.2 EXEMPLE 2",
-            "21.3": "21.3 EXEMPLE 3",
-            "21.4": "21.4 EXEMPLE 4",
-            "21.5": "21.5 EXEMPLE 5",
-            "21.6": "21.6 EXEMPLE 6",
-            "21.7": "21.7 TABLEAU RÉCAPITULATIF",
-            "21.8": "21.8 EXERCICES",
-            "22.": "22. FORMULES RAPIDES",
-            "22.1": "22.1 ÉQUATIONS FONDAMENTALES",
-            "22.2": "22.2 ÉQUATION DE BARTZ",
-            "22.3": "22.3 NOMBRES ADIMENSIONNELS",
-            "22.4": "22.4 CORRÉLATIONS DE CONVECTION",
-            "22.5": "22.5 ÉQUATIONS DE TEMPÉRATURE",
-            "22.6": "22.6 ÉPAISSEUR DE PAROI",
-            "22.7": "22.7 PUISSANCE ET ÉNERGIE",
-            "22.8": "22.8 PERTES DE CHARGE",
-            "22.9": "22.9 FILM COOLING",
-            "22.10": "22.10 PROPRIÉTÉS DES GAZ",
-            "22.11": "22.11 TABLEAU RÉCAPITULATIF",
-            "22.12": "22.12 ORDRES DE GRANDEUR",
-            "22.13": "22.13 CONVERSIONS",
-            "22.14": "22.14 CONSTANTES",
-            "23.": "23. CARTE THERMIQUE ET ANALYSE 2D/3D",
-            "23.1": "23.1 EFFET D'AILETTE",
-            "23.2": "23.2 INTERPOLATION THERMIQUE 2D",
-            "23.3": "23.3 VISUALISATIONS DISPONIBLES",
-            "24.": "24. EXPORT CAD ET GÉOMÉTRIE",
-            "24.1": "24.1 GÉNÉRATION DU PROFIL",
-            "24.2": "24.2 MODÉLISATION DES CANAUX",
-            "24.3": "24.3 FORMATS D'EXPORT",
-            "25.": "25. OPTIMISATION AUTOMATIQUE",
-            "25.1": "25.1 FONCTION OBJECTIF",
-            "25.2": "25.2 VARIABLES DE DÉCISION",
-            "25.3": "25.3 CONTRAINTES",
-            "25.4": "25.4 ALGORITHME SLSQP",
-            "26.": "26. ANALYSE DES CONTRAINTES MÉCANIQUES",
-            "26.1": "26.1 CONTRAINTES PRIMAIRES",
-            "26.2": "26.2 CONTRAINTES THERMIQUES",
-            "26.3": "26.3 CRITÈRE DE VON MISES",
-            "26.4": "26.4 FATIGUE OLIGOCYCLIQUE",
-            "27.": "27. SIMULATION TRANSITOIRE",
-            "27.1": "27.1 ÉQUATION DE LA CHALEUR",
-            "27.2": "27.2 STABILITÉ NUMÉRIQUE",
-            "27.3": "27.3 PHÉNOMÈNES TRANSITOIRES",
-            "Réf": "RÉFÉRENCES",
-            # Titres des PARTIES
-            "PARTIE 1": "PARTIE 1 : LES BASES",
-            "PARTIE 2": "PARTIE 2 : THÉORIE AVANCÉE",
-            "PARTIE 3": "PARTIE 3 : SCIENCE DES MATÉRIAUX",
-            "PARTIE 4": "PARTIE 4 : GUIDE DU LOGICIEL",
-            "PARTIE 5": "PARTIE 5 : DOCUMENTATION TECHNIQUE",
-        }
-        
-        # Chercher le texte correspondant
-        # Trier les clés par longueur décroissante pour que "3.1" soit testé avant "3."
-        search_text = None
         item_stripped = item.strip()
         
         # Ignorer les lignes vides ou les séparateurs
         if not item_stripped or item_stripped.startswith("════"):
             return
-            
-        for key in sorted(section_map.keys(), key=len, reverse=True):
-            if item_stripped.startswith(key + " ") or item_stripped.startswith(key + ".") or item_stripped == key:
-                search_text = section_map[key]
-                break
         
-        if search_text:
-            pos = self.wiki_text.search(search_text, "1.0", nocase=True)
+        # Pattern pour extraire le numéro (ex: "13.1" de "   13.1 Pourquoi refroidir ?")
+        section_match = re.match(r'^\s*(\d+\.?\d*)\s+', item_stripped)
+        
+        if section_match:
+            section_num = section_match.group(1)
+            
+            # Rechercher directement le pattern dans le wiki
+            # On cherche "13.1 " au début d'une ligne (case insensitive)
+            search_pattern = section_num + " "
+            
+            # Commencer la recherche depuis le début
+            pos = self.wiki_text.search(search_pattern, "1.0", nocase=True, regexp=False)
+            
+            if pos:
+                # Vérifier que c'est bien le début d'une ligne
+                line_start = self.wiki_text.index(f"{pos} linestart")
+                if line_start == pos:
+                    self.wiki_text.see(pos)
+                    self._highlight_wiki_line(pos)
+                    return
+        
+        # Fallback: recherche par texte partiel si le pattern numérique ne marche pas
+        # Ceci gère les cas comme "PARTIE 1", "Références", etc.
+        search_terms = []
+        
+        if "PARTIE" in item_stripped:
+            # Extraire "PARTIE 1", "PARTIE 2", etc.
+            partie_match = re.search(r'PARTIE\s+\d+', item_stripped)
+            if partie_match:
+                search_terms.append(partie_match.group(0))
+        elif "Réf" in item_stripped or "Biblio" in item_stripped:
+            search_terms.append("RÉFÉRENCES")
+        else:
+            # Extraire les premiers mots du titre (après le numéro)
+            words_match = re.match(r'^\s*\d+\.?\d*\s+(.+)', item_stripped)
+            if words_match:
+                title_text = words_match.group(1)
+                # Prendre les 3 premiers mots
+                words = title_text.split()[:3]
+                if words:
+                    search_terms.append(" ".join(words))
+        
+        # Essayer chaque terme de recherche
+        for term in search_terms:
+            pos = self.wiki_text.search(term, "1.0", nocase=True)
             if pos:
                 self.wiki_text.see(pos)
+                self._highlight_wiki_line(pos)
+                return
 
     def load_database(self):
         """Charge tous les propergols depuis RocketCEA"""
