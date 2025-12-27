@@ -4934,22 +4934,138 @@ class RocketApp:
         self.load_wiki_content()
     
     def load_wiki_content(self):
-        """Charge le contenu du wiki depuis un fichier externe avec formatage amélioré"""
+        """Charge le contenu du wiki depuis un fichier externe avec formatage amélioré
+        
+        Supporte deux formats:
+        - wiki.md: Format Markdown avec tables, headers, etc. (recommandé, compatible GitHub wiki)
+        - wiki.txt: Format texte legacy avec formatage manuel
+        """
         self.wiki_text.config(state=tk.NORMAL)
         self.wiki_text.delete(1.0, tk.END)
         
-        # Charger le contenu depuis le fichier externe
+        # Charger le contenu depuis le fichier externe - préférer .md si disponible
         import os
-        wiki_file = os.path.join(os.path.dirname(__file__), 'wiki.txt')
-        try:
-            with open(wiki_file, 'r', encoding='utf-8-sig') as f:
-                content = f.read()
-        except FileNotFoundError:
-            content = "Erreur: Fichier wiki.txt non trouvé.\n\nPlacez le fichier wiki.txt dans le même répertoire que ce script."
-        except Exception as e:
-            content = f"Erreur lors du chargement du wiki: {str(e)}"
+        wiki_files = [
+            ('wiki.md', 'markdown'),
+            ('wiki.txt', 'text')
+        ]
         
-        # Insérer le contenu avec formatage amélioré
+        content = None
+        wiki_format = 'text'
+        
+        for filename, format_type in wiki_files:
+            wiki_file = os.path.join(os.path.dirname(__file__), filename)
+            if os.path.exists(wiki_file):
+                try:
+                    with open(wiki_file, 'r', encoding='utf-8-sig') as f:
+                        content = f.read()
+                    wiki_format = format_type
+                    break
+                except Exception as e:
+                    content = f"Erreur lors du chargement de {filename}: {str(e)}"
+                    break
+        
+        if content is None:
+            content = "Erreur: Aucun fichier wiki trouvé (wiki.md ou wiki.txt).\n\nPlacez un fichier wiki.md ou wiki.txt dans le même répertoire que ce script."
+            wiki_format = 'text'
+        
+        # Appliquer le formatage selon le type de fichier
+        if wiki_format == 'markdown':
+            self._load_markdown_wiki(content)
+        else:
+            self._load_text_wiki(content)
+        
+        self.wiki_text.config(state=tk.DISABLED)
+    
+    def _load_markdown_wiki(self, content):
+        """Charge et formate le contenu Markdown du wiki"""
+        lines = content.split('\n')
+        i = 0
+        in_code_block = False
+        in_table = False
+        
+        while i < len(lines):
+            line = lines[i]
+            
+            # Ligne vide
+            if not line.strip():
+                self.wiki_text.insert(tk.END, '\n')
+                i += 1
+                continue
+            
+            # Code block (```)
+            if line.strip().startswith('```'):
+                in_code_block = not in_code_block
+                i += 1
+                continue
+            
+            if in_code_block:
+                self.wiki_text.insert(tk.END, line + '\n', "code")
+                i += 1
+                continue
+            
+            # Headers (# ## ### etc.)
+            if line.startswith('#'):
+                level = len(line) - len(line.lstrip('#'))
+                text = line.lstrip('#').strip()
+                if level == 1:
+                    self.wiki_text.insert(tk.END, text + '\n', "h1")
+                elif level == 2:
+                    self.wiki_text.insert(tk.END, text + '\n', "h2")
+                elif level == 3:
+                    self.wiki_text.insert(tk.END, text + '\n', "h3")
+                else:
+                    self.wiki_text.insert(tk.END, text + '\n', "h4")
+                i += 1
+                continue
+            
+            # Table detection (| col1 | col2 |)
+            if '|' in line and line.strip().startswith('|'):
+                # Check if this is a table header separator line
+                if re.match(r'^\|[\s\-:]+\|', line):
+                    # This is a separator, skip it but mark that we're in a table
+                    in_table = True
+                    i += 1
+                    continue
+                
+                # Format table row
+                cells = [cell.strip() for cell in line.split('|')[1:-1]]  # Remove empty first/last
+                formatted_line = "  " + " | ".join(cells)
+                
+                # First row is header
+                if not in_table and i + 1 < len(lines) and re.match(r'^\|[\s\-:]+\|', lines[i + 1]):
+                    self.wiki_text.insert(tk.END, formatted_line + '\n', "table_header")
+                else:
+                    self.wiki_text.insert(tk.END, formatted_line + '\n', "code")
+                
+                i += 1
+                continue
+            else:
+                in_table = False
+            
+            # Lists (ordered and unordered)
+            if re.match(r'^\s*[\*\-\+]\s+', line):
+                self.wiki_text.insert(tk.END, line + '\n', "bullet")
+                i += 1
+                continue
+            
+            if re.match(r'^\s*\d+\.\s+', line):
+                self.wiki_text.insert(tk.END, line + '\n', "numbered_list")
+                i += 1
+                continue
+            
+            # Bold/Italic/Inline code - parse and apply tags
+            self._insert_markdown_inline(line + '\n')
+            i += 1
+        
+    def _insert_markdown_inline(self, text):
+        """Insère du texte avec formatage Markdown inline (bold, italic, code)"""
+        # Pour simplifier, on utilise le style normal pour l'instant
+        # TODO: Parser **bold**, *italic*, `code` inline
+        self.wiki_text.insert(tk.END, text, "normal")
+    
+    def _load_text_wiki(self, content):
+        """Charge et formate le contenu texte legacy du wiki"""
         # Compiler les regex patterns une seule fois pour de meilleures performances
         pattern_partie = re.compile(r'^\s*(PARTIE\s+\d+|RÉFÉRENCES)', re.IGNORECASE)
         pattern_h2 = re.compile(r'^\d+\.\s+[A-ZÀ-ÖØ-Þ\(\)\']+')
