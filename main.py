@@ -5008,12 +5008,17 @@ class RocketApp:
                 self.wiki_text.insert(tk.END, line + '\n', "h4")
                 continue
             
-            # Warnings avec emoji ⚠️ (doit être avant important pour avoir priorité)
+            # IMPORTANT: L'ordre des patterns est critique!
+            # Les patterns sont évalués séquentiellement, le premier qui correspond est appliqué.
+            
+            # Warnings avec emoji ⚠️ (vérifié AVANT important car plus spécifique)
+            # Pattern: ⚠️ au début → style 'warning' (jaune/orange avec fond)
             if pattern_warning.match(line.strip()):
                 self.wiki_text.insert(tk.END, line + '\n', "warning")
                 continue
             
             # Avertissements importants (💀, ❌)
+            # Pattern: 💀 ou ❌ au début → style 'important' (rouge sans fond)
             if pattern_important.match(line.strip()):
                 self.wiki_text.insert(tk.END, line + '\n', "important")
                 continue
@@ -5034,12 +5039,18 @@ class RocketApp:
                 continue
             
             # Listes numérotées (1., 2., etc. - pour les listes minuscules uniquement)
-            # Note: Les titres majuscules ont déjà été attrapés par pattern_h2
+            # NOTE: Ce pattern ne match QUE les lignes avec lettres minuscules après le nombre
+            # Les titres comme "13. INTRODUCTION" ont déjà été capturés par pattern_h2 plus haut
+            # Donc ce pattern capture seulement les vraies listes: "1. premier item"
             if pattern_numbered.match(line):
                 self.wiki_text.insert(tk.END, line + '\n', "numbered_list")
                 continue
             
-            # Formules mathématiques et équations (contient = avec variables)
+            # Formules mathématiques et équations
+            # Deux patterns sont utilisés en OR pour plus de couverture:
+            # 1. pattern_formula_var: détecte variable = valeur (ex: "h_g = 1000")
+            # 2. pattern_formula_terms: détecte termes spécifiques (q =, Nu =, h_, T_, etc.)
+            # Si SOIT l'un SOIT l'autre match, la ligne est formatée comme formule
             if ('=' in line and pattern_formula_var.search(line)) or pattern_formula_terms.search(line):
                 self.wiki_text.insert(tk.END, line + '\n', "formula")
                 continue
