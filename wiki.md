@@ -1236,7 +1236,7 @@ En régime permanent avec flux constant, le profil est LINÉAIRE:
 $$ T(x) = T_{wall\_hot} - \frac{q}{k} \cdot x $$
 
 Où:
-*   $x$ = distance depuis la surface chaude ($0 \le x \le e$)
+*   $x$ = distance depuis la surface chaude ($0 \leq x \leq e$)
 *   $T(0) = T_{wall\_hot}$
 *   $T(e) = T_{wall\_cold}$
 
@@ -1663,11 +1663,11 @@ L'épaisseur critique est l'épaisseur MAXIMALE pour laquelle $T_{wall\_hot}$ re
 
 **DÉRIVATION:**
 En régime permanent: $T_{wall\_hot} = T_{wall\_cold} + q \cdot e/k$
-Pour éviter la fusion: $T_{wall\_hot} \le T_{melt}$
-Donc: $T_{wall\_cold} + q \cdot e/k \le T_{melt}$
+Pour éviter la fusion: $T_{wall\_hot} \leq T_{melt}$
+Donc: $T_{wall\_cold} + q \cdot e/k \leq T_{melt}$
 
 Résolvant pour e:
-$$ e \le \frac{k \cdot (T_{melt} - T_{wall\_cold})}{q} $$
+$$ e \leq \frac{k \cdot (T_{melt} - T_{wall\_cold})}{q} $$
 
 **FORMULE FINALE:**
 $$ e_{melt} = \frac{k \cdot (T_{melt} - T_{wall\_cold})}{q} $$
@@ -1799,7 +1799,7 @@ MÉCANISME PHYSIQUE DÉTAILLÉ:
 
 **DÉFINITION:**
 $e_{sacrificielle} = e_0 - e_{melt}$ (si $e_0 > e_{melt}$)
-$e_{sacrificielle} = 0$ (si $e_0 \le e_{melt}$)
+$e_{sacrificielle} = 0$ (si $e_0 \leq e_{melt}$)
 
 C'est l'épaisseur qui va fondre et être emportée.
 

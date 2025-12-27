@@ -1,6 +1,6 @@
 
 import tkinter as tk
-from tkinter import messagebox, scrolledtext, filedialog, font as tkfont
+from tkinter import ttk, messagebox, scrolledtext, filedialog, font as tkfont
 import customtkinter as ctk
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
@@ -17,7 +17,7 @@ from datetime import datetime
 
 # Configuration CustomTkinter
 ctk.set_appearance_mode("dark")
-ctk.set_default_color_theme("dark-blue")
+ctk.set_default_color_theme("dark-blue") 
 
 #this code only works with python 3.10 and below, 3.11, 3.13, and 3.14 dont support rocketcea.
 
@@ -367,7 +367,7 @@ class RocketApp:
         
         # Bouton principal
         ctk.CTkButton(
-            parent, text="🔥 CALCULER TOUT (CEA + THERMIQUE)", 
+            parent, text="🔥 CALCULER TOUT (CEA + THERMIQUE)",
             command=self.run_simulation,
             font=ctk.CTkFont(size=14, weight="bold"),
             height=45,
@@ -426,7 +426,7 @@ class RocketApp:
         
         # Bouton aide
         ctk.CTkButton(
-            parent, text="ℹ️ Aide & Wiki", 
+            parent, text="ℹ️ Aide & Wiki",
             command=lambda: self.open_wiki_at("1. INTRODUCTION"),
             width=280, height=32,
             fg_color="transparent",
@@ -489,19 +489,41 @@ class RocketApp:
         fs = self.scaled_font_size(13)
         fs_title = self.scaled_font_size(16)
         
-        self.txt_summary = ctk.CTkTextbox(
-            summary_frame,
-            fg_color=self.bg_surface,
-            text_color=self.text_primary,
-            font=ctk.CTkFont(family="Consolas", size=fs),
-            corner_radius=8,
-            border_width=1,
-            border_color=self.border_color,
-        )
-        self.txt_summary.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        # Utiliser tk.Text pour garder les tags de couleur (encapsulé dans CTkFrame)
+        text_container = ctk.CTkFrame(summary_frame, fg_color=self.bg_surface, corner_radius=8)
+        text_container.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
-        # Note: CTkTextbox n'a pas de tags comme tk.Text, mais on peut configurer le texte de base
-        # Les tags de couleur ne fonctionnent pas avec CTkTextbox, mais l'apparence est améliorée
+        self.txt_summary = tk.Text(
+            text_container,
+            bg=self.bg_surface,
+            fg=self.text_primary,
+            insertbackground=self.accent,
+            font=("Consolas", fs),
+            highlightthickness=0,
+            bd=0,
+            wrap=tk.WORD,
+            padx=15,
+            pady=10,
+        )
+        self.txt_summary.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
+        
+        # === TAGS DE COULEUR STYLE ÉDITEUR DE CODE ===
+        self.txt_summary.tag_configure("title", foreground="#ff79c6", font=("Consolas", fs_title, "bold"))
+        self.txt_summary.tag_configure("section", foreground="#ffb86c", font=("Consolas", fs, "bold"))
+        self.txt_summary.tag_configure("label", foreground="#8be9fd")
+        self.txt_summary.tag_configure("number", foreground="#bd93f9")
+        self.txt_summary.tag_configure("unit", foreground="#6272a4")
+        self.txt_summary.tag_configure("string", foreground="#f1fa8c")
+        self.txt_summary.tag_configure("success", foreground="#50fa7b")
+        self.txt_summary.tag_configure("warning", foreground="#ffb347")
+        self.txt_summary.tag_configure("error", foreground="#ff5555")
+        self.txt_summary.tag_configure("separator", foreground="#44475a")
+        self.txt_summary.tag_configure("symbol", foreground="#ff79c6")
+        
+        # Scrollbar moderne
+        scrollbar = ctk.CTkScrollbar(text_container, command=self.txt_summary.yview)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y, padx=2, pady=2)
+        self.txt_summary.config(yscrollcommand=scrollbar.set)
 
     def insert_colored_summary(self, summary: str, cooling_status: str, coolant_warning: str):
         """Insère le summary avec coloration syntaxique style éditeur de code."""
@@ -629,18 +651,31 @@ class RocketApp:
 
 
     def init_cea_tab(self):
-        tk.Frame(self.tab_cea, height=4, bg=self.tab_accent.get("cea", self.accent_alt2)).pack(fill=tk.X)
+        # Barre d'accent
+        accent_bar = ctk.CTkFrame(self.tab_cea, height=4, fg_color=self.tab_accent.get("cea", self.accent_alt2))
+        accent_bar.pack(fill=tk.X)
         
-        # Toolbar
-        cea_toolbar = ttk.Frame(self.tab_cea)
-        cea_toolbar.pack(fill=tk.X, pady=(5, 0), padx=10)
-        ttk.Label(cea_toolbar, text="Sortie NASA CEA (Brut)", font=("Segoe UI", 12, "bold")).pack(side=tk.LEFT)
-        ttk.Button(cea_toolbar, text="📖 Aide Chimie", style="Secondary.TButton", 
-                   command=lambda: self.open_wiki_at("5. CHIMIE DE COMBUSTION")).pack(side=tk.RIGHT)
+        # Toolbar modernisée
+        cea_toolbar = ctk.CTkFrame(self.tab_cea, fg_color="transparent")
+        cea_toolbar.pack(fill=tk.X, pady=(10, 5), padx=10)
+        
+        ctk.CTkLabel(cea_toolbar, text="Sortie NASA CEA (Brut)",
+                     font=ctk.CTkFont(size=14, weight="bold"),
+                     text_color=self.accent).pack(side=tk.LEFT)
+        
+        ctk.CTkButton(cea_toolbar, text="📖 Aide Chimie", width=120, height=30,
+                      fg_color="transparent", border_width=1, border_color=self.accent,
+                      hover_color=self.bg_surface, text_color=self.accent,
+                      command=lambda: self.open_wiki_at("5. CHIMIE DE COMBUSTION")).pack(side=tk.RIGHT)
         
         fs = self.scaled_font_size(13)
+        
+        # Container pour le texte
+        text_container = ctk.CTkFrame(self.tab_cea, fg_color=self.bg_surface, corner_radius=8)
+        text_container.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+        
         self.txt_cea = scrolledtext.ScrolledText(
-            self.tab_cea,
+            text_container,
             font=("Consolas", fs),
             state='disabled',
             bg=self.bg_surface,
@@ -648,8 +683,10 @@ class RocketApp:
             insertbackground=self.accent,
             highlightthickness=0,
             bd=0,
+            padx=10,
+            pady=10,
         )
-        self.txt_cea.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        self.txt_cea.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
         
         # Tags de coloration CEA style éditeur de code
         self.txt_cea.tag_configure("cea_header", foreground="#ff79c6", font=("Consolas", fs, "bold"))
@@ -661,15 +698,26 @@ class RocketApp:
         self.txt_cea.tag_configure("cea_comment", foreground="#6272a4", font=("Consolas", fs, "italic"))
         
     def init_thermal_tab(self):
-        tk.Frame(self.tab_thermal, height=4, bg=self.tab_accent.get("thermal", self.accent_alt)).pack(fill=tk.X)
+        # Barre d'accent
+        accent_bar = ctk.CTkFrame(self.tab_thermal, height=4, fg_color=self.tab_accent.get("thermal", self.accent_alt))
+        accent_bar.pack(fill=tk.X)
         
-        # Toolbar
-        thermal_toolbar = ttk.Frame(self.tab_thermal)
-        thermal_toolbar.pack(fill=tk.X, pady=(5, 0), padx=10)
+        # Toolbar modernisée
+        thermal_toolbar = ctk.CTkFrame(self.tab_thermal, fg_color="transparent")
+        thermal_toolbar.pack(fill=tk.X, pady=(10, 5), padx=10)
         
-        ttk.Label(thermal_toolbar, text="Graphiques : Flux & Température", font=("Segoe UI", 12, "bold")).pack(side=tk.LEFT)
-        ttk.Button(thermal_toolbar, text="📖 Aide Thermique", style="Secondary.TButton", 
-                   command=lambda: self.open_wiki_at("6. TRANSFERT THERMIQUE")).pack(side=tk.RIGHT)
+        ctk.CTkLabel(thermal_toolbar, text="Graphiques : Flux & Température",
+                     font=ctk.CTkFont(size=14, weight="bold"),
+                     text_color=self.accent_alt).pack(side=tk.LEFT)
+        
+        ctk.CTkButton(thermal_toolbar, text="📖 Aide Thermique", width=130, height=30,
+                      fg_color="transparent", border_width=1, border_color=self.accent_alt,
+                      hover_color=self.bg_surface, text_color=self.accent_alt,
+                      command=lambda: self.open_wiki_at("6. TRANSFERT THERMIQUE")).pack(side=tk.RIGHT)
+        
+        # Container pour le graphique
+        graph_container = ctk.CTkFrame(self.tab_thermal, fg_color=self.bg_panel, corner_radius=10)
+        graph_container.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
         
         self.fig_thermal, (self.ax_flux, self.ax_temp) = plt.subplots(2, 1, figsize=(6, 6), sharex=True)
         self.fig_thermal.patch.set_facecolor(self.bg_main)
@@ -677,106 +725,135 @@ class RocketApp:
         for ax in [self.ax_flux, self.ax_temp]:
             ax.set_facecolor(self.bg_surface)
         self.apply_dark_axes([self.ax_flux, self.ax_temp])
-        self.canvas_thermal = FigureCanvasTkAgg(self.fig_thermal, master=self.tab_thermal)
+        self.canvas_thermal = FigureCanvasTkAgg(self.fig_thermal, master=graph_container)
         self.canvas_thermal.get_tk_widget().configure(bg=self.bg_main, highlightthickness=0)
-        self.canvas_thermal.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+        self.canvas_thermal.get_tk_widget().pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
 
     def init_heatmap_tab(self):
         """Initialise l'onglet Carte Thermique 2D avec visualisation colorée."""
         # Barre d'accent
-        tk.Frame(self.tab_heatmap, height=4, bg="#ff6b35").pack(fill=tk.X)
+        accent_bar = ctk.CTkFrame(self.tab_heatmap, height=4, fg_color="#ff6b35")
+        accent_bar.pack(fill=tk.X)
         
-        # Frame de contrôles
-        ctrl_frame = ttk.LabelFrame(self.tab_heatmap, text="🔥 Carte Thermique 2D - Visualisation Température Paroi", padding=10)
-        ctrl_frame.pack(side=tk.TOP, fill=tk.X, padx=10, pady=5)
+        # Frame de contrôles modernisée (compacte)
+        ctrl_frame = ctk.CTkFrame(self.tab_heatmap, fg_color=self.bg_panel, corner_radius=10)
+        ctrl_frame.pack(side=tk.TOP, fill=tk.X, padx=10, pady=(5, 5))
+        
+        # Titre (plus compact)
+        ctk.CTkLabel(ctrl_frame, text="🔥 Carte Thermique 2D",
+                     font=ctk.CTkFont(size=13, weight="bold"), text_color="#ff6b35").pack(anchor="w", padx=10, pady=(5, 3))
         
         # Ligne 1: Options de visualisation
-        row1 = ttk.Frame(ctrl_frame)
-        row1.pack(fill=tk.X, pady=3)
+        row1 = ctk.CTkFrame(ctrl_frame, fg_color="transparent")
+        row1.pack(fill=tk.X, pady=5, padx=10)
         
-        ttk.Label(row1, text="Mode:").pack(side=tk.LEFT, padx=(0, 5))
+        ctk.CTkLabel(row1, text="Mode:", text_color=self.text_primary).pack(side=tk.LEFT, padx=(0, 10))
         self.heatmap_mode = tk.StringVar(value="coupe_radiale")
         modes = [("Coupe Radiale", "coupe_radiale"), ("Développée", "developpee"), ("3D Surface", "surface_3d")]
         for text, mode in modes:
-            ttk.Radiobutton(row1, text=text, variable=self.heatmap_mode, value=mode, 
-                           command=self.update_heatmap).pack(side=tk.LEFT, padx=5)
+            ctk.CTkRadioButton(row1, text=text, variable=self.heatmap_mode, value=mode,
+                               fg_color=self.accent, hover_color=self.accent_alt,
+                               command=self.update_heatmap).pack(side=tk.LEFT, padx=8)
         
-        ttk.Separator(row1, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=15)
+        # Séparateur vertical
+        sep = ctk.CTkFrame(row1, width=2, fg_color=self.border_color)
+        sep.pack(side=tk.LEFT, fill=tk.Y, padx=15, pady=5)
         
-        ttk.Label(row1, text="Colormap:").pack(side=tk.LEFT, padx=(0, 5))
-        self.heatmap_cmap = ttk.Combobox(row1, values=["inferno", "plasma", "hot", "jet", "coolwarm", "magma", "viridis"], 
-                                          state="readonly", width=10)
-        self.heatmap_cmap.set("inferno")
+        ctk.CTkLabel(row1, text="Colormap:", text_color=self.text_primary).pack(side=tk.LEFT, padx=(0, 5))
+        self.heatmap_cmap_var = tk.StringVar(value="inferno")
+        self.heatmap_cmap = ctk.CTkComboBox(row1, values=["inferno", "plasma", "hot", "jet", "coolwarm", "magma", "viridis"],
+                                             variable=self.heatmap_cmap_var, width=100,
+                                             fg_color=self.bg_surface, border_color=self.border_color,
+                                             button_color=self.accent, button_hover_color=self.accent_alt,
+                                             command=lambda x: self.update_heatmap())
         self.heatmap_cmap.pack(side=tk.LEFT, padx=5)
-        self.heatmap_cmap.bind("<<ComboboxSelected>>", lambda e: self.update_heatmap())
         
-        ttk.Label(row1, text="Résolution:").pack(side=tk.LEFT, padx=(15, 5))
-        self.heatmap_resolution = ttk.Spinbox(row1, from_=10, to=200, width=5)
-        self.heatmap_resolution.set(50)
+        ctk.CTkLabel(row1, text="Résolution:", text_color=self.text_primary).pack(side=tk.LEFT, padx=(15, 5))
+        self.heatmap_resolution_var = tk.StringVar(value="50")
+        self.heatmap_resolution = ctk.CTkEntry(row1, textvariable=self.heatmap_resolution_var, width=50,
+                                                fg_color=self.bg_surface, border_color=self.border_color)
         self.heatmap_resolution.pack(side=tk.LEFT)
         
         # Ligne 2: Options supplémentaires
-        row2 = ttk.Frame(ctrl_frame)
-        row2.pack(fill=tk.X, pady=3)
+        row2 = ctk.CTkFrame(ctrl_frame, fg_color="transparent")
+        row2.pack(fill=tk.X, pady=5, padx=10)
         
         self.heatmap_show_isotherms = tk.BooleanVar(value=True)
-        ttk.Checkbutton(row2, text="Isothermes", variable=self.heatmap_show_isotherms,
-                       command=self.update_heatmap).pack(side=tk.LEFT, padx=5)
+        ctk.CTkCheckBox(row2, text="Isothermes", variable=self.heatmap_show_isotherms,
+                        fg_color=self.accent, hover_color=self.accent_alt,
+                        command=self.update_heatmap).pack(side=tk.LEFT, padx=10)
         
         self.heatmap_show_limits = tk.BooleanVar(value=True)
-        ttk.Checkbutton(row2, text="Limites matériau", variable=self.heatmap_show_limits,
-                       command=self.update_heatmap).pack(side=tk.LEFT, padx=5)
+        ctk.CTkCheckBox(row2, text="Limites matériau", variable=self.heatmap_show_limits,
+                        fg_color=self.accent, hover_color=self.accent_alt,
+                        command=self.update_heatmap).pack(side=tk.LEFT, padx=10)
         
         self.heatmap_show_flux = tk.BooleanVar(value=False)
-        ttk.Checkbutton(row2, text="Vecteurs flux", variable=self.heatmap_show_flux,
-                       command=self.update_heatmap).pack(side=tk.LEFT, padx=5)
+        ctk.CTkCheckBox(row2, text="Vecteurs flux", variable=self.heatmap_show_flux,
+                        fg_color=self.accent, hover_color=self.accent_alt,
+                        command=self.update_heatmap).pack(side=tk.LEFT, padx=10)
         
         self.heatmap_show_channels = tk.BooleanVar(value=True)
-        ttk.Checkbutton(row2, text="Canaux coolant", variable=self.heatmap_show_channels,
-                       command=self.update_heatmap).pack(side=tk.LEFT, padx=5)
+        ctk.CTkCheckBox(row2, text="Canaux coolant", variable=self.heatmap_show_channels,
+                        fg_color=self.accent, hover_color=self.accent_alt,
+                        command=self.update_heatmap).pack(side=tk.LEFT, padx=10)
         
-        ttk.Separator(row2, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=15)
+        # Séparateur
+        sep2 = ctk.CTkFrame(row2, width=2, fg_color=self.border_color)
+        sep2.pack(side=tk.LEFT, fill=tk.Y, padx=15, pady=5)
         
-        ttk.Label(row2, text="Position X (mm):").pack(side=tk.LEFT, padx=(0, 5))
-        self.heatmap_x_pos = ttk.Scale(row2, from_=-100, to=200, orient=tk.HORIZONTAL, length=150,
-                                        command=lambda v: self.update_heatmap())
-        self.heatmap_x_pos.set(0)  # Position au col par défaut
+        ctk.CTkLabel(row2, text="Position X (mm):", text_color=self.text_primary).pack(side=tk.LEFT, padx=(0, 5))
+        self.heatmap_x_pos = ctk.CTkSlider(row2, from_=-100, to=200, width=150,
+                                            fg_color=self.bg_surface, progress_color=self.accent,
+                                            button_color=self.accent, button_hover_color=self.accent_alt,
+                                            command=lambda v: self.update_heatmap())
+        self.heatmap_x_pos.set(0)
         self.heatmap_x_pos.pack(side=tk.LEFT, padx=5)
-        self.heatmap_x_label = ttk.Label(row2, text="0 mm (col)")
+        self.heatmap_x_label = ctk.CTkLabel(row2, text_color=self.accent)
         self.heatmap_x_label.pack(side=tk.LEFT)
         
-        ttk.Button(row2, text="🔄 Actualiser", command=self.update_heatmap).pack(side=tk.RIGHT, padx=10)
-        ttk.Button(row2, text="📖 Aide 2D", style="Secondary.TButton",
-                   command=lambda: self.open_wiki_at("23. CARTE THERMIQUE")).pack(side=tk.RIGHT)
+        # Boutons (réduits)
+        ctk.CTkButton(row2, text="🔄", width=40, height=24,
+                      fg_color=self.accent, hover_color=self.accent_alt, text_color=self.bg_main,
+                      command=self.update_heatmap).pack(side=tk.RIGHT, padx=2)
+        ctk.CTkButton(row2, text="📖", width=40, height=24,
+                      fg_color="transparent", border_width=1, border_color=self.accent,
+                      hover_color=self.bg_surface, text_color=self.accent,
+                      command=lambda: self.open_wiki_at("23. CARTE THERMIQUE")).pack(side=tk.RIGHT, padx=2)
         
-        # Ligne 3: Informations thermiques en temps réel
-        self.heatmap_info_frame = ttk.LabelFrame(ctrl_frame, text="📊 Données au point sélectionné", padding=5)
-        self.heatmap_info_frame.pack(fill=tk.X, pady=5)
+        # Ligne 3: Informations thermiques en temps réel (compactée)
+        info_frame = ctk.CTkFrame(ctrl_frame, fg_color=self.bg_surface, corner_radius=8)
+        info_frame.pack(fill=tk.X, pady=(5, 10), padx=10)
         
-        info_row = ttk.Frame(self.heatmap_info_frame)
-        info_row.pack(fill=tk.X)
+        info_row = ctk.CTkFrame(info_frame, fg_color="transparent")
+        info_row.pack(fill=tk.X, padx=5, pady=3)
         
         self.heatmap_info_labels = {}
-        info_items = [("T_gaz", "T gaz:"), ("T_hot", "T paroi (hot):"), ("T_cold", "T paroi (cold):"), 
-                      ("T_cool", "T coolant:"), ("flux", "Flux:"), ("hg", "h_g:")]
+        info_items = [("T_gaz", "T gaz:"), ("T_hot", "T hot:"), ("T_cold", "T cold:"), 
+                      ("T_cool", "T cool:"), ("flux", "Flux:"), ("hg", "h_g:")]
         for key, text in info_items:
-            ttk.Label(info_row, text=text).pack(side=tk.LEFT, padx=(10, 2))
-            lbl = ttk.Label(info_row, text="---", foreground=self.accent)
-            lbl.pack(side=tk.LEFT, padx=(0, 15))
+            ctk.CTkLabel(info_row, text=text, text_color=self.text_muted, 
+                        font=ctk.CTkFont(size=10)).pack(side=tk.LEFT, padx=(5, 1))
+            lbl = ctk.CTkLabel(info_row, text="-", text_color=self.accent,
+                              font=ctk.CTkFont(size=10))
+            lbl.pack(side=tk.LEFT, padx=(0, 8))
             self.heatmap_info_labels[key] = lbl
+        
+        # Container pour le graphique
+        graph_container = ctk.CTkFrame(self.tab_heatmap, fg_color=self.bg_panel, corner_radius=10)
+        graph_container.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
         
         # Figure matplotlib pour la carte thermique
         self.fig_heatmap = plt.Figure(figsize=(10, 6), dpi=100)
         self.fig_heatmap.patch.set_facecolor(self.bg_main)
         
-        # Créer les axes (on utilisera différentes configurations selon le mode)
         self.ax_heatmap = self.fig_heatmap.add_subplot(111)
         self.ax_heatmap.set_facecolor(self.bg_surface)
         self.apply_dark_axes([self.ax_heatmap])
         
-        self.canvas_heatmap = FigureCanvasTkAgg(self.fig_heatmap, master=self.tab_heatmap)
+        self.canvas_heatmap = FigureCanvasTkAgg(self.fig_heatmap, master=graph_container)
         self.canvas_heatmap.get_tk_widget().configure(bg=self.bg_main, highlightthickness=0)
-        self.canvas_heatmap.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+        self.canvas_heatmap.get_tk_widget().pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
         # Connecter l'événement de clic pour afficher les infos
         self.canvas_heatmap.mpl_connect('motion_notify_event', self.on_heatmap_hover)
@@ -832,7 +909,7 @@ class RocketApp:
         
         # Position X sélectionnée
         x_pos = float(self.heatmap_x_pos.get())
-        self.heatmap_x_label.config(text=f"{x_pos:.1f} mm")
+        self.heatmap_x_label.configure(text=f"{x_pos:.1f} mm")
         
         # Trouver l'index le plus proche
         idx = np.argmin(np.abs(X_mm - x_pos))
@@ -851,7 +928,7 @@ class RocketApp:
         t_coolant = self.get_val("coolant_tin") if self.get_val("coolant_tin") else 300
         
         # Créer une grille pour la visualisation
-        n_theta = int(self.heatmap_resolution.get())
+        n_theta = int(self.heatmap_resolution_var.get())
         n_r = 30  # Nombre de points dans l'épaisseur
         
         theta = np.linspace(0, 2*np.pi, n_theta)
@@ -866,7 +943,7 @@ class RocketApp:
         T = t_hot_local + (t_cold_local - t_hot_local) * (R - r_inner) / wall_thickness
         
         # Tracer la carte de couleur
-        cmap = self.heatmap_cmap.get()
+        cmap = self.heatmap_cmap_var.get()
         levels = np.linspace(t_cold_local - 50, t_hot_local + 50, 50)
         
         contour = self.ax_heatmap.contourf(X, Y, T, levels=levels, cmap=cmap, extend='both')
@@ -893,7 +970,7 @@ class RocketApp:
                 r_limit = r_inner + (t_limit - t_hot_local) / (t_cold_local - t_hot_local) * wall_thickness
                 if r_inner < r_limit < r_outer:
                     circle_limit = plt.Circle((0, 0), r_limit, fill=False, color='red', 
-                                              linestyle='--', linewidth=2, label=f'T_limite ({t_limit:.0f} K)')
+                                              linewidth=2, label=f'T_limite ({t_limit:.0f} K)')
                     self.ax_heatmap.add_patch(circle_limit)
         
         # Canaux de refroidissement (représentation schématique)
@@ -922,10 +999,10 @@ class RocketApp:
         # Annotations
         self.ax_heatmap.annotate(f'T_hot = {t_hot_local:.0f} K', xy=(r_inner, 0), xytext=(r_inner + wall_thickness/4, wall_thickness),
                                 fontsize=9, color='yellow', ha='center',
-                                arrowprops=dict(arrowstyle='->', color='yellow', lw=0.5))
+                                arrowprops=dict(color='yellow', lw=0.5))
         self.ax_heatmap.annotate(f'T_cold = {t_cold_local:.0f} K', xy=(r_outer, 0), xytext=(r_outer + 5, -wall_thickness),
                                 fontsize=9, color='#00ff88', ha='center',
-                                arrowprops=dict(arrowstyle='->', color='#00ff88', lw=0.5))
+                                arrowprops=dict(color='#00ff88', lw=0.5))
         
         # Configuration des axes
         max_r = r_outer * 1.3
@@ -985,7 +1062,7 @@ class RocketApp:
                 T_grid[j, i] = t_hot + (t_cold - t_hot) * d / wall_thickness
         
         # Tracer
-        cmap = self.heatmap_cmap.get()
+        cmap = self.heatmap_cmap_var.get()
         t_min = min(T_wall_cold if isinstance(T_wall_cold, (int, float)) else min(T_wall_cold), min(T_wall_hot)) - 50
         t_max = max(T_wall_hot) + 100
         levels = np.linspace(t_min, t_max, 50)
@@ -1014,11 +1091,11 @@ class RocketApp:
                 self.ax_heatmap.clabel(limit_contour, inline=True, fontsize=9, fmt=f'T_limite = {t_limit:.0f} K', colors='red')
         
         # Ligne du profil (forme de la tuyère) - juste pour référence
-        self.ax_heatmap.axhline(y=0, color=self.accent, linestyle='-', linewidth=1.5, label='Côté gaz')
-        self.ax_heatmap.axhline(y=wall_thickness, color='#00ff88', linestyle='-', linewidth=1.5, label='Côté coolant')
+        self.ax_heatmap.axhline(y=0, color=self.accent, linewidth=1.5, label='Côté gaz')
+        self.ax_heatmap.axhline(y=wall_thickness, color='#00ff88', linewidth=1.5, label='Côté coolant')
         
         # Marquer le col
-        self.ax_heatmap.axvline(x=0, color='white', linestyle=':', linewidth=1, alpha=0.5)
+        self.ax_heatmap.axvline(x=0, color='white', linewidth=1, alpha=0.5)
         self.ax_heatmap.text(0, wall_thickness * 1.05, 'Col', ha='center', color='white', fontsize=9)
         
         # Ajouter le profil de flux en haut
@@ -1051,7 +1128,7 @@ class RocketApp:
         T_wall_hot = np.array(profile["T_wall_hot"])
         
         # Créer la surface de révolution
-        n_theta = int(self.heatmap_resolution.get())
+        n_theta = int(self.heatmap_resolution_var.get())
         theta = np.linspace(0, 2*np.pi, n_theta)
         
         THETA, X = np.meshgrid(theta, X_mm)
@@ -1062,7 +1139,7 @@ class RocketApp:
         Z_3d = R * np.sin(THETA)
         
         # Normaliser les températures pour le colormap
-        cmap = self.heatmap_cmap.get()
+        cmap = self.heatmap_cmap_var.get()
         norm = plt.Normalize(vmin=min(T_wall_hot), vmax=max(T_wall_hot))
         
         # Matplotlib 3.7+: utiliser plt.colormaps.get_cmap() au lieu de plt.cm.get_cmap()
@@ -1098,12 +1175,12 @@ class RocketApp:
         """Met à jour les labels d'information de la carte thermique."""
         hg = profile["hg_throat"] if "hg_throat" in (profile := self.results.get("thermal_profile", {})) else 0
         
-        self.heatmap_info_labels["T_gaz"].config(text=f"{t_gas:.0f} K")
-        self.heatmap_info_labels["T_hot"].config(text=f"{t_hot:.0f} K")
-        self.heatmap_info_labels["T_cold"].config(text=f"{t_cold:.0f} K")
-        self.heatmap_info_labels["T_cool"].config(text=f"{t_coolant:.0f} K")
-        self.heatmap_info_labels["flux"].config(text=f"{flux:.2f} MW/m²")
-        self.heatmap_info_labels["hg"].config(text=f"{hg:.0f} W/m²K")
+        self.heatmap_info_labels["T_gaz"].configure(text=f"{t_gas:.0f} K")
+        self.heatmap_info_labels["T_hot"].configure(text=f"{t_hot:.0f} K")
+        self.heatmap_info_labels["T_cold"].configure(text=f"{t_cold:.0f} K")
+        self.heatmap_info_labels["T_cool"].configure(text=f"{t_coolant:.0f} K")
+        self.heatmap_info_labels["flux"].configure(text=f"{flux:.2f} MW/m²")
+        self.heatmap_info_labels["hg"].configure(text=f"{hg:.0f} W/m²K")
 
     def on_heatmap_hover(self, event):
         """Gère le survol de la carte thermique pour afficher les infos."""
@@ -1140,114 +1217,113 @@ class RocketApp:
         tk.Frame(self.tab_cad, height=4, bg="#9b59b6").pack(fill=tk.X)
         
         # Frame principale divisée en deux
-        main_frame = ttk.Frame(self.tab_cad)
+        main_frame = ctk.CTkFrame(self.tab_cad)
         main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
         
         # === Panneau de contrôles à gauche ===
-        ctrl_panel = ttk.LabelFrame(main_frame, text="🔧 Configuration Export CAD 3D", padding=10)
+        ctrl_panel = ctk.CTkFrame(main_frame)
         ctrl_panel.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 10))
         
         # Bouton d'aide en haut du panneau
-        ttk.Button(ctrl_panel, text="📖 Aide CAD", style="Secondary.TButton", width=12,
+        ctk.CTkButton(ctrl_panel, text="📖 Aide CAD", width=120,
                    command=lambda: self.open_wiki_at("12. EXPORT CAD")).pack(fill=tk.X, pady=(0, 5))
         
         # Section: Géométrie de base
-        geo_frame = ttk.LabelFrame(ctrl_panel, text="Géométrie Tuyère", padding=5)
+        geo_frame = ctk.CTkFrame(ctrl_panel)
         geo_frame.pack(fill=tk.X, pady=5)
         
-        ttk.Label(geo_frame, text="Résolution angulaire:").grid(row=0, column=0, sticky="w", pady=2)
-        self.cad_n_theta = ttk.Spinbox(geo_frame, from_=16, to=360, width=8)
-        self.cad_n_theta.set(72)
+        ctk.CTkLabel(geo_frame, text="Résolution angulaire:").grid(row=0, column=0, sticky="w", pady=2)
+        self.cad_n_theta = ctk.CTkEntry(geo_frame, width=80)
+        self.cad_n_theta.insert(0, "72")
         self.cad_n_theta.grid(row=0, column=1, padx=5, pady=2)
-        ttk.Label(geo_frame, text="segments").grid(row=0, column=2, sticky="w")
+        ctk.CTkLabel(geo_frame, text="segments").grid(row=0, column=2, sticky="w")
         
-        ttk.Label(geo_frame, text="Résolution axiale:").grid(row=1, column=0, sticky="w", pady=2)
-        self.cad_n_axial = ttk.Spinbox(geo_frame, from_=50, to=500, width=8)
-        self.cad_n_axial.set(100)
+        ctk.CTkLabel(geo_frame, text="Résolution axiale:").grid(row=1, column=0, sticky="w", pady=2)
+        self.cad_n_axial = ctk.CTkEntry(geo_frame, width=80)
+        self.cad_n_axial.insert(0, "100")
         self.cad_n_axial.grid(row=1, column=1, padx=5, pady=2)
-        ttk.Label(geo_frame, text="points").grid(row=1, column=2, sticky="w")
+        ctk.CTkLabel(geo_frame, text="points").grid(row=1, column=2, sticky="w")
         
         # Section: Paroi et canaux
-        wall_frame = ttk.LabelFrame(ctrl_panel, text="Paroi & Canaux de Refroidissement", padding=5)
+        wall_frame = ctk.CTkFrame(ctrl_panel)
         wall_frame.pack(fill=tk.X, pady=5)
         
         self.cad_include_wall = tk.BooleanVar(value=True)
-        ttk.Checkbutton(wall_frame, text="Inclure épaisseur paroi", variable=self.cad_include_wall,
+        ctk.CTkCheckBox(wall_frame, text="Inclure épaisseur paroi", variable=self.cad_include_wall,
                        command=self.update_cad_preview).grid(row=0, column=0, columnspan=2, sticky="w")
         
         self.cad_include_channels = tk.BooleanVar(value=True)
-        ttk.Checkbutton(wall_frame, text="Inclure canaux de refroidissement", variable=self.cad_include_channels,
+        ctk.CTkCheckBox(wall_frame, text="Inclure canaux de refroidissement", variable=self.cad_include_channels,
                        command=self.update_cad_preview).grid(row=1, column=0, columnspan=2, sticky="w")
         
-        ttk.Label(wall_frame, text="Nombre de canaux:").grid(row=2, column=0, sticky="w", pady=2)
-        self.cad_n_channels = ttk.Spinbox(wall_frame, from_=8, to=200, width=8)
-        self.cad_n_channels.set(48)
+        ctk.CTkLabel(wall_frame, text="Nombre de canaux:").grid(row=2, column=0, sticky="w", pady=2)
+        self.cad_n_channels = ctk.CTkEntry(wall_frame, width=80)
+        self.cad_n_channels.insert(0, "48")
         self.cad_n_channels.grid(row=2, column=1, padx=5, pady=2)
         
-        ttk.Label(wall_frame, text="Largeur canal (mm):").grid(row=3, column=0, sticky="w", pady=2)
-        self.cad_channel_width = ttk.Spinbox(wall_frame, from_=0.5, to=10, increment=0.5, width=8)
-        self.cad_channel_width.set(2.0)
+        ctk.CTkLabel(wall_frame, text="Largeur canal (mm):").grid(row=3, column=0, sticky="w", pady=2)
+        self.cad_channel_width = ctk.CTkEntry(wall_frame, width=80)
+        self.cad_channel_width.insert(0, "2.0")
         self.cad_channel_width.grid(row=3, column=1, padx=5, pady=2)
         
-        ttk.Label(wall_frame, text="Profondeur canal (mm):").grid(row=4, column=0, sticky="w", pady=2)
-        self.cad_channel_depth = ttk.Spinbox(wall_frame, from_=0.5, to=15, increment=0.5, width=8)
-        self.cad_channel_depth.set(3.0)
+        ctk.CTkLabel(wall_frame, text="Profondeur canal (mm):").grid(row=4, column=0, sticky="w", pady=2)
+        self.cad_channel_depth = ctk.CTkEntry(wall_frame, width=80)
+        self.cad_channel_depth.insert(0, "3.0")
         self.cad_channel_depth.grid(row=4, column=1, padx=5, pady=2)
         
-        ttk.Label(wall_frame, text="Type de canaux:").grid(row=5, column=0, sticky="w", pady=2)
-        self.cad_channel_type = ttk.Combobox(wall_frame, values=["Axiaux", "Hélicoïdaux", "Bifurcation"], 
-                                              state="readonly", width=12)
+        ctk.CTkLabel(wall_frame, text="Type de canaux:").grid(row=5, column=0, sticky="w", pady=2)
+        self.cad_channel_type = ctk.CTkComboBox(wall_frame, values=["Axiaux", "Hélicoïdaux", "Bifurcation"], 
+                                              state="readonly", width=115)
         self.cad_channel_type.set("Axiaux")
         self.cad_channel_type.grid(row=5, column=1, padx=5, pady=2)
         
         # Section: Options export
-        export_frame = ttk.LabelFrame(ctrl_panel, text="Options d'Export", padding=5)
+        export_frame = ctk.CTkFrame(ctrl_panel)
         export_frame.pack(fill=tk.X, pady=5)
         
-        ttk.Label(export_frame, text="Format:").grid(row=0, column=0, sticky="w", pady=2)
-        self.cad_format = ttk.Combobox(export_frame, values=["STEP (CAD)", "STL (Mesh)", "DXF (Profil)"], 
-                                        state="readonly", width=15)
+        ctk.CTkLabel(export_frame, text="Format export:").grid(row=0, column=0, sticky="w", pady=2)
+        self.cad_format = ctk.CTkComboBox(export_frame, values=["STEP (CAD)", "STL (Mesh)", "DXF (Profil)"], 
+                                        width=115)
         self.cad_format.set("STEP (CAD)")
         self.cad_format.grid(row=0, column=1, padx=5, pady=2)
         
-        ttk.Label(export_frame, text="Unités:").grid(row=1, column=0, sticky="w", pady=2)
-        self.cad_units = ttk.Combobox(export_frame, values=["mm", "m", "inch"], state="readonly", width=15)
+        ctk.CTkLabel(export_frame, text="Unités:").grid(row=1, column=0, sticky="w", pady=2)
+        self.cad_units = ctk.CTkComboBox(export_frame, values=["mm", "m", "inch"], width=70)
         self.cad_units.set("mm")
         self.cad_units.grid(row=1, column=1, padx=5, pady=2)
         
         self.cad_export_separate = tk.BooleanVar(value=False)
-        ttk.Checkbutton(export_frame, text="Exporter paroi et canaux séparément", 
+        ctk.CTkCheckBox(export_frame, text="Exporter séparément",
                        variable=self.cad_export_separate).grid(row=2, column=0, columnspan=2, sticky="w")
         
         # Boutons d'action
-        btn_frame = ttk.Frame(ctrl_panel)
+        btn_frame = ctk.CTkFrame(ctrl_panel)
         btn_frame.pack(fill=tk.X, pady=10)
         
-        ttk.Button(btn_frame, text="🔄 Prévisualiser 3D", command=self.update_cad_preview).pack(fill=tk.X, pady=2)
-        ttk.Button(btn_frame, text="📐 Exporter STEP", command=self.export_step).pack(fill=tk.X, pady=2)
-        ttk.Button(btn_frame, text="💾 Exporter STL", command=self.export_stl).pack(fill=tk.X, pady=2)
-        ttk.Button(btn_frame, text="📏 Exporter DXF", command=self.export_dxf).pack(fill=tk.X, pady=2)
+        ctk.CTkButton(btn_frame, text="🔄 Prévisualiser 3D", command=self.update_cad_preview).pack(fill=tk.X, pady=2)
+        ctk.CTkButton(btn_frame, text="📐 Exporter STEP", command=self.export_step).pack(fill=tk.X, pady=2)
+        ctk.CTkButton(btn_frame, text="💾 Exporter STL", command=self.export_stl).pack(fill=tk.X, pady=2)
+        ctk.CTkButton(btn_frame, text="📏 Exporter DXF", command=self.export_dxf).pack(fill=tk.X, pady=2)
         
         # Informations
-        info_frame = ttk.LabelFrame(ctrl_panel, text="📊 Informations Modèle", padding=5)
+        info_frame = ctk.CTkFrame(ctrl_panel)
         info_frame.pack(fill=tk.X, pady=5)
         
         self.cad_info_labels = {}
         info_items = [("vertices", "Vertices:"), ("faces", "Faces:"), ("volume", "Volume:"), 
                       ("surface", "Surface:"), ("mass", "Masse estimée:")]
         for i, (key, text) in enumerate(info_items):
-            ttk.Label(info_frame, text=text).grid(row=i, column=0, sticky="w", pady=1)
-            lbl = ttk.Label(info_frame, text="---", foreground=self.accent)
+            ctk.CTkLabel(info_frame, text=text).grid(row=i, column=0, sticky="w", pady=1)
+            lbl = ctk.CTkLabel(info_frame, text_color=self.accent)
             lbl.grid(row=i, column=1, sticky="e", padx=10)
             self.cad_info_labels[key] = lbl
         
         # === Panneau de visualisation à droite (Notebook) ===
-        vis_notebook = ttk.Notebook(main_frame)
+        vis_notebook = ctk.CTkTabview(main_frame)
         vis_notebook.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
         
         # Onglet 1: Profil 2D
-        tab_2d = ttk.Frame(vis_notebook)
-        vis_notebook.add(tab_2d, text="📐 Profil 2D")
+        tab_2d = vis_notebook.add("Profil 2D")
         
         # Utiliser plt.Figure pour éviter les conflits avec le backend global
         self.fig_visu = plt.Figure(figsize=(8, 6), dpi=100)
@@ -1260,8 +1336,7 @@ class RocketApp:
         self.canvas_visu.get_tk_widget().pack(fill=tk.BOTH, expand=True)
         
         # Onglet 2: Modèle 3D
-        tab_3d = ttk.Frame(vis_notebook)
-        vis_notebook.add(tab_3d, text="🧊 Modèle 3D")
+        tab_3d = vis_notebook.add("Modèle 3D")
         
         self.fig_cad = plt.Figure(figsize=(8, 6), dpi=100)
         self.fig_cad.patch.set_facecolor(self.bg_main)
@@ -1410,11 +1485,11 @@ class RocketApp:
         density = 8.96  # g/cm³ pour cuivre
         mass = volume_cm3 * density  # g
         
-        self.cad_info_labels["vertices"].config(text=f"{n_vertices:,}")
-        self.cad_info_labels["faces"].config(text=f"{n_faces:,}")
-        self.cad_info_labels["volume"].config(text=f"{volume_cm3:.1f} cm³")
-        self.cad_info_labels["surface"].config(text=f"{surface:.0f} mm²")
-        self.cad_info_labels["mass"].config(text=f"{mass:.0f} g ({mass/1000:.2f} kg)")
+        self.cad_info_labels["vertices"].configure(text=f"{n_vertices:,}")
+        self.cad_info_labels["faces"].configure(text=f"{n_faces:,}")
+        self.cad_info_labels["volume"].configure(text=f"{volume_cm3:.1f} cm³")
+        self.cad_info_labels["surface"].configure(text=f"{surface:.0f} mm²")
+        self.cad_info_labels["mass"].configure(text=f"{mass:.0f} g ({mass/1000:.2f} kg)")
 
     def export_stl(self):
         """Exporte le modèle 3D au format STL."""
@@ -1684,8 +1759,8 @@ class RocketApp:
         
         # Frame principale avec scroll
         main_canvas = tk.Canvas(self.tab_optimizer, bg=self.bg_main, highlightthickness=0)
-        scrollbar = ttk.Scrollbar(self.tab_optimizer, orient="vertical", command=main_canvas.yview)
-        scroll_frame = ttk.Frame(main_canvas)
+        scrollbar = ctk.CTkScrollbar(self.tab_optimizer, command=main_canvas.yview)
+        scroll_frame = ctk.CTkFrame(main_canvas)
         
         scroll_frame.bind("<Configure>", lambda e: main_canvas.configure(scrollregion=main_canvas.bbox("all")))
         main_canvas.create_window((0, 0), window=scroll_frame, anchor="nw")
@@ -1695,25 +1770,25 @@ class RocketApp:
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         
         # Titre
-        header = ttk.Frame(scroll_frame)
+        header = ctk.CTkFrame(scroll_frame)
         header.pack(fill=tk.X, pady=(5, 10))
         
-        ttk.Label(header, text="⚙️ Optimiseur Automatique de Design", 
-                  font=("Segoe UI", 14, "bold"), foreground=self.accent).pack(side=tk.LEFT)
+        ctk.CTkLabel(header, text="🛠️ Optimiseur de Conception",
+                  font=("Segoe UI", 14, "bold"), text_color=self.accent).pack(side=tk.LEFT)
         
         # Bouton d'aide Wiki
-        ttk.Button(header, text="📖 Aide", style="Secondary.TButton",
+        ctk.CTkButton(header, text="📖 Aide Optimiseur",
                    command=lambda: self.open_wiki_at("11. UTILISATION DE L'OPTIMISEUR")).pack(side=tk.RIGHT, padx=10)
         
         # Section: Propriétés Matériau
-        mat_frame = ttk.LabelFrame(scroll_frame, text="🔩 Propriétés Matériau (Fixes)", padding=10)
+        mat_frame = ctk.CTkFrame(scroll_frame)
         mat_frame.pack(fill=tk.X, pady=5, padx=5)
         
-        row_mat = ttk.Frame(mat_frame)
+        row_mat = ctk.CTkFrame(mat_frame)
         row_mat.pack(fill=tk.X, pady=5)
         
-        ttk.Label(row_mat, text="Matériau:").pack(side=tk.LEFT)
-        self.optim_mat_combo = ttk.Combobox(row_mat, values=list(self.materials_db.keys()), state="readonly", width=25)
+        ctk.CTkLabel(row_mat, text="Matériau:").pack(side=tk.LEFT)
+        self.optim_mat_combo = ctk.CTkComboBox(row_mat, values=list(self.materials_db.keys()), width=25)
         self.optim_mat_combo.set("Cuivre-Zirconium (CuZr)")
         self.optim_mat_combo.pack(side=tk.LEFT, padx=10)
         
@@ -1724,17 +1799,17 @@ class RocketApp:
             "sigma_y": tk.DoubleVar(value=400)
         }
         
-        ttk.Label(row_mat, text="ρ (kg/m³):").pack(side=tk.LEFT, padx=(10, 2))
-        ttk.Entry(row_mat, textvariable=self.optim_mat_props["rho"], width=8).pack(side=tk.LEFT)
+        ctk.CTkLabel(row_mat, text="ρ (kg/m³):").pack(side=tk.LEFT, padx=(10, 2))
+        ctk.CTkEntry(row_mat, textvariable=self.optim_mat_props["rho"], width=8).pack(side=tk.LEFT)
         
-        ttk.Label(row_mat, text="k (W/mK):").pack(side=tk.LEFT, padx=(10, 2))
-        ttk.Entry(row_mat, textvariable=self.optim_mat_props["k"], width=8).pack(side=tk.LEFT)
+        ctk.CTkLabel(row_mat, text="k (W/m-K):").pack(side=tk.LEFT, padx=(10, 2))
+        ctk.CTkEntry(row_mat, textvariable=self.optim_mat_props["k"], width=8).pack(side=tk.LEFT)
         
-        ttk.Label(row_mat, text="T_melt (K):").pack(side=tk.LEFT, padx=(10, 2))
-        ttk.Entry(row_mat, textvariable=self.optim_mat_props["T_melt"], width=8).pack(side=tk.LEFT)
+        ctk.CTkLabel(row_mat, text="T fusion (K):").pack(side=tk.LEFT, padx=(10, 2))
+        ctk.CTkEntry(row_mat, textvariable=self.optim_mat_props["T_melt"], width=8).pack(side=tk.LEFT)
         
-        ttk.Label(row_mat, text="σ_y (MPa):").pack(side=tk.LEFT, padx=(10, 2))
-        ttk.Entry(row_mat, textvariable=self.optim_mat_props["sigma_y"], width=8).pack(side=tk.LEFT)
+        ctk.CTkLabel(row_mat, text="σy (MPa):").pack(side=tk.LEFT, padx=(10, 2))
+        ctk.CTkEntry(row_mat, textvariable=self.optim_mat_props["sigma_y"], width=8).pack(side=tk.LEFT)
         
         def update_optim_material(event=None):
             name = self.optim_mat_combo.get()
@@ -1745,10 +1820,10 @@ class RocketApp:
                 self.optim_mat_props["T_melt"].set(mat.get("T_melt", 1500))
                 self.optim_mat_props["sigma_y"].set(mat.get("sigma_y", 200))
         
-        self.optim_mat_combo.bind("<<ComboboxSelected>>", update_optim_material)
+        self.optim_mat_combo.configure(command=update_optim_material)
         
         # Section: Objectif d'optimisation
-        obj_frame = ttk.LabelFrame(scroll_frame, text="🎯 Objectif d'Optimisation", padding=10)
+        obj_frame = ctk.CTkFrame(scroll_frame)
         obj_frame.pack(fill=tk.X, pady=5, padx=5)
         
         self.optim_objective = tk.StringVar(value="min_mass")
@@ -1760,19 +1835,19 @@ class RocketApp:
         ]
         
         for i, (value, text, desc) in enumerate(objectives):
-            frame = ttk.Frame(obj_frame)
+            frame = ctk.CTkFrame(obj_frame)
             frame.pack(fill=tk.X, pady=2)
-            ttk.Radiobutton(frame, text=text, variable=self.optim_objective, value=value).pack(side=tk.LEFT)
-            ttk.Label(frame, text=f"  - {desc}", foreground=self.text_muted).pack(side=tk.LEFT, padx=10)
+            ctk.CTkRadioButton(frame, text=text, variable=self.optim_objective, value=value).pack(side=tk.LEFT)
+            ctk.CTkLabel(frame, text=f"  - {desc}", text_color=self.text_muted).pack(side=tk.LEFT, padx=10)
         
         # Section: Variables de design
-        vars_frame = ttk.LabelFrame(scroll_frame, text="📐 Variables de Design (plages de recherche)", padding=10)
+        vars_frame = ctk.CTkFrame(scroll_frame)
         vars_frame.pack(fill=tk.X, pady=5, padx=5)
         
         # Tableau des variables
         headers = ["Variable", "Min", "Max", "Pas", "Actif"]
         for col, h in enumerate(headers):
-            ttk.Label(vars_frame, text=h, font=("Segoe UI", 10, "bold")).grid(row=0, column=col, padx=5, pady=2)
+            ctk.CTkLabel(vars_frame, text=h, font=("Segoe UI", 10, "bold")).grid(row=0, column=col, padx=5, pady=2)
         
         self.optim_vars = {}
         design_vars = [
@@ -1792,14 +1867,14 @@ class RocketApp:
                 "step": tk.DoubleVar(value=step)
             }
             
-            ttk.Label(vars_frame, text=label).grid(row=row, column=0, sticky="w", padx=5, pady=2)
-            ttk.Entry(vars_frame, textvariable=self.optim_vars[key]["min"], width=8).grid(row=row, column=1, padx=5)
-            ttk.Entry(vars_frame, textvariable=self.optim_vars[key]["max"], width=8).grid(row=row, column=2, padx=5)
-            ttk.Entry(vars_frame, textvariable=self.optim_vars[key]["step"], width=8).grid(row=row, column=3, padx=5)
-            ttk.Checkbutton(vars_frame, variable=self.optim_vars[key]["active"]).grid(row=row, column=4, padx=5)
+            ctk.CTkLabel(vars_frame, text=label).grid(row=row, column=0, sticky="w", padx=5, pady=2)
+            ctk.CTkEntry(vars_frame, textvariable=self.optim_vars[key]["min"], width=8).grid(row=row, column=1, padx=5)
+            ctk.CTkEntry(vars_frame, textvariable=self.optim_vars[key]["max"], width=8).grid(row=row, column=2, padx=5)
+            ctk.CTkEntry(vars_frame, textvariable=self.optim_vars[key]["step"], width=8).grid(row=row, column=3, padx=5)
+            ctk.CTkCheckBox(vars_frame, variable=self.optim_vars[key]["active"]).grid(row=row, column=4, padx=5)
         
         # Section: Contraintes
-        constr_frame = ttk.LabelFrame(scroll_frame, text="⚠️ Contraintes (ne pas dépasser)", padding=10)
+        constr_frame = ctk.CTkFrame(scroll_frame)
         constr_frame.pack(fill=tk.X, pady=5, padx=5)
         
         self.optim_constraints = {}
@@ -1816,79 +1891,79 @@ class RocketApp:
                 "active": tk.BooleanVar(value=True)
             }
             
-            frame = ttk.Frame(constr_frame)
+            frame = ctk.CTkFrame(constr_frame)
             frame.pack(fill=tk.X, pady=2)
-            ttk.Checkbutton(frame, variable=self.optim_constraints[key]["active"]).pack(side=tk.LEFT)
-            ttk.Label(frame, text=label, width=20).pack(side=tk.LEFT)
-            ttk.Entry(frame, textvariable=self.optim_constraints[key]["value"], width=10).pack(side=tk.LEFT, padx=5)
-            ttk.Label(frame, text=unit, width=5).pack(side=tk.LEFT)
-            ttk.Label(frame, text=f"  ({tooltip})", foreground=self.text_muted).pack(side=tk.LEFT, padx=10)
+            ctk.CTkCheckBox(frame, variable=self.optim_constraints[key]["active"]).pack(side=tk.LEFT)
+            ctk.CTkLabel(frame, text=label, width=20).pack(side=tk.LEFT)
+            ctk.CTkEntry(frame, textvariable=self.optim_constraints[key]["value"], width=10).pack(side=tk.LEFT, padx=5)
+            ctk.CTkLabel(frame, text=unit, width=5).pack(side=tk.LEFT)
+            ctk.CTkLabel(frame, text=f"  ({tooltip})", text_color=self.text_muted).pack(side=tk.LEFT, padx=10)
         
         # Section: Algorithme
-        algo_frame = ttk.LabelFrame(scroll_frame, text="🧮 Algorithme d'Optimisation", padding=10)
+        algo_frame = ctk.CTkFrame(scroll_frame)
         algo_frame.pack(fill=tk.X, pady=5, padx=5)
         
-        row1 = ttk.Frame(algo_frame)
+        row1 = ctk.CTkFrame(algo_frame)
         row1.pack(fill=tk.X, pady=5)
         
-        ttk.Label(row1, text="Méthode:").pack(side=tk.LEFT)
-        self.optim_algorithm = ttk.Combobox(row1, values=[
+        ctk.CTkLabel(row1, text="Algorithme:").pack(side=tk.LEFT)
+        self.optim_algorithm = ctk.CTkComboBox(row1, values=[
             "Grid Search (exhaustif)",
             "Gradient Descent (SLSQP)",
             "Algorithme Génétique",
             "Differential Evolution",
             "Bayesian Optimization",
             "Nelder-Mead (Simplex)"
-        ], state="readonly", width=25)
+        ], width=25)
         self.optim_algorithm.set("Differential Evolution")
         self.optim_algorithm.pack(side=tk.LEFT, padx=10)
         
-        ttk.Label(row1, text="Max itérations:").pack(side=tk.LEFT, padx=(20, 5))
-        self.optim_max_iter = ttk.Spinbox(row1, from_=10, to=1000, width=8)
-        self.optim_max_iter.set(100)
+        ctk.CTkLabel(row1, text="Max itérations:").pack(side=tk.LEFT, padx=(20, 5))
+        self.optim_max_iter = ctk.CTkEntry(row1, width=80)
+        self.optim_max_iter.insert(0, "100")
         self.optim_max_iter.pack(side=tk.LEFT)
         
-        row2 = ttk.Frame(algo_frame)
+        row2 = ctk.CTkFrame(algo_frame)
         row2.pack(fill=tk.X, pady=5)
         
-        ttk.Label(row2, text="Tolérance:").pack(side=tk.LEFT)
-        self.optim_tolerance = ttk.Entry(row2, width=10)
+        ctk.CTkLabel(row2, text="Tolérance:").pack(side=tk.LEFT)
+        self.optim_tolerance = ctk.CTkEntry(row2, width=10)
         self.optim_tolerance.insert(0, "1e-4")
         self.optim_tolerance.pack(side=tk.LEFT, padx=10)
         
-        ttk.Label(row2, text="Population (GA/DE):").pack(side=tk.LEFT, padx=(20, 5))
-        self.optim_population = ttk.Spinbox(row2, from_=10, to=200, width=8)
-        self.optim_population.set(50)
+        ctk.CTkLabel(row2, text="Population:").pack(side=tk.LEFT, padx=(20, 5))
+        self.optim_population = ctk.CTkEntry(row2, width=80)
+        self.optim_population.insert(0, "50")
         self.optim_population.pack(side=tk.LEFT)
         
         self.optim_parallel = tk.BooleanVar(value=True)
-        ttk.Checkbutton(row2, text="Calcul parallèle", variable=self.optim_parallel).pack(side=tk.LEFT, padx=20)
+        ctk.CTkCheckBox(row2, text="Parallèle", variable=self.optim_parallel).pack(side=tk.LEFT, padx=20)
         
         # Section: Boutons d'action
-        action_frame = ttk.Frame(scroll_frame)
+        action_frame = ctk.CTkFrame(scroll_frame)
         action_frame.pack(fill=tk.X, pady=10, padx=5)
         
-        self.btn_run_optim = ttk.Button(action_frame, text="▶ Lancer l'Optimisation", 
-                                         command=self.run_optimization, style="Accent.TButton")
+        self.btn_run_optim = ctk.CTkButton(action_frame, text="🚀 Optimiser",
+                                         command=self.run_optimization)
         self.btn_run_optim.pack(side=tk.LEFT, padx=5)
         
-        ttk.Button(action_frame, text="⏹ Arrêter", command=self.stop_optimization).pack(side=tk.LEFT, padx=5)
-        ttk.Button(action_frame, text="📊 Exporter Résultats", command=self.export_optimization_results).pack(side=tk.LEFT, padx=5)
-        ttk.Button(action_frame, text="📈 Visualiser", command=self.visualize_optimizer_results).pack(side=tk.LEFT, padx=5)
-        ttk.Button(action_frame, text="📋 Appliquer Meilleur", command=self.apply_best_config).pack(side=tk.LEFT, padx=5)
+        ctk.CTkButton(action_frame, text="⏹ Arrêter", command=self.stop_optimization).pack(side=tk.LEFT, padx=5)
+        ctk.CTkButton(action_frame, text="📊 Exporter", command=self.export_optimization_results).pack(side=tk.LEFT, padx=5)
+        ctk.CTkButton(action_frame, text="📈 Visualiser", command=self.visualize_optimizer_results).pack(side=tk.LEFT, padx=5)
+        ctk.CTkButton(action_frame, text="✅ Appliquer", command=self.apply_best_config).pack(side=tk.LEFT, padx=5)
         
         # Barre de progression
-        prog_frame = ttk.Frame(scroll_frame)
+        prog_frame = ctk.CTkFrame(scroll_frame)
         prog_frame.pack(fill=tk.X, pady=5, padx=5)
         
-        ttk.Label(prog_frame, text="Progression:").pack(side=tk.LEFT)
-        self.optim_progress = ttk.Progressbar(prog_frame, mode="determinate", length=400)
+        ctk.CTkLabel(prog_frame, text="Progression:").pack(side=tk.LEFT)
+        self.optim_progress = ctk.CTkProgressBar(prog_frame, width=400)
         self.optim_progress.pack(side=tk.LEFT, padx=10, fill=tk.X, expand=True)
-        self.optim_progress_label = ttk.Label(prog_frame, text="0%", foreground=self.accent)
+        self.optim_progress_label = ctk.CTkLabel(prog_frame, text="0%", text_color=self.accent)
         self.optim_progress_label.pack(side=tk.LEFT)
         
         # Section: Résultats
-        results_frame = ttk.LabelFrame(scroll_frame, text="📈 Résultats d'Optimisation", padding=10)
+        results_frame = ctk.CTkFrame(scroll_frame)
         results_frame.pack(fill=tk.BOTH, expand=True, pady=5, padx=5)
         
         # Tableau des résultats (Treeview)
@@ -1902,14 +1977,14 @@ class RocketApp:
             self.optim_tree.heading(col, text=name)
             self.optim_tree.column(col, width=width, anchor="center")
         
-        scrollbar_tree = ttk.Scrollbar(results_frame, orient="vertical", command=self.optim_tree.yview)
+        scrollbar_tree = ctk.CTkScrollbar(results_frame, command=self.optim_tree.yview)
         self.optim_tree.configure(yscrollcommand=scrollbar_tree.set)
         
         self.optim_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar_tree.pack(side=tk.RIGHT, fill=tk.Y)
         
         # Graphique de convergence
-        conv_frame = ttk.LabelFrame(scroll_frame, text="📉 Convergence", padding=5)
+        conv_frame = ctk.CTkFrame(scroll_frame)
         conv_frame.pack(fill=tk.X, pady=5, padx=5)
         
         self.fig_optim = plt.Figure(figsize=(10, 3), dpi=100)
@@ -2308,7 +2383,7 @@ class RocketApp:
     def _update_optim_progress(self, progress, score, config, metrics):
         """Met à jour l'interface avec la progression."""
         self.optim_progress["value"] = progress
-        self.optim_progress_label.config(text=f"{progress:.0f}%")
+        self.optim_progress_label.configure(text=f"{progress:.0f}%")
         
         # Ajouter au tableau
         rank = len(self.optim_tree.get_children()) + 1
@@ -2362,7 +2437,7 @@ class RocketApp:
         self.optim_running = False
         self.btn_run_optim.configure(state="normal")
         self.optim_progress["value"] = 100
-        self.optim_progress_label.config(text="Terminé!")
+        self.optim_progress_label.configure(text="Terminé!")
         
         if self.optim_results_list:
             # Trier par score
@@ -2483,7 +2558,7 @@ class RocketApp:
                 varied_vars.append(key)
         
         if not varied_vars:
-            ttk.Label(viz_window, text="Aucune variation détectée dans les paramètres.").pack(pady=20)
+            ctk.CTkLabel(viz_window, text="Aucune variable n'a varié.").pack(pady=20)
             return
             
         # Variables de métriques
@@ -2492,28 +2567,28 @@ class RocketApp:
         metric_keys = [k for k in metric_keys if isinstance(data[0]['metrics'][k], (int, float))]
         
         # Contrôles
-        ctrl_frame = ttk.LabelFrame(viz_window, text="Paramètres du graphique", padding=10)
+        ctrl_frame = ctk.CTkFrame(viz_window)
         ctrl_frame.pack(fill=tk.X, padx=10, pady=10)
         
-        row1 = ttk.Frame(ctrl_frame)
+        row1 = ctk.CTkFrame(ctrl_frame)
         row1.pack(fill=tk.X, pady=5)
         
-        ttk.Label(row1, text="Axe X (Variable):").pack(side=tk.LEFT)
+        ctk.CTkLabel(row1, text="Axe X:").pack(side=tk.LEFT)
         var_x = tk.StringVar(value=varied_vars[0])
-        cb_x = ttk.Combobox(row1, textvariable=var_x, values=varied_vars, state="readonly", width=20)
+        cb_x = ctk.CTkComboBox(row1, textvariable=var_x, values=varied_vars, width=20)
         cb_x.pack(side=tk.LEFT, padx=5)
         
-        ttk.Label(row1, text="Axe Y (Métrique):").pack(side=tk.LEFT, padx=(15,0))
+        ctk.CTkLabel(row1, text="Axe Y:").pack(side=tk.LEFT, padx=(15,0))
         var_y = tk.StringVar(value="score")
-        cb_y = ttk.Combobox(row1, textvariable=var_y, values=["score"] + metric_keys, state="readonly", width=20)
+        cb_y = ctk.CTkComboBox(row1, textvariable=var_y, values=["score"] + metric_keys, width=20)
         cb_y.pack(side=tk.LEFT, padx=5)
         
-        ttk.Label(row1, text="Couleur (Métrique):").pack(side=tk.LEFT, padx=(15,0))
+        ctk.CTkLabel(row1, text="Couleur:").pack(side=tk.LEFT, padx=(15,0))
         var_c = tk.StringVar(value="score")
-        cb_c = ttk.Combobox(row1, textvariable=var_c, values=["score"] + metric_keys, state="readonly", width=20)
+        cb_c = ctk.CTkComboBox(row1, textvariable=var_c, values=["score"] + metric_keys, width=20)
         cb_c.pack(side=tk.LEFT, padx=5)
         
-        ttk.Button(row1, text="🔄 Actualiser", command=lambda: update_plot()).pack(side=tk.RIGHT, padx=10)
+        ctk.CTkButton(row1, text="🔄 Actualiser", command=lambda: update_plot()).pack(side=tk.RIGHT, padx=10)
         
         # Zone graphique
         fig = plt.Figure(figsize=(8, 6), dpi=100)
@@ -2563,10 +2638,10 @@ class RocketApp:
             
             canvas.draw()
         
-        # Bind events
-        cb_x.bind("<<ComboboxSelected>>", update_plot)
-        cb_y.bind("<<ComboboxSelected>>", update_plot)
-        cb_c.bind("<<ComboboxSelected>>", update_plot)
+        # Bind events using configure(command=) for CTkComboBox
+        cb_x.configure(command=lambda v: update_plot())
+        cb_y.configure(command=lambda v: update_plot())
+        cb_c.configure(command=lambda v: update_plot())
         
         # Initial plot
         update_plot()
@@ -2581,8 +2656,8 @@ class RocketApp:
         
         # Frame principale avec scroll
         main_canvas = tk.Canvas(self.tab_stress, bg=self.bg_main, highlightthickness=0)
-        scrollbar = ttk.Scrollbar(self.tab_stress, orient="vertical", command=main_canvas.yview)
-        scroll_frame = ttk.Frame(main_canvas)
+        scrollbar = ctk.CTkScrollbar(self.tab_stress, command=main_canvas.yview)
+        scroll_frame = ctk.CTkFrame(main_canvas)
         
         scroll_frame.bind("<Configure>", lambda e: main_canvas.configure(scrollregion=main_canvas.bbox("all")))
         main_canvas.create_window((0, 0), window=scroll_frame, anchor="nw")
@@ -2592,30 +2667,30 @@ class RocketApp:
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         
         # Titre
-        header = ttk.Frame(scroll_frame)
+        header = ctk.CTkFrame(scroll_frame)
         header.pack(fill=tk.X, pady=(5, 10))
-        ttk.Label(header, text="🛡️ Analyse des Contraintes Thermomécaniques", 
-                  font=("Segoe UI", 14, "bold"), foreground="#27ae60").pack(side=tk.LEFT)
+        ctk.CTkLabel(header, text="🛡️ Contraintes Thermomécaniques",
+                  font=("Segoe UI", 14, "bold"), text_color="#27ae60").pack(side=tk.LEFT)
         
         # Section: Paramètres du matériau
-        mat_frame = ttk.LabelFrame(scroll_frame, text="🔩 Propriétés du Matériau", padding=10)
+        mat_frame = ctk.CTkFrame(scroll_frame)
         mat_frame.pack(fill=tk.X, pady=5, padx=5)
         
         # Sélection du matériau - utilise la même base que le solveur coolant
-        row_mat = ttk.Frame(mat_frame)
+        row_mat = ctk.CTkFrame(mat_frame)
         row_mat.pack(fill=tk.X, pady=5)
         
-        ttk.Label(row_mat, text="Matériau:").pack(side=tk.LEFT)
+        ctk.CTkLabel(row_mat, text="Matériau:").pack(side=tk.LEFT)
         # Matériaux identiques au solveur coolant avec propriétés mécaniques complètes
         self.stress_materials_db = self.materials_db
-        self.stress_material = ttk.Combobox(row_mat, values=list(self.stress_materials_db.keys()), 
-                                            state="readonly", width=25)
+        self.stress_material = ctk.CTkComboBox(row_mat, values=list(self.stress_materials_db.keys()), 
+                                            width=25)
         self.stress_material.set("Cuivre-Zirconium (CuZr)")
         self.stress_material.pack(side=tk.LEFT, padx=10)
-        self.stress_material.bind("<<ComboboxSelected>>", self.update_material_properties)
+        self.stress_material.configure(command=lambda v: self.update_material_properties())
         
         # Tableau des propriétés
-        props_frame = ttk.Frame(mat_frame)
+        props_frame = ctk.CTkFrame(mat_frame)
         props_frame.pack(fill=tk.X, pady=5)
         
         self.stress_props = {}
@@ -2630,12 +2705,12 @@ class RocketApp:
         
         for row, (key, label, default) in enumerate(properties):
             self.stress_props[key] = tk.DoubleVar(value=default)
-            ttk.Label(props_frame, text=label, width=30).grid(row=row, column=0, sticky="w", pady=2)
-            entry = ttk.Entry(props_frame, textvariable=self.stress_props[key], width=12)
+            ctk.CTkLabel(props_frame, text=label, width=30).grid(row=row, column=0, sticky="w", pady=2)
+            entry = ctk.CTkEntry(props_frame, textvariable=self.stress_props[key], width=12)
             entry.grid(row=row, column=1, padx=5, pady=2)
         
         # Section: Conditions de fonctionnement
-        cond_frame = ttk.LabelFrame(scroll_frame, text="⚙️ Conditions de Fonctionnement", padding=10)
+        cond_frame = ctk.CTkFrame(scroll_frame)
         cond_frame.pack(fill=tk.X, pady=5, padx=5)
         
         self.stress_conditions = {}
@@ -2645,25 +2720,25 @@ class RocketApp:
             ("T_ref", "Température de référence (K)", 293),
         ]
         
-        cond_grid = ttk.Frame(cond_frame)
+        cond_grid = ctk.CTkFrame(cond_frame)
         cond_grid.pack(fill=tk.X)
         
         for col, (key, label, default) in enumerate(conditions):
             self.stress_conditions[key] = tk.DoubleVar(value=default)
-            ttk.Label(cond_grid, text=label).grid(row=0, column=col*2, sticky="w", padx=5)
-            ttk.Entry(cond_grid, textvariable=self.stress_conditions[key], width=10).grid(row=0, column=col*2+1, padx=5)
+            ctk.CTkLabel(cond_grid, text=label).grid(row=0, column=col*2, sticky="w", padx=5)
+            ctk.CTkEntry(cond_grid, textvariable=self.stress_conditions[key], width=10).grid(row=0, column=col*2+1, padx=5)
         
         # Bouton calcul
-        btn_frame = ttk.Frame(scroll_frame)
+        btn_frame = ctk.CTkFrame(scroll_frame)
         btn_frame.pack(fill=tk.X, pady=10, padx=5)
         
-        ttk.Button(btn_frame, text="▶ Calculer Contraintes", 
-                   command=self.calculate_stresses, style="Accent.TButton").pack(side=tk.LEFT, padx=5)
-        ttk.Button(btn_frame, text="📊 Exporter Rapport", 
+        ctk.CTkButton(btn_frame, text="🔬 Calculer",
+                   command=self.calculate_stresses).pack(side=tk.LEFT, padx=5)
+        ctk.CTkButton(btn_frame, text="📊 Export Rapport",
                    command=self.export_stress_report).pack(side=tk.LEFT, padx=5)
         
         # Section: Résultats des contraintes
-        results_frame = ttk.LabelFrame(scroll_frame, text="📈 Résultats des Contraintes", padding=10)
+        results_frame = ctk.CTkFrame(scroll_frame)
         results_frame.pack(fill=tk.X, pady=5, padx=5)
         
         # Tableau des résultats
@@ -2686,15 +2761,15 @@ class RocketApp:
         ]
         
         for row, (key, label, unit, tooltip) in enumerate(result_items):
-            ttk.Label(results_frame, text=label, width=40).grid(row=row, column=0, sticky="w", pady=2)
-            lbl_val = ttk.Label(results_frame, text="---", foreground=self.accent, width=15)
+            ctk.CTkLabel(results_frame, text=label, width=40).grid(row=row, column=0, sticky="w", pady=2)
+            lbl_val = ctk.CTkLabel(results_frame, text_color=self.accent, width=15)
             lbl_val.grid(row=row, column=1, padx=5)
-            ttk.Label(results_frame, text=unit, width=5).grid(row=row, column=2)
-            ttk.Label(results_frame, text=f"  ({tooltip})", foreground=self.text_muted).grid(row=row, column=3, sticky="w")
+            ctk.CTkLabel(results_frame, text=unit, width=5).grid(row=row, column=2)
+            ctk.CTkLabel(results_frame, text=f"  ({tooltip})", text_color=self.text_muted).grid(row=row, column=3, sticky="w")
             self.stress_results_labels[key] = lbl_val
         
         # Section: Graphique des contraintes le long de la tuyère
-        graph_frame = ttk.LabelFrame(scroll_frame, text="📉 Distribution des Contraintes", padding=5)
+        graph_frame = ctk.CTkFrame(scroll_frame)
         graph_frame.pack(fill=tk.BOTH, expand=True, pady=5, padx=5)
         
         self.fig_stress = plt.Figure(figsize=(10, 5), dpi=100)
@@ -2724,7 +2799,7 @@ class RocketApp:
         self.canvas_stress.draw()
         
         # Section: Tableau position par position
-        detail_frame = ttk.LabelFrame(scroll_frame, text="📋 Détail par Position", padding=5)
+        detail_frame = ctk.CTkFrame(scroll_frame)
         detail_frame.pack(fill=tk.X, pady=5, padx=5)
         
         cols = ("x_mm", "T_wall", "sigma_hoop", "sigma_thermal", "sigma_vm", "SF")
@@ -2737,7 +2812,7 @@ class RocketApp:
             self.stress_tree.heading(col, text=name)
             self.stress_tree.column(col, width=width, anchor="center")
         
-        scrollbar_tree = ttk.Scrollbar(detail_frame, orient="vertical", command=self.stress_tree.yview)
+        scrollbar_tree = ctk.CTkScrollbar(detail_frame, orientation="vertical", command=self.stress_tree.yview)
         self.stress_tree.configure(yscrollcommand=scrollbar_tree.set)
         
         self.stress_tree.pack(side=tk.LEFT, fill=tk.X, expand=True)
@@ -2861,11 +2936,11 @@ class RocketApp:
         
         # Mettre à jour les résultats principaux (point critique)
         critical = stress_data[idx_critical]
-        self.stress_results_labels["sigma_hoop"].config(text=f"{critical['sigma_hoop']:.1f}")
-        self.stress_results_labels["sigma_axial"].config(text=f"{critical['sigma_hoop']/2:.1f}")
-        self.stress_results_labels["sigma_radial"].config(text="~0")
-        self.stress_results_labels["sigma_thermal"].config(text=f"{critical['sigma_thermal']:.1f}")
-        self.stress_results_labels["sigma_vm"].config(text=f"{critical['sigma_vm']:.1f}")
+        self.stress_results_labels["sigma_hoop"].configure(text=f"{critical['sigma_hoop']:.1f}")
+        self.stress_results_labels["sigma_axial"].configure(text=f"{critical['sigma_hoop']/2:.1f}")
+        self.stress_results_labels["sigma_radial"].configure(text="~0")
+        self.stress_results_labels["sigma_thermal"].configure(text=f"{critical['sigma_thermal']:.1f}")
+        self.stress_results_labels["sigma_vm"].configure(text=f"{critical['sigma_vm']:.1f}")
         
         # Couleur selon le facteur de sécurité
         if min_SF > 2.0:
@@ -2881,13 +2956,13 @@ class RocketApp:
             sf_color = "#e74c3c"  # Rouge
             status = "DANGER"
         
-        self.stress_results_labels["safety_factor"].config(text=f"{min_SF:.2f} ({status})", foreground=sf_color)
+        self.stress_results_labels["safety_factor"].configure(text=f"{min_SF:.2f} ({status})", text_color=sf_color)
         
         # Marge fluage
         T_fusion = self.stress_props["T_fusion"].get()
         T_wall_max = max(d["T_wall"] for d in stress_data)
         creep_margin = (T_fusion - T_wall_max) / T_fusion * 100
-        self.stress_results_labels["creep_margin"].config(text=f"{creep_margin:.1f}")
+        self.stress_results_labels["creep_margin"].configure(text=f"{creep_margin:.1f}")
         
         # Mettre à jour les graphiques
         self._update_stress_plots(stress_data, X_profile, min_SF, sigma_y / 1e6)
@@ -2955,42 +3030,42 @@ class RocketApp:
     # =====================================================================
     def init_graphs_tab(self):
         tk.Frame(self.tab_graphs, height=4, bg=self.tab_accent.get("graphs", self.accent)).pack(fill=tk.X)
-        ctrl_frame = ttk.LabelFrame(self.tab_graphs, text="Configuration Analyse Paramétrique", padding=10)
+        ctrl_frame = ctk.CTkFrame(self.tab_graphs)
         ctrl_frame.pack(side=tk.TOP, fill=tk.X, padx=10, pady=5)
         
         # Ligne 0 : Catégorie d'analyse
-        row0 = ttk.Frame(ctrl_frame)
+        row0 = ctk.CTkFrame(ctrl_frame)
         row0.pack(fill=tk.X, pady=2)
         
-        ttk.Label(row0, text="Catégorie:").pack(side=tk.LEFT)
+        ctk.CTkLabel(row0, text="Catégorie:").pack(side=tk.LEFT)
         self.analysis_categories = [
             "🚀 Performances CEA",
             "🌡️ Thermique Paroi",
             "💧 Refroidissement",
             "📐 Géométrie"
         ]
-        self.combo_category = ttk.Combobox(row0, values=self.analysis_categories, state="readonly", width=20)
-        self.combo_category.current(0)
+        self.combo_category = ctk.CTkComboBox(row0, values=self.analysis_categories, width=200)
+        self.combo_category.set(self.analysis_categories[0])
         self.combo_category.pack(side=tk.LEFT, padx=5)
-        self.combo_category.bind("<<ComboboxSelected>>", self.update_analysis_options)
+        self.combo_category.configure(command=self.update_analysis_options)
         
         # Ligne 1 : Mode et Résolution
-        row1 = ttk.Frame(ctrl_frame)
+        row1 = ctk.CTkFrame(ctrl_frame)
         row1.pack(fill=tk.X, pady=2)
         
-        ttk.Label(row1, text="Mode:").pack(side=tk.LEFT)
-        self.combo_mode = ttk.Combobox(row1, values=["2D (Courbe)", "3D (Surface)"], state="readonly", width=12)
-        self.combo_mode.current(0)
+        ctk.CTkLabel(row1, text="Mode:").pack(side=tk.LEFT)
+        self.combo_mode = ctk.CTkComboBox(row1, values=["2D (Courbe)", "3D (Surface)"], width=120)
+        self.combo_mode.set("2D (Courbe)")
         self.combo_mode.pack(side=tk.LEFT, padx=5)
-        self.combo_mode.bind("<<ComboboxSelected>>", self.update_mode_display)
+        self.combo_mode.configure(command=self.update_mode_display)
         
-        ttk.Label(row1, text="Résolution:").pack(side=tk.LEFT, padx=(15, 0))
-        self.spin_res = ttk.Spinbox(row1, from_=5, to=100, width=5, style="TSpinbox")
-        self.spin_res.set(20)
+        ctk.CTkLabel(row1, text="Résolution:").pack(side=tk.LEFT, padx=(15, 0))
+        self.spin_res = ctk.CTkEntry(row1, width=60)
+        self.spin_res.insert(0, "20")
         self.spin_res.pack(side=tk.LEFT, padx=5)
         
         # Ligne 2 : Axes
-        row2 = ttk.Frame(ctrl_frame)
+        row2 = ctk.CTkFrame(ctrl_frame)
         row2.pack(fill=tk.X, pady=5)
         
         # Variables par catégorie
@@ -3011,15 +3086,15 @@ class RocketApp:
         self.input_vars = self.input_vars_by_category["🚀 Performances CEA"]
         self.vars_out = self.output_vars_by_category["🚀 Performances CEA"]
         
-        ttk.Label(row2, text="Axe X (Input):").pack(side=tk.LEFT)
-        self.combo_x = ttk.Combobox(row2, values=self.input_vars, width=22, state="readonly")
-        self.combo_x.current(1)
+        ctk.CTkLabel(row2, text="Axe X:").pack(side=tk.LEFT)
+        self.combo_x = ctk.CTkComboBox(row2, values=self.input_vars, width=200)
+        self.combo_x.set(self.input_vars[1] if len(self.input_vars) > 1 else self.input_vars[0])
         self.combo_x.pack(side=tk.LEFT, padx=5)
         
         # Axe Y (caché par défaut, visible seulement en 3D)
-        ttk.Label(row2, text="Axe Y (Input):").pack(side=tk.LEFT, padx=(10, 0))
-        self.combo_y = ttk.Combobox(row2, values=self.input_vars, width=22, state="readonly")
-        self.combo_y.current(0)
+        ctk.CTkLabel(row2, text="Axe Y:").pack(side=tk.LEFT, padx=(10, 0))
+        self.combo_y = ctk.CTkComboBox(row2, values=self.input_vars, width=200)
+        self.combo_y.set(self.input_vars[0])
         self.combo_y.pack(side=tk.LEFT, padx=5)
         self.label_y = row2.winfo_children()[-2]  # Référence au label "Axe Y"
         
@@ -3027,33 +3102,33 @@ class RocketApp:
         self.combo_y.pack_forget()
         self.label_y.pack_forget()
         
-        ttk.Label(row2, text="Sortie (Z):").pack(side=tk.LEFT, padx=(10, 0))
-        self.combo_z = ttk.Combobox(row2, values=self.vars_out, width=22, state="readonly")
-        self.combo_z.current(0)
+        ctk.CTkLabel(row2, text="Sortie (Z):").pack(side=tk.LEFT, padx=(10, 0))
+        self.combo_z = ctk.CTkComboBox(row2, values=self.vars_out, width=200)
+        self.combo_z.set(self.vars_out[0])
         self.combo_z.pack(side=tk.LEFT, padx=5)
         
         # Ligne 3 : Ranges X et Y
-        self.f_range = ttk.Frame(ctrl_frame)
+        self.f_range = ctk.CTkFrame(ctrl_frame)
         self.f_range.pack(fill=tk.X, pady=2)
         
-        ttk.Label(self.f_range, text="Min X:").pack(side=tk.LEFT)
-        self.e_xmin = ttk.Entry(self.f_range, width=6)
+        ctk.CTkLabel(self.f_range, text="Min X:").pack(side=tk.LEFT)
+        self.e_xmin = ctk.CTkEntry(self.f_range, width=6)
         self.e_xmin.insert(0, "1.0")
         self.e_xmin.pack(side=tk.LEFT, padx=2)
         
-        ttk.Label(self.f_range, text="Max X:").pack(side=tk.LEFT)
-        self.e_xmax = ttk.Entry(self.f_range, width=6)
+        ctk.CTkLabel(self.f_range, text="Max X:").pack(side=tk.LEFT)
+        self.e_xmax = ctk.CTkEntry(self.f_range, width=6)
         self.e_xmax.insert(0, "4.0")
         self.e_xmax.pack(side=tk.LEFT, padx=2)
         
         # Champs Min Y et Max Y (cachés par défaut en mode 2D)
-        ttk.Label(self.f_range, text="Min Y:").pack(side=tk.LEFT, padx=(10, 0))
-        self.e_ymin = ttk.Entry(self.f_range, width=6)
+        ctk.CTkLabel(self.f_range, text="Min Y:").pack(side=tk.LEFT, padx=(10, 0))
+        self.e_ymin = ctk.CTkEntry(self.f_range, width=6)
         self.e_ymin.insert(0, "1.5")
         self.e_ymin.pack(side=tk.LEFT, padx=2)
         
-        ttk.Label(self.f_range, text="Max Y:").pack(side=tk.LEFT)
-        self.e_ymax = ttk.Entry(self.f_range, width=6)
+        ctk.CTkLabel(self.f_range, text="Max Y:").pack(side=tk.LEFT)
+        self.e_ymax = ctk.CTkEntry(self.f_range, width=6)
         self.e_ymax.insert(0, "4.0")
         self.e_ymax.pack(side=tk.LEFT, padx=2)
         
@@ -3067,13 +3142,13 @@ class RocketApp:
         self.label_ymax.pack_forget()
         self.e_ymax.pack_forget()
         
-        ttk.Button(ctrl_frame, text="CALCULER & TRACER", command=self.plot_manager).pack(side=tk.RIGHT, padx=10, pady=5)
+        ctk.CTkButton(ctrl_frame, text="📊 Tracer Graphe", command=self.plot_manager).pack(side=tk.RIGHT, padx=10, pady=5)
         
         # Ligne 4 : Matériaux de référence (pour thermique)
-        row4 = ttk.Frame(ctrl_frame)
+        row4 = ctk.CTkFrame(ctrl_frame)
         row4.pack(fill=tk.X, pady=2)
         
-        ttk.Label(row4, text="Matériau Réf:").pack(side=tk.LEFT)
+        ctk.CTkLabel(row4, text="Matériau réf.:").pack(side=tk.LEFT)
         # Use unified database but map keys to format expected by graph logic if needed
         # The unified DB keys are already descriptive
         self.materials_ref = {}
@@ -3084,17 +3159,17 @@ class RocketApp:
                 "color": props.get("color", "blue")
             }
             
-        self.combo_material = ttk.Combobox(row4, values=list(self.materials_ref.keys()), state="readonly", width=20)
-        self.combo_material.current(0)
+        self.combo_material = ctk.CTkComboBox(row4, values=list(self.materials_ref.keys()), width=200)
+        self.combo_material.set(list(self.materials_ref.keys())[0])
         self.combo_material.pack(side=tk.LEFT, padx=5)
         
         self.var_show_melt = tk.BooleanVar(value=True)
-        ttk.Checkbutton(row4, text="Afficher T fusion", variable=self.var_show_melt).pack(side=tk.LEFT, padx=10)
+        ctk.CTkCheckBox(row4, text="Afficher T fusion", variable=self.var_show_melt).pack(side=tk.LEFT, padx=10)
         
         self.var_multi_materials = tk.BooleanVar(value=False)
-        ttk.Checkbutton(row4, text="Comparer matériaux", variable=self.var_multi_materials).pack(side=tk.LEFT, padx=5)
+        ctk.CTkCheckBox(row4, text="Multi-matériaux", variable=self.var_multi_materials).pack(side=tk.LEFT, padx=5)
         
-        self.progress = ttk.Progressbar(self.tab_graphs, mode='indeterminate')
+        self.progress = ctk.CTkProgressBar(self.tab_graphs, mode='indeterminate')
         self.progress.pack(side=tk.TOP, fill=tk.X, padx=10)
         
         self.fig_graph = plt.Figure(figsize=(5, 4), dpi=100)
@@ -3137,50 +3212,50 @@ class RocketApp:
         tk.Frame(self.tab_database, height=4, bg=self.tab_accent.get("database", self.accent_alt4)).pack(fill=tk.X)
         
         # Frame de contrôle en haut
-        ctrl_frame = ttk.LabelFrame(self.tab_database, text="🔍 Recherche dans la Base de Données RocketCEA", padding=10)
+        ctrl_frame = ctk.CTkFrame(self.tab_database)
         ctrl_frame.pack(side=tk.TOP, fill=tk.X, padx=10, pady=5)
         
         # Ligne 1: Type et recherche
-        row1 = ttk.Frame(ctrl_frame)
+        row1 = ctk.CTkFrame(ctrl_frame)
         row1.pack(fill=tk.X, pady=2)
         
-        ttk.Label(row1, text="Type:").pack(side=tk.LEFT)
-        self.db_type = ttk.Combobox(row1, values=["Tous", "Fuels (Carburants)", "Oxydants", "Coolants Communs"], 
-                                     state="readonly", width=18)
-        self.db_type.current(0)
+        ctk.CTkLabel(row1, text="Type:").pack(side=tk.LEFT)
+        self.db_type = ctk.CTkComboBox(row1, values=["Tous", "Fuels (Carburants)", "Oxydants", "Coolants Communs"], 
+                                     width=180)
+        self.db_type.set("Tous")
         self.db_type.pack(side=tk.LEFT, padx=5)
-        self.db_type.bind("<<ComboboxSelected>>", lambda e: self.search_database())
+        self.db_type.configure(command=lambda v: self.search_database())
         
-        ttk.Label(row1, text="Recherche:").pack(side=tk.LEFT, padx=(15, 0))
-        self.db_search = ttk.Entry(row1, width=25)
+        ctk.CTkLabel(row1, text="Recherche:").pack(side=tk.LEFT, padx=(15, 0))
+        self.db_search = ctk.CTkEntry(row1, width=25)
         self.db_search.pack(side=tk.LEFT, padx=5)
         self.db_search.bind("<KeyRelease>", lambda e: self.search_database())
         
-        ttk.Button(row1, text="🔄 Actualiser", command=self.search_database).pack(side=tk.LEFT, padx=10)
-        ttk.Button(row1, text="📋 Copier Nom", command=self.copy_selected_name).pack(side=tk.LEFT, padx=5)
+        ctk.CTkButton(row1, text="🔍 Chercher", command=self.search_database).pack(side=tk.LEFT, padx=10)
+        ctk.CTkButton(row1, text="📋 Copier Nom", command=self.copy_selected_name).pack(side=tk.LEFT, padx=5)
         
         # Frame pour la liste et les détails
-        content_frame = ttk.Frame(self.tab_database)
+        content_frame = ctk.CTkFrame(self.tab_database)
         content_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
         
         # Liste des propergols (gauche)
-        list_frame = ttk.LabelFrame(content_frame, text="Propergols Disponibles", padding=5)
+        list_frame = ctk.CTkFrame(content_frame)
         list_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 5))
         
         # Treeview avec colonnes
         columns = ("name", "type", "t_ref", "formula")
         self.db_tree = ttk.Treeview(list_frame, columns=columns, show="headings", height=20)
-        self.db_tree.heading("name", text="Nom CEA")
-        self.db_tree.heading("type", text="Type")
-        self.db_tree.heading("t_ref", text="T_ref (K)")
-        self.db_tree.heading("formula", text="Formule/Info")
+        self.db_tree.heading("name")
+        self.db_tree.heading("type")
+        self.db_tree.heading("t_ref")
+        self.db_tree.heading("formula")
         
         self.db_tree.column("name", width=120)
         self.db_tree.column("type", width=80)
         self.db_tree.column("t_ref", width=80)
         self.db_tree.column("formula", width=200)
         
-        scrollbar = ttk.Scrollbar(list_frame, orient=tk.VERTICAL, command=self.db_tree.yview)
+        scrollbar = ctk.CTkScrollbar(list_frame, width=2, command=self.db_tree.yview)
         self.db_tree.configure(yscrollcommand=scrollbar.set)
         
         self.db_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
@@ -3189,7 +3264,7 @@ class RocketApp:
         self.db_tree.bind("<<TreeviewSelect>>", self.on_propellant_select)
         
         # Détails du propergol sélectionné (droite)
-        detail_frame = ttk.LabelFrame(content_frame, text="Détails du Propergol", padding=10)
+        detail_frame = ctk.CTkFrame(content_frame)
         detail_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(5, 0))
         
         fs = self.scaled_font_size(13)
@@ -3345,11 +3420,11 @@ class RocketApp:
         tk.Frame(self.tab_solver, height=4, bg=self.tab_accent.get("solver", "#00ffaa")).pack(fill=tk.X)
         
         # === PANNEAU DE CONFIGURATION ===
-        config_frame = ttk.LabelFrame(self.tab_solver, text="⚙️ Configuration du Solveur", padding=10)
+        config_frame = ctk.CTkFrame(self.tab_solver)
         config_frame.pack(side=tk.TOP, fill=tk.X, padx=10, pady=5)
         
         # Bouton d'aide Wiki
-        ttk.Button(config_frame, text="📖 Aide Canaux", style="Secondary.TButton", 
+        ctk.CTkButton(config_frame, text="📖 Aide Solveur",
                    command=lambda: self.open_wiki_at("7. DIMENSIONNEMENT DES CANAUX")).pack(anchor='ne', pady=(0, 5))
         
         # Base de données des matériaux avec leurs propriétés
@@ -3359,99 +3434,99 @@ class RocketApp:
         self.coolants_db = self.build_coolants_database()
         
         # Ligne 1: Matériau
-        row1 = ttk.Frame(config_frame)
+        row1 = ctk.CTkFrame(config_frame)
         row1.pack(fill=tk.X, pady=3)
         
-        ttk.Label(row1, text="Matériau paroi:").pack(side=tk.LEFT)
-        self.solver_material = ttk.Combobox(row1, values=list(self.materials_db.keys()), state="readonly", width=22)
-        self.solver_material.current(0)
+        ctk.CTkLabel(row1, text="Matériau:").pack(side=tk.LEFT)
+        self.solver_material = ctk.CTkComboBox(row1, values=list(self.materials_db.keys()), width=220)
+        self.solver_material.set(list(self.materials_db.keys())[0])
         self.solver_material.pack(side=tk.LEFT, padx=5)
-        self.solver_material.bind("<<ComboboxSelected>>", lambda e: self.update_material_info())
+        self.solver_material.configure(command=lambda v: self.update_material_info())
         
-        ttk.Label(row1, text="T fusion:").pack(side=tk.LEFT, padx=(15, 0))
-        self.lbl_tmelt = ttk.Label(row1, text="1358 K", foreground=self.accent_alt)
+        ctk.CTkLabel(row1, text="T fusion:").pack(side=tk.LEFT, padx=(15, 0))
+        self.lbl_tmelt = ctk.CTkLabel(row1, text_color=self.accent_alt)
         self.lbl_tmelt.pack(side=tk.LEFT, padx=5)
         
-        ttk.Label(row1, text="T max service:").pack(side=tk.LEFT, padx=(15, 0))
-        self.lbl_tmax = ttk.Label(row1, text="1100 K", foreground=self.accent_alt2)
+        ctk.CTkLabel(row1, text="T max:").pack(side=tk.LEFT, padx=(15, 0))
+        self.lbl_tmax = ctk.CTkLabel(row1, text_color=self.accent_alt2)
         self.lbl_tmax.pack(side=tk.LEFT, padx=5)
         
-        ttk.Label(row1, text="k:").pack(side=tk.LEFT, padx=(15, 0))
-        self.lbl_k = ttk.Label(row1, text="385 W/m-K", foreground=self.accent)
+        ctk.CTkLabel(row1, text="k:").pack(side=tk.LEFT, padx=(15, 0))
+        self.lbl_k = ctk.CTkLabel(row1, text_color=self.accent)
         self.lbl_k.pack(side=tk.LEFT, padx=5)
         
         # Ligne 2: Épaisseur et coolant
-        row2 = ttk.Frame(config_frame)
+        row2 = ctk.CTkFrame(config_frame)
         row2.pack(fill=tk.X, pady=3)
         
-        ttk.Label(row2, text="Épaisseur min (mm):").pack(side=tk.LEFT)
-        self.solver_thickness = ttk.Entry(row2, width=8)
+        ctk.CTkLabel(row2, text="Épaisseur (mm):").pack(side=tk.LEFT)
+        self.solver_thickness = ctk.CTkEntry(row2, width=8)
         self.solver_thickness.insert(0, "2.0")
         self.solver_thickness.pack(side=tk.LEFT, padx=5)
         
-        ttk.Label(row2, text="Coolant:").pack(side=tk.LEFT, padx=(15, 0))
-        self.solver_coolant = ttk.Entry(row2, width=15)
+        ctk.CTkLabel(row2, text="Coolant:").pack(side=tk.LEFT, padx=(15, 0))
+        self.solver_coolant = ctk.CTkEntry(row2, width=15)
         self.solver_coolant.insert(0, "RP1")
         self.solver_coolant.pack(side=tk.LEFT, padx=5)
-        ttk.Label(row2, text="(nom RocketCEA)", foreground=self.text_muted).pack(side=tk.LEFT)
+        ctk.CTkLabel(row2, text="(nom RocketCEA ou H2O)", text_color=self.text_muted).pack(side=tk.LEFT)
         
-        ttk.Label(row2, text="T entrée coolant (K):").pack(side=tk.LEFT, padx=(15, 0))
-        self.solver_tcool_in = ttk.Entry(row2, width=8)
+        ctk.CTkLabel(row2, text="T entrée (K):").pack(side=tk.LEFT, padx=(15, 0))
+        self.solver_tcool_in = ctk.CTkEntry(row2, width=8)
         self.solver_tcool_in.insert(0, "300")
         self.solver_tcool_in.pack(side=tk.LEFT, padx=5)
         
         # Ligne 3: Pression coolant et marge
-        row3 = ttk.Frame(config_frame)
+        row3 = ctk.CTkFrame(config_frame)
         row3.pack(fill=tk.X, pady=3)
         
-        ttk.Label(row3, text="Pression coolant (bar):").pack(side=tk.LEFT)
-        self.solver_pcool = ttk.Entry(row3, width=8)
+        ctk.CTkLabel(row3, text="P coolant (bar):").pack(side=tk.LEFT)
+        self.solver_pcool = ctk.CTkEntry(row3, width=8)
         self.solver_pcool.insert(0, "30")
         self.solver_pcool.pack(side=tk.LEFT, padx=5)
         
-        ttk.Label(row3, text="Marge sécurité (%):").pack(side=tk.LEFT, padx=(15, 0))
-        self.solver_margin = ttk.Entry(row3, width=8)
+        ctk.CTkLabel(row3, text="Marge (%):").pack(side=tk.LEFT, padx=(15, 0))
+        self.solver_margin = ctk.CTkEntry(row3, width=8)
         self.solver_margin.insert(0, "20")
         self.solver_margin.pack(side=tk.LEFT, padx=5)
         
-        ttk.Label(row3, text="Flux max estimé (MW/m²):").pack(side=tk.LEFT, padx=(15, 0))
-        self.solver_flux = ttk.Entry(row3, width=8)
+        ctk.CTkLabel(row3, text="Flux (MW/m²):").pack(side=tk.LEFT, padx=(15, 0))
+        self.solver_flux = ctk.CTkEntry(row3, width=8)
         self.solver_flux.insert(0, "")
         self.solver_flux.pack(side=tk.LEFT, padx=5)
-        ttk.Label(row3, text="(laisser vide = auto)", foreground=self.text_muted).pack(side=tk.LEFT)
+        ctk.CTkLabel(row3, text="(auto depuis sim.)", text_color=self.text_muted).pack(side=tk.LEFT)
         
         # Ligne 3b: Paramètres canaux de refroidissement
-        row3b = ttk.Frame(config_frame)
+        row3b = ctk.CTkFrame(config_frame)
         row3b.pack(fill=tk.X, pady=3)
         
-        ttk.Label(row3b, text="Vitesse coolant (m/s):").pack(side=tk.LEFT)
-        self.solver_vcool = ttk.Entry(row3b, width=8)
+        ctk.CTkLabel(row3b, text="V coolant (m/s):").pack(side=tk.LEFT)
+        self.solver_vcool = ctk.CTkEntry(row3b, width=8)
         self.solver_vcool.insert(0, "20")
         self.solver_vcool.pack(side=tk.LEFT, padx=5)
         
-        ttk.Label(row3b, text="Diam. hydraulique (mm):").pack(side=tk.LEFT, padx=(15, 0))
-        self.solver_dh = ttk.Entry(row3b, width=8)
+        ctk.CTkLabel(row3b, text="Dh (mm):").pack(side=tk.LEFT, padx=(15, 0))
+        self.solver_dh = ctk.CTkEntry(row3b, width=8)
         self.solver_dh.insert(0, "3.0")
         self.solver_dh.pack(side=tk.LEFT, padx=5)
         
-        ttk.Label(row3b, text="Surface refroidie (m²):").pack(side=tk.LEFT, padx=(15, 0))
-        self.solver_area = ttk.Entry(row3b, width=8)
+        ctk.CTkLabel(row3b, text="Section (m²):").pack(side=tk.LEFT, padx=(15, 0))
+        self.solver_area = ctk.CTkEntry(row3b, width=8)
         self.solver_area.insert(0, "0.01")
         self.solver_area.pack(side=tk.LEFT, padx=5)
-        ttk.Label(row3b, text="(chambre + col)", foreground=self.text_muted).pack(side=tk.LEFT)
+        ctk.CTkLabel(row3b, text="(surface totale canaux)", text_color=self.text_muted).pack(side=tk.LEFT)
         
         # Ligne 4: Boutons
-        row4 = ttk.Frame(config_frame)
+        row4 = ctk.CTkFrame(config_frame)
         row4.pack(fill=tk.X, pady=8)
         
-        ttk.Button(row4, text="🔍 Résoudre", command=self.solve_cooling, style="Success.TButton").pack(side=tk.LEFT, padx=5)
-        ttk.Button(row4, text="📊 Comparer Matériaux", command=self.compare_materials, style="Primary.TButton").pack(side=tk.LEFT, padx=5)
-        ttk.Button(row4, text="🧊 Comparer Coolants", command=self.compare_coolants, style="Secondary.TButton").pack(side=tk.LEFT, padx=5)
-        ttk.Button(row4, text="🔥 Carte Thermique", command=self.plot_thermal_map, style="Danger.TButton").pack(side=tk.LEFT, padx=5)
-        ttk.Button(row4, text="🔄 Utiliser données simulation", command=self.load_from_simulation, style="Warning.TButton").pack(side=tk.LEFT, padx=5)
+        ctk.CTkButton(row4, text="🛠️ Résoudre", command=self.solve_cooling).pack(side=tk.LEFT, padx=5)
+        ctk.CTkButton(row4, text="🔍 Comparer Matériaux", command=self.compare_materials).pack(side=tk.LEFT, padx=5)
+        ctk.CTkButton(row4, text="💧 Comparer Coolants", command=self.compare_coolants).pack(side=tk.LEFT, padx=5)
+        ctk.CTkButton(row4, text="🌡️ Carte Thermique", command=self.plot_thermal_map).pack(side=tk.LEFT, padx=5)
+        ctk.CTkButton(row4, text="📥 Charger Sim.", command=self.load_from_simulation).pack(side=tk.LEFT, padx=5)
         
         # === ZONE DE RÉSULTATS ===
-        results_frame = ttk.LabelFrame(self.tab_solver, text="📋 Résultats du Solveur", padding=10)
+        results_frame = ctk.CTkFrame(self.tab_solver)
         results_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
         
         fs = self.scaled_font_size(13)
@@ -3479,7 +3554,7 @@ class RocketApp:
         self.txt_solver.tag_configure("error", foreground="#ff5555")
         self.txt_solver.tag_configure("separator", foreground="#44475a")
         
-        scrollbar = ttk.Scrollbar(self.txt_solver, command=self.txt_solver.yview)
+        scrollbar = ctk.CTkScrollbar(self.txt_solver, command=self.txt_solver.yview)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         self.txt_solver.config(yscrollcommand=scrollbar.set)
         
@@ -3496,9 +3571,9 @@ class RocketApp:
         mat_name = self.solver_material.get()
         if mat_name in self.materials_db:
             mat = self.materials_db[mat_name]
-            self.lbl_tmelt.config(text=f"{mat['T_melt']} K")
-            self.lbl_tmax.config(text=f"{mat['T_max']} K")
-            self.lbl_k.config(text=f"{mat['k']} W/m-K")
+            self.lbl_tmelt.configure(text=f"{mat['T_melt']} K")
+            self.lbl_tmax.configure(text=f"{mat['T_max']} K")
+            self.lbl_k.configure(text=f"{mat['k']} W/m-K")
 
     def load_from_simulation(self):
         """Charge les données depuis la dernière simulation"""
@@ -4195,7 +4270,7 @@ class RocketApp:
             ax1.set_xlabel('Position axiale (mm)', color=self.text_primary)
             ax1.set_ylabel('Épaisseur paroi (mm)', color=self.text_primary)
             ax1.set_title(f'🔥 CARTE THERMIQUE - {mat_name}', color=self.text_primary, fontsize=12, fontweight='bold')
-            ax1.axvline(0, color='cyan', linestyle=':', alpha=0.7, linewidth=1)
+            ax1.axvline(0, color='cyan', alpha=0.7, linewidth=1)
             ax1.text(0, thicknesses.max() * 0.95, 'COL', color='cyan', ha='center', fontsize=9)
             
             # === GRAPHE 2: Épaisseur critique vs position ===
@@ -4204,11 +4279,11 @@ class RocketApp:
             ax2.fill_between(X_mm, e_melt, 20, color='red', alpha=0.3, label='Zone FUSION')
             
             ax2.plot(X_mm, e_melt, 'r-', linewidth=2, label=f'Épaisseur FUSION ({T_melt}K)')
-            ax2.plot(X_mm, e_max_service, 'orange', linewidth=2, linestyle='--', label=f'Épaisseur T_max ({T_max_service}K)')
+            ax2.plot(X_mm, e_max_service, 'orange', linewidth=2, linelabel=f'Épaisseur T_max ({T_max_service}K)')
             
             # Marquer l'épaisseur actuelle
             e_current = float(self.solver_thickness.get())
-            ax2.axhline(e_current, color='cyan', linewidth=2, linestyle='-', label=f'Épaisseur actuelle ({e_current:.1f}mm)')
+            ax2.axhline(e_current, color='cyan', linewidth=2, linelabel=f'Épaisseur actuelle ({e_current:.1f}mm)')
             
             # Point critique (min)
             idx_min = np.argmin(e_melt)
@@ -4217,7 +4292,7 @@ class RocketApp:
                         xy=(X_mm[idx_min], e_melt[idx_min]),
                         xytext=(X_mm[idx_min] + 10, e_melt[idx_min] + 2),
                         fontsize=10, color='red', fontweight='bold',
-                        arrowprops=dict(arrowstyle='->', color='red'))
+                        arrowprops=dict(color='red'))
             
             ax2.set_xlabel('Position axiale (mm)', color=self.text_primary)
             ax2.set_ylabel('Épaisseur paroi (mm)', color=self.text_primary)
@@ -4226,7 +4301,7 @@ class RocketApp:
             ax2.set_xlim(X_mm.min(), X_mm.max())
             ax2.legend(loc='upper right', fontsize=9, facecolor=self.bg_surface, labelcolor=self.text_primary)
             ax2.grid(True, alpha=0.2)
-            ax2.axvline(0, color='cyan', linestyle=':', alpha=0.7)
+            ax2.axvline(0, color='cyan', alpha=0.7)
             
             # === GRAPHE 3: Profil moteur avec couleur de flux ===
             # Normaliser le flux pour la couleur
@@ -4281,7 +4356,7 @@ class RocketApp:
             ax3.set_ylabel('Rayon (mm) - épaisseur exagérée x5', color=self.text_primary)
             ax3.set_title(f'🚀 PROFIL THERMIQUE (e={e_current}mm)', color=self.text_primary, fontsize=12, fontweight='bold')
             ax3.set_aspect('equal')
-            ax3.axvline(0, color='cyan', linestyle=':', alpha=0.5)
+            ax3.axvline(0, color='cyan', alpha=0.5)
             ax3.text(0, Y_mm.max() + e_exag + 3, 'COL', color='cyan', ha='center', fontsize=9)
             
             # Légende couleurs
@@ -4398,35 +4473,35 @@ class RocketApp:
         tk.Frame(self.tab_wiki, height=4, bg="#9966ff").pack(fill=tk.X)
         
         # Frame principal
-        main_frame = ttk.Frame(self.tab_wiki)
+        main_frame = ctk.CTkFrame(self.tab_wiki)
         main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
         
         # Titre
-        title_frame = ttk.Frame(main_frame)
+        title_frame = ctk.CTkFrame(main_frame)
         title_frame.pack(fill=tk.X, pady=(0, 10))
         
-        ttk.Label(title_frame, text="📖 WIKI - Analyse Thermique des Moteurs-Fusées", 
-                 font=("Segoe UI", 16, "bold"), foreground=self.accent).pack(side=tk.LEFT)
+        ctk.CTkLabel(title_frame, 
+                 font=("Segoe UI", 16, "bold"), text_color=self.accent).pack(side=tk.LEFT)
         
         # Barre d'outils
-        toolbar = ttk.Frame(main_frame)
+        toolbar = ctk.CTkFrame(main_frame)
         toolbar.pack(fill=tk.X, pady=(0, 5))
         
         # Variable pour la recherche
         self.wiki_search_var = tk.StringVar()
-        ttk.Label(toolbar, text="🔍 Rechercher:").pack(side=tk.LEFT, padx=(0, 5))
-        search_entry = ttk.Entry(toolbar, textvariable=self.wiki_search_var, width=30)
+        ctk.CTkLabel(toolbar).pack(side=tk.LEFT, padx=(0, 5))
+        search_entry = ctk.CTkEntry(toolbar, textvariable=self.wiki_search_var, width=30)
         search_entry.pack(side=tk.LEFT, padx=(0, 5))
         search_entry.bind("<Return>", lambda e: self.wiki_search())
-        ttk.Button(toolbar, text="Chercher", command=self.wiki_search, style="Secondary.TButton").pack(side=tk.LEFT, padx=5)
-        ttk.Button(toolbar, text="Suivant", command=self.wiki_search_next, style="Secondary.TButton").pack(side=tk.LEFT)
+        ctk.CTkButton(toolbar, command=self.wiki_search).pack(side=tk.LEFT, padx=5)
+        ctk.CTkButton(toolbar, command=self.wiki_search_next).pack(side=tk.LEFT)
         
         # Sommaire à gauche
-        paned = ttk.PanedWindow(main_frame, orient=tk.HORIZONTAL)
+        paned = ttk.PanedWindow(main_frame, height=2)
         paned.pack(fill=tk.BOTH, expand=True)
         
         # Panneau sommaire
-        toc_frame = ttk.LabelFrame(paned, text="📑 Sommaire", padding=5)
+        toc_frame = ctk.CTkFrame(paned)
         paned.add(toc_frame, weight=1)
         
         # Liste du sommaire
@@ -4578,11 +4653,11 @@ class RocketApp:
             self.wiki_toc.insert(tk.END, item)
         
         # Panneau contenu
-        content_frame = ttk.LabelFrame(paned, text="📄 Contenu", padding=5)
+        content_frame = ctk.CTkFrame(paned)
         paned.add(content_frame, weight=4)
         
         # Zone de texte avec scrollbar
-        text_frame = ttk.Frame(content_frame)
+        text_frame = ctk.CTkFrame(content_frame)
         text_frame.pack(fill=tk.BOTH, expand=True)
         
         # Widget Text Standard (pas de HTML)
@@ -4591,7 +4666,7 @@ class RocketApp:
                                  insertbackground=self.accent, padx=20, pady=15,
                                  highlightthickness=0, bd=0)
         
-        scrollbar = ttk.Scrollbar(text_frame, command=self.wiki_text.yview)
+        scrollbar = ctk.CTkScrollbar(text_frame, command=self.wiki_text.yview)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         self.wiki_text.config(yscrollcommand=scrollbar.set)
         self.wiki_text.pack(fill=tk.BOTH, expand=True)
@@ -4891,7 +4966,7 @@ class RocketApp:
 
     def open_wiki_at(self, search_text):
         """Ouvre l'onglet Wiki et scrolle vers le texte spécifié"""
-        self.tabs.select(self.tab_wiki)
+        self.tabs.set("📖 Wiki")
         
         # Nettoyer les anciens highlights
         self.wiki_text.tag_remove("highlight", "1.0", tk.END)
@@ -4910,9 +4985,9 @@ class RocketApp:
             # Effet visuel temporaire (flash)
             def flash(count):
                 if count % 2 == 0:
-                    self.wiki_text.tag_config("highlight", background=self.accent, foreground=self.bg_main)
+                    self.wiki_text.tag_config("highlight", background=self.accent, text_color=self.bg_main)
                 else:
-                    self.wiki_text.tag_config("highlight", background="#3d3d00", foreground="#ffff00")
+                    self.wiki_text.tag_config("highlight", background="#3d3d00", text_color="#ffff00")
                 if count > 0:
                     self.root.after(150, lambda: flash(count - 1))
             
@@ -5982,7 +6057,7 @@ class RocketApp:
             self.ax_flux.grid(True, color=self.grid_color, alpha=0.35)
             
             # Ligne moyenne
-            self.ax_flux.axhline(q_mean, color='green', linestyle='-.', linewidth=1.5, 
+            self.ax_flux.axhline(q_mean, color='green', linewidth=1.5, 
                                 label=f'Moyenne: {q_mean:.2f} MW/m²')
             
             # Point max avec PROJECTIONS sur les axes
@@ -6008,16 +6083,16 @@ class RocketApp:
                                  color='darkred', fontsize=10, fontweight='bold')
             
             self.ax_flux.legend(loc='upper right', fontsize=8, facecolor=self.bg_surface, edgecolor=self.accent)
-            self.ax_flux.axhline(0, color=self.grid_color, linestyle='-', alpha=0.4)
+            self.ax_flux.axhline(0, color=self.grid_color, alpha=0.4)
             
             # Graphe Température avec projections
             self.ax_temp.plot(X_mm, T_gas_list, 'orange', linewidth=2, label="T gaz (adiabatique)")
             self.ax_temp.plot(X_mm, T_wall_hot_list, 'red', linewidth=2, label=f"T paroi hot ({t_wall_hot_max:.0f} K max)")
-            self.ax_temp.axhline(t_wall_limit, color='blue', linestyle='--', linewidth=2, 
+            self.ax_temp.axhline(t_wall_limit, color='blue', linewidth=2, 
                                 label=f"T paroi cold ({t_wall_limit:.0f} K)")
             
             # Moyenne température gaz
-            self.ax_temp.axhline(t_gas_mean, color='darkorange', linestyle='-.', linewidth=1.5,
+            self.ax_temp.axhline(t_gas_mean, color='darkorange', linewidth=1.5,
                                 label=f'T moy gaz: {t_gas_mean:.0f} K')
             
             # Remplissage entre T_wall_hot et T_wall_cold pour visualiser le gradient
@@ -6136,7 +6211,7 @@ Débit Oxydant   : {mdot_ox_available:.4f} kg/s
             except:
                 pass
             
-            self.tabs.select(self.tab_summary)
+            self.tabs.set("📊 Résumé")
             
         except Exception as e:
             messagebox.showerror("Erreur Prometheus", str(e))
@@ -6156,7 +6231,7 @@ Débit Oxydant   : {mdot_ox_available:.4f} kg/s
         self.ax_visu.set_xlabel("Position axiale (mm)")
         self.ax_visu.set_ylabel("Rayon (mm)")
         self.ax_visu.grid(True, color=self.grid_color, alpha=0.35)
-        self.ax_visu.axvline(0, color=self.accent_alt, linestyle='--', alpha=0.7, label='Col')
+        self.ax_visu.axvline(0, color=self.accent_alt, alpha=0.7, label='Col')
         self.ax_visu.legend(facecolor=self.bg_surface, edgecolor=self.accent)
         self.canvas_visu.draw()
 
@@ -6346,12 +6421,12 @@ Débit Oxydant   : {mdot_ox_available:.4f} kg/s
         self.vars_out = self.output_vars_by_category.get(category, self.output_vars_by_category["🚀 Performances CEA"])
         
         # Mettre à jour les combobox
-        self.combo_x['values'] = self.input_vars
-        self.combo_x.current(0)
-        self.combo_y['values'] = self.input_vars
-        self.combo_y.current(0)
-        self.combo_z['values'] = self.vars_out
-        self.combo_z.current(0)
+        self.combo_x.configure(values=self.input_vars)
+        self.combo_x.set(self.input_vars[0])
+        self.combo_y.configure(values=self.input_vars)
+        self.combo_y.set(self.input_vars[0])
+        self.combo_z.configure(values=self.vars_out)
+        self.combo_z.set(self.vars_out[0])
 
     def update_mode_display(self, event=None):
         """Affiche/masque l'axe Y selon le mode sélectionné"""
@@ -6374,7 +6449,7 @@ Débit Oxydant   : {mdot_ox_available:.4f} kg/s
             self.e_ymin.pack_forget()
             self.label_ymax.pack_forget()
             self.e_ymax.pack_forget()
-        self.combo_z.current(0)
+        self.combo_z.set(self.vars_out[0])
         
         # Mettre à jour les valeurs par défaut des ranges selon la catégorie
         defaults = {
@@ -6724,7 +6799,7 @@ Débit Oxydant   : {mdot_ox_available:.4f} kg/s
             
             # Afficher la ligne de température de fusion pour ce matériau
             if self.var_show_melt.get() and ("T Paroi" in var_out or "Profil T" in var_out or "Delta T" in var_out):
-                ax.axhline(y=mat["t_melt"], color=color, linestyle='--', alpha=0.5, 
+                ax.axhline(y=mat["t_melt"], color=color, alpha=0.5, 
                           label=f"T fusion {mat_name}: {mat['t_melt']}K")
         
         ax.set_xlabel(mode_x)
@@ -6835,7 +6910,7 @@ Débit Oxydant   : {mdot_ox_available:.4f} kg/s
         
         # Ligne d'ébullition si température
         if "T Sortie" in var_out:
-            ax.axhline(y=T_boil, color='red', linestyle='--', label=f"T ébullition: {T_boil}K")
+            ax.axhline(y=T_boil, color='red', linelabel=f"T ébullition: {T_boil}K")
             ax.legend()
         
         ax.set_xlabel(mode_x)
