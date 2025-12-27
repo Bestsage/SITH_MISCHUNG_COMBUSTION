@@ -5020,23 +5020,29 @@ class RocketApp:
                 continue
             
             # Table detection (| col1 | col2 |)
-            if '|' in line and line.strip().startswith('|'):
-                # Check if this is a table header separator line
-                if re.match(r'^\|[\s\-:]+\|', line):
+            if '|' in line and line.strip().startswith('|') and line.strip().endswith('|'):
+                # Check if this is a table header separator line (must have at least one dash)
+                if re.match(r'^\|[\s\-:]+\|$', line.strip()) and '-' in line:
                     # This is a separator, skip it but mark that we're in a table
                     in_table = True
                     i += 1
                     continue
                 
-                # Format table row
-                cells = [cell.strip() for cell in line.split('|')[1:-1]]  # Remove empty first/last
-                formatted_line = "  " + " | ".join(cells)
-                
-                # First row is header
-                if not in_table and i + 1 < len(lines) and re.match(r'^\|[\s\-:]+\|', lines[i + 1]):
-                    self.wiki_text.insert(tk.END, formatted_line + '\n', "table_header")
-                else:
-                    self.wiki_text.insert(tk.END, formatted_line + '\n', "code")
+                # Format table row - validate format first
+                parts = line.split('|')
+                if len(parts) >= 3:  # Must have at least one cell (empty first, cell, empty last)
+                    cells = [cell.strip() for cell in parts[1:-1]]  # Remove empty first/last
+                    formatted_line = "  " + " | ".join(cells)
+                    
+                    # First row is header if followed by separator
+                    if not in_table and i + 1 < len(lines):
+                        next_line = lines[i + 1].strip()
+                        if next_line.startswith('|') and '-' in next_line and re.match(r'^\|[\s\-:]+\|$', next_line):
+                            self.wiki_text.insert(tk.END, formatted_line + '\n', "table_header")
+                        else:
+                            self.wiki_text.insert(tk.END, formatted_line + '\n', "code")
+                    else:
+                        self.wiki_text.insert(tk.END, formatted_line + '\n', "code")
                 
                 i += 1
                 continue
@@ -5059,9 +5065,12 @@ class RocketApp:
             i += 1
         
     def _insert_markdown_inline(self, text):
-        """Insère du texte avec formatage Markdown inline (bold, italic, code)"""
-        # Pour simplifier, on utilise le style normal pour l'instant
-        # TODO: Parser **bold**, *italic*, `code` inline
+        """Insère du texte avec formatage Markdown inline (bold, italic, code)
+        
+        Note: Inline formatting (**bold**, *italic*, `code`) non implémenté dans cette version.
+        Le texte est affiché avec le style normal. Cette fonctionnalité sera ajoutée dans
+        une future mise à jour si nécessaire.
+        """
         self.wiki_text.insert(tk.END, text, "normal")
     
     def _load_text_wiki(self, content):

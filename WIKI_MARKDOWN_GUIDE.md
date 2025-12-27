@@ -59,6 +59,10 @@ Utilise la syntaxe Markdown standard - pas besoin d'apprendre un format custom!
 
 **Rendu:** Table avec header en cyan bold, contenu en monospace
 
+**Note:** Les tables doivent respecter le format:
+- Commencer et finir par `|` sur chaque ligne
+- Ligne séparateur avec au moins un `-` : `|---|---|`
+
 ### Lists (Listes)
 
 **Listes à puces:**
@@ -86,13 +90,9 @@ print(code_example)
 
 **Rendu:** Monospace, fond sombre, vert
 
-### Inline Formatting
+### Inline Formatting (Limitation actuelle)
 
-```markdown
-**Texte en gras**
-*Texte en italique*
-`code inline`
-```
+**Note:** Le formatage inline (`**bold**`, `*italic*`, `` `code` ``) n'est pas encore supporté dans cette version. Le texte sera affiché normalement. Cette fonctionnalité pourra être ajoutée dans une future version si nécessaire.
 
 ## 🚀 Migration depuis wiki.txt
 
