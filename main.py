@@ -4931,7 +4931,7 @@ class RocketApp:
         import os
         wiki_file = os.path.join(os.path.dirname(__file__), 'wiki.txt')
         try:
-            with open(wiki_file, 'r', encoding='utf-8') as f:
+            with open(wiki_file, 'r', encoding='utf-8-sig') as f:
                 content = f.read()
         except FileNotFoundError:
             content = "Erreur: Fichier wiki.txt non trouvé.\n\nPlacez le fichier wiki.txt dans le même répertoire que ce script."
