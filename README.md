@@ -8,6 +8,30 @@
 
 Rocket Motor Design Plotter is an advanced Python application for designing and analyzing liquid rocket engines. Built on top of **RocketCEA** and **NASA's CEA (Chemical Equilibrium with Applications)** program (https://cearun.grc.nasa.gov/), it combines accurate thermochemical calculations with detailed thermal analysis using the Bartz equation, providing engineers and enthusiasts with a powerful tool for rocket motor design optimization.
 
+### 📚 Documentation Wiki
+
+Ce projet dispose d'une **documentation wiki complète** sur l'analyse thermique des moteurs-fusées en français:
+
+- **[📖 Accéder au Wiki](wiki/Home.md)** - Guide complet avec navigation interactive
+- **11 sections** couvrant théorie, calculs, et exemples pratiques
+- **Tables des matières** interactives pour chaque page
+- **Formules de référence** et aide-mémoire
+- **Exemples de calcul** détaillés
+
+Le wiki couvre:
+- Introduction et concepts fondamentaux
+- Théorie du transfert thermique
+- Modèle de Bartz pour h_g
+- Calcul des températures de paroi
+- Design et dimensionnement des canaux
+- Exemples de calcul complets
+- Formules rapides (aide-mémoire)
+- Analyses avancées (2D/3D, CAD, optimisation)
+- Simulation transitoire
+- Références bibliographiques
+
+**Pour déployer le wiki sur GitHub:** Utilisez le script `./deploy-wiki.sh`
+
 ### What is NASA CEA?
 
 NASA CEA (Chemical Equilibrium with Applications) is the industry-standard software developed by NASA Glenn Research Center for calculating chemical equilibrium compositions and properties of complex mixtures. This application leverages CEA's extensive propellant database and thermochemical models to provide accurate performance predictions for rocket engines.
