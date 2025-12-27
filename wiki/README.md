@@ -69,11 +69,24 @@ The new wiki features:
 
 To deploy this wiki to GitHub Wiki:
 
+### Linux / macOS
 ```bash
 ./deploy-wiki.sh
 ```
 
-This script will:
+### Windows
+```cmd
+deploy-wiki.bat
+```
+
+Or use Git Bash on Windows:
+```bash
+./deploy-wiki.sh
+```
+
+📖 **For detailed deployment instructions (including troubleshooting), see [DEPLOYMENT_GUIDE.md](../DEPLOYMENT_GUIDE.md)**
+
+The deployment script will:
 1. Clone the GitHub Wiki repository
 2. Copy all markdown files
 3. Commit and push to the wiki
