@@ -96,21 +96,42 @@ class RocketApp:
         
         # --- BASE DE DONNÉES MATÉRIAUX UNIFIÉE ---
         self.materials_db = {
-            "Cuivre (Cu)": {"k": 385, "T_melt": 1358, "T_max": 1100, "rho": 8960, "E": 115, "nu": 0.34, "alpha": 17.0, "sigma_y": 220, "sigma_uts": 310, "color": "brown"},
-            "Cuivre-Chrome (CuCr)": {"k": 320, "T_melt": 1350, "T_max": 1050, "rho": 8900, "E": 118, "nu": 0.33, "alpha": 17.0, "sigma_y": 350, "sigma_uts": 420, "color": "peru"},
-            "Cuivre-Zirconium (CuZr)": {"k": 340, "T_melt": 1356, "T_max": 1000, "rho": 8920, "E": 120, "nu": 0.33, "alpha": 17.0, "sigma_y": 400, "sigma_uts": 480, "color": "peru"},
-            "AlSi10Mg (SLM)": {"k": 130, "T_melt": 870, "T_max": 573, "rho": 2670, "E": 70, "nu": 0.33, "alpha": 21.0, "sigma_y": 230, "sigma_uts": 350, "color": "silver"},
-            "Inconel 718": {"k": 11.4, "T_melt": 1609, "T_max": 1200, "rho": 8190, "E": 200, "nu": 0.29, "alpha": 13.0, "sigma_y": 1100, "sigma_uts": 1350, "color": "darkorange"},
-            "Inconel 625": {"k": 9.8, "T_melt": 1623, "T_max": 1250, "rho": 8440, "E": 208, "nu": 0.28, "alpha": 12.8, "sigma_y": 460, "sigma_uts": 830, "color": "orange"},
-            "Acier Inox 316L": {"k": 16.3, "T_melt": 1673, "T_max": 1100, "rho": 8000, "E": 193, "nu": 0.30, "alpha": 16.0, "sigma_y": 290, "sigma_uts": 580, "color": "gray"},
-            "Acier Inox 304": {"k": 16.2, "T_melt": 1723, "T_max": 1050, "rho": 7900, "E": 193, "nu": 0.29, "alpha": 17.2, "sigma_y": 215, "sigma_uts": 505, "color": "lightgray"},
-            "Niobium (Nb)": {"k": 53.7, "T_melt": 2750, "T_max": 2200, "rho": 8570, "E": 105, "nu": 0.40, "alpha": 7.3, "sigma_y": 207, "sigma_uts": 275, "color": "purple"},
-            "Molybdène (Mo)": {"k": 138, "T_melt": 2896, "T_max": 2400, "rho": 10280, "E": 329, "nu": 0.31, "alpha": 4.8, "sigma_y": 550, "sigma_uts": 700, "color": "darkgray"},
-            "Tungstène (W)": {"k": 173, "T_melt": 3695, "T_max": 3000, "rho": 19300, "E": 411, "nu": 0.28, "alpha": 4.5, "sigma_y": 550, "sigma_uts": 980, "color": "darkblue"},
-            "Titane Ti-6Al-4V": {"k": 6.7, "T_melt": 1933, "T_max": 700, "rho": 4430, "E": 114, "nu": 0.34, "alpha": 8.6, "sigma_y": 880, "sigma_uts": 950, "color": "lightblue"},
-            "Aluminium 6061": {"k": 167, "T_melt": 855, "T_max": 500, "rho": 2700, "E": 69, "nu": 0.33, "alpha": 23.6, "sigma_y": 276, "sigma_uts": 310, "color": "silver"},
-            "Graphite (C)": {"k": 120, "T_melt": 3900, "T_max": 3500, "rho": 2200, "E": 11, "nu": 0.20, "alpha": 4.0, "sigma_y": 30, "sigma_uts": 45, "color": "black"},
-            "Rhenium (Re)": {"k": 48, "T_melt": 3459, "T_max": 2800, "rho": 21020, "E": 463, "nu": 0.26, "alpha": 6.2, "sigma_y": 290, "sigma_uts": 490, "color": "darkred"},
+            # --- CUIVRES (Conductivité maximale) ---
+            "Cuivre (Cu-OFHC)": {"k": 390, "T_melt": 1356, "T_max": 800, "rho": 8940, "E": 115, "nu": 0.34, "alpha": 17.0, "sigma_y": 60, "sigma_uts": 220, "color": "#b87333"},
+            "Cuivre-Chrome (CuCr)": {"k": 320, "T_melt": 1350, "T_max": 1050, "rho": 8900, "E": 118, "nu": 0.33, "alpha": 17.0, "sigma_y": 350, "sigma_uts": 420, "color": "#cd7f32"},
+            "Cuivre-Zirconium (CuZr)": {"k": 340, "T_melt": 1356, "T_max": 900, "rho": 8920, "E": 120, "nu": 0.33, "alpha": 17.0, "sigma_y": 280, "sigma_uts": 380, "color": "#d2691e"},
+            "GlidCop AL-15": {"k": 365, "T_melt": 1356, "T_max": 1200, "rho": 8900, "E": 130, "nu": 0.33, "alpha": 16.6, "sigma_y": 380, "sigma_uts": 450, "color": "#cc5500"},
+            "CuCrNb (GRCop-42)": {"k": 320, "T_melt": 1330, "T_max": 1100, "rho": 8790, "E": 115, "nu": 0.33, "alpha": 17.5, "sigma_y": 260, "sigma_uts": 430, "color": "#ff7f50"},
+
+            # --- ALUMINIUMS (Légèreté, Impression 3D) ---
+            "AlSi10Mg (SLM)": {"k": 110, "T_melt": 843, "T_max": 570, "rho": 2670, "E": 70, "nu": 0.33, "alpha": 21.0, "sigma_y": 240, "sigma_uts": 350, "color": "#a9a9a9"},
+            "Aluminium 7075-T6": {"k": 130, "T_melt": 750, "T_max": 400, "rho": 2810, "E": 71, "nu": 0.33, "alpha": 23.6, "sigma_y": 503, "sigma_uts": 572, "color": "#c0c0c0"},
+            "Aluminium 6061-T6": {"k": 167, "T_melt": 855, "T_max": 450, "rho": 2700, "E": 69, "nu": 0.33, "alpha": 23.6, "sigma_y": 276, "sigma_uts": 310, "color": "#d3d3d3"},
+
+            # --- SUPERALLIAGES NICKEL (Haute température) ---
+            "Inconel 718": {"k": 11.4, "T_melt": 1533, "T_max": 1200, "rho": 8190, "E": 200, "nu": 0.29, "alpha": 13.0, "sigma_y": 1030, "sigma_uts": 1240, "color": "#8b4513"},
+            "Inconel 625": {"k": 9.8, "T_melt": 1563, "T_max": 1250, "rho": 8440, "E": 207, "nu": 0.28, "alpha": 12.8, "sigma_y": 460, "sigma_uts": 880, "color": "#a0522d"},
+            "Monel 400": {"k": 21.8, "T_melt": 1570, "T_max": 1000, "rho": 8800, "E": 179, "nu": 0.32, "alpha": 13.9, "sigma_y": 240, "sigma_uts": 550, "color": "#808000"},
+            "Hastelloy X": {"k": 9.1, "T_melt": 1530, "T_max": 1300, "rho": 8220, "E": 205, "nu": 0.30, "alpha": 14.0, "sigma_y": 360, "sigma_uts": 750, "color": "#556b2f"},
+
+            # --- ACIERS (Standard) ---
+            "Acier Inox 316L": {"k": 16.3, "T_melt": 1673, "T_max": 1100, "rho": 8000, "E": 193, "nu": 0.30, "alpha": 16.0, "sigma_y": 290, "sigma_uts": 580, "color": "#708090"},
+            "Acier Inox 304L": {"k": 16.2, "T_melt": 1673, "T_max": 1050, "rho": 7900, "E": 193, "nu": 0.29, "alpha": 17.2, "sigma_y": 215, "sigma_uts": 505, "color": "#778899"},
+            "Acier Inox 17-4PH": {"k": 17.9, "T_melt": 1677, "T_max": 600, "rho": 7750, "E": 196, "nu": 0.27, "alpha": 10.8, "sigma_y": 1100, "sigma_uts": 1250, "color": "#696969"},
+
+            # --- TITANES ---
+            "Titane Ti-6Al-4V": {"k": 6.7, "T_melt": 1933, "T_max": 750, "rho": 4430, "E": 114, "nu": 0.34, "alpha": 8.6, "sigma_y": 880, "sigma_uts": 950, "color": "#4682b4"},
+
+            # --- RÉFRACTAIRES (Extrême température) ---
+            "Niobium C-103": {"k": 42, "T_melt": 2623, "T_max": 2200, "rho": 8860, "E": 90, "nu": 0.40, "alpha": 7.3, "sigma_y": 250, "sigma_uts": 380, "color": "#9370db"},
+            "Molybdène (TZM)": {"k": 126, "T_melt": 2896, "T_max": 2400, "rho": 10220, "E": 320, "nu": 0.31, "alpha": 5.3, "sigma_y": 560, "sigma_uts": 700, "color": "#4b0082"},
+            "Tungstène": {"k": 173, "T_melt": 3695, "T_max": 3200, "rho": 19250, "E": 411, "nu": 0.28, "alpha": 4.5, "sigma_y": 550, "sigma_uts": 980, "color": "#000080"},
+            "Tantalum": {"k": 57, "T_melt": 3290, "T_max": 2800, "rho": 16690, "E": 186, "nu": 0.34, "alpha": 6.3, "sigma_y": 170, "sigma_uts": 250, "color": "#483d8b"},
+            "Rhenium": {"k": 48, "T_melt": 3459, "T_max": 3000, "rho": 21020, "E": 463, "nu": 0.26, "alpha": 6.2, "sigma_y": 290, "sigma_uts": 490, "color": "#800000"},
+
+            # --- COMPOSITES / AUTRES ---
+            "Graphite": {"k": 120, "T_melt": 3900, "T_max": 3500, "rho": 1800, "E": 11, "nu": 0.20, "alpha": 4.0, "sigma_y": 30, "sigma_uts": 45, "color": "#000000"},
+            "Carbon-Phenolic": {"k": 1.5, "T_melt": 2500, "T_max": 3000, "rho": 1450, "E": 15, "nu": 0.30, "alpha": 5.0, "sigma_y": 50, "sigma_uts": 80, "color": "#2f4f4f"},
         }
         
         style = ttk.Style()
@@ -192,7 +213,6 @@ class RocketApp:
         
         self.create_inputs(left_panel)
         self.init_summary_tab()
-        self.init_cad_tab() # Contient maintenant la visu 2D et 3D
         self.init_thermal_tab()
         self.init_heatmap_tab()
         self.init_cad_tab()
@@ -303,6 +323,18 @@ class RocketApp:
         zoom_combo.grid(row=0, column=1, sticky="ew", padx=5, pady=2)
         zoom_combo.bind("<<ComboboxSelected>>", lambda e: self.set_ui_scale_from_control())
 
+        # --- SÉLECTION MATÉRIAU GLOBAL ---
+        row = 1
+        ttk.Label(parent, text="Matériau Paroi:").grid(row=row, column=0, sticky="w", padx=5, pady=2)
+        self.global_material_var = tk.StringVar(value="Cuivre-Zirconium (CuZr)")
+        mat_combo = ttk.Combobox(parent, textvariable=self.global_material_var, values=list(self.materials_db.keys()), state="readonly")
+        mat_combo.grid(row=row, column=1, sticky="ew", padx=5, pady=2)
+        mat_combo.bind("<<ComboboxSelected>>", self.on_global_material_change)
+        
+        # Ajouter aux inputs pour sauvegarde/chargement
+        self.inputs["material_name"] = (self.global_material_var, str)
+        row += 1
+
         self.param_defs = [
             ("Nom du Moteur", "name", "Moteur_Propane", str),
             ("Oxydant (CEA)", "ox", "O2", str),
@@ -317,9 +349,9 @@ class RocketApp:
             ("L* (L-star) (m)", "lstar", 1.0, float),
             ("Pression Ambiante (bar)", "pamb", 1.013, float),
             # --- Paroi ---
-            ("Temp. Paroi Max (K)", "twall", 800.0, float),
+            ("Temp. Paroi Max (K)", "twall", 1000.0, float),
             ("Épaisseur Paroi (mm)", "wall_thickness", 2.0, float),  # Épaisseur en mm
-            ("Conductivité Paroi (W/m-K)", "wall_k", 15.0, float),  # Acier inox ~15, Cuivre ~400, Inconel ~12
+            ("Conductivité Paroi (W/m-K)", "wall_k", 340.0, float),  # Acier inox ~15, Cuivre ~400, Inconel ~12
             # --- Refroidissement Régénératif ---
             ("Coolant (Auto=fuel)", "coolant_name", "Auto", str),  # Auto, H2O, C3H8, CH4, Custom...
             ("Débit Coolant (Auto=fuel)", "coolant_mdot", "Auto", str),  # Auto ou valeur en kg/s
@@ -334,8 +366,7 @@ class RocketApp:
             ("Custom Hvap (kJ/kg)", "custom_hvap", 400.0, float),  # Enthalpie vaporisation
         ]
         
-        row = 0
-        row = 1  # start after zoom row
+        # row = 1  # REMOVED, continue from previous
         for label, key, default, type_ in self.param_defs:
             lbl = ttk.Label(parent, text=label)
             lbl.grid(row=row, column=0, sticky="w", padx=5, pady=2)
@@ -361,6 +392,41 @@ class RocketApp:
         ttk.Button(parent, text="💾 EXPORTER DXF", command=self.export_dxf, style="Warning.TButton").grid(row=row, column=0, columnspan=2, pady=5, sticky="ew")
         row += 1
         ttk.Button(parent, text="📊 Exporter Graphes HD", command=self.export_graphs_hd, style="Primary.TButton").grid(row=row, column=0, columnspan=2, pady=5, sticky="ew")
+
+    def on_global_material_change(self, event=None):
+        """Met à jour les champs de propriétés quand le matériau change."""
+        mat_name = self.global_material_var.get()
+        if mat_name in self.materials_db:
+            props = self.materials_db[mat_name]
+            # Mettre à jour Conductivité (wall_k)
+            if "wall_k" in self.inputs:
+                self.inputs["wall_k"][0].set(str(props["k"]))
+            # Mettre à jour T max (twall) - on utilise T_max service par défaut
+            if "twall" in self.inputs:
+                self.inputs["twall"][0].set(str(props["T_max"]))
+            
+            # Mettre à jour les sélections dans les autres onglets si possible
+            if hasattr(self, 'solver_material'):
+                try:
+                    self.solver_material.set(mat_name)
+                    self.update_material_info()
+                except:
+                    pass
+            
+            if hasattr(self, 'stress_material'):
+                try:
+                    self.stress_material.set(mat_name)
+                    self.update_material_properties()
+                except:
+                    pass
+            
+            if hasattr(self, 'optim_mat_combo'):
+                try:
+                    self.optim_mat_combo.set(mat_name)
+                    # Trigger update manually if needed
+                    # self.optim_mat_combo.event_generate("<<ComboboxSelected>>") 
+                except:
+                    pass
 
     def get_val(self, key):
         var, type_ = self.inputs[key]
@@ -687,7 +753,9 @@ class RocketApp:
             return
             
         if not self.results or "thermal_profile" not in self.results:
-            self.ax_heatmap.clear()
+            # Nettoyer complètement la figure
+            self.fig_heatmap.clear()
+            self.ax_heatmap = self.fig_heatmap.add_subplot(111)
             self.ax_heatmap.set_facecolor(self.bg_surface)
             self.ax_heatmap.text(0.5, 0.5, "Calculez d'abord le moteur\n(bouton CALCULER)", 
                                 ha='center', va='center', fontsize=14, color=self.text_muted,
@@ -6130,8 +6198,11 @@ class RocketApp:
             thrust_n = mdot * isp_amb * 9.81
             thrust_kn = thrust_n / 1000  # Convertir en kN
             
+            # Récupérer le nom du matériau pour le résumé
+            mat_name = self.global_material_var.get() if hasattr(self, 'global_material_var') else "Inconnu"
+            
             summary = f"""═══════════════════════════════════
-    SITH MISCHUNG COMBUSTION : LIGHT SIDE EDITION v6.2
+    SITH MISCHUNG COMBUSTION : DARK SIDE EDITION v6.3
 ═══════════════════════════════════
 
 --- THERMIQUE (BARTZ) ---
@@ -6164,6 +6235,7 @@ Ratio débit     : {cooling_ratio_display}
 {coolant_warning}
 
 --- PAROI & TEMPÉRATURES ---
+Matériau        : {mat_name}
 Épaisseur paroi : {wall_thickness_mm:.1f} mm
 Conductivité k  : {wall_k:.0f} W/m-K
 T Gaz Chambre   : {tc_k:.0f} K
@@ -6191,16 +6263,20 @@ Débit Total     : {mdot:.4f} kg/s
 Débit Fuel      : {mdot_fuel_available:.4f} kg/s
 Débit Oxydant   : {mdot_ox_available:.4f} kg/s
 """
+            # Mettre à jour le widget texte (en activant l'état 'normal' temporairement)
+            self.txt_summary.config(state='normal')
             self.txt_summary.delete(1.0, tk.END)
             self.insert_colored_summary(summary, cooling_status, coolant_warning)
+            self.txt_summary.config(state='disabled')
             
             # Raw CEA output avec coloration
             try:
-                raw = ispObj.get_full_cea_output(Pc=pc_psi, MR=mr, eps=eps, pc_units='bar', output='calories')
-                self.txt_cea.config(state='normal')
-                self.txt_cea.delete(1.0, tk.END)
-                self.insert_colored_cea(raw)
-                self.txt_cea.config(state='disabled')
+                if HAS_ROCKETCEA:
+                    raw = ispObj.get_full_cea_output(Pc=pc_psi, MR=mr, eps=eps, pc_units='bar', output='calories')
+                    self.txt_cea.config(state='normal')
+                    self.txt_cea.delete(1.0, tk.END)
+                    self.insert_colored_cea(raw)
+                    self.txt_cea.config(state='disabled')
             except:
                 pass
             
@@ -6309,6 +6385,12 @@ Débit Oxydant   : {mdot_ox_available:.4f} kg/s
                     except:
                         var.set(value)
             
+            # Mise à jour spécifique du matériau global si présent
+            if "material_name" in design_data and hasattr(self, 'global_material_var'):
+                self.global_material_var.set(design_data["material_name"])
+                # Mettre à jour les champs dépendants (conductivité, etc) sans écraser si ils sont customisés
+                # self.on_global_material_change() # Optionnel: décommenter pour forcer le reset des props matériau
+            
             # Charger les résultats si disponibles
             if "_results" in design_data:
                 self.results = design_data["_results"]
@@ -6323,9 +6405,8 @@ Débit Oxydant   : {mdot_ox_available:.4f} kg/s
                         # Rafraîchir la visualisation 2D
                         self.draw_engine(X, Y)
                         
-                        # Rafraîchir le résumé
-                        # Note: On ne peut pas régénérer tout le texte coloré facilement sans recalculer
-                        # Mais on peut afficher un message
+                        # Rafraîchir le résumé avec un message temporaire
+                        # Le prochain calcul régénérera tout
                         self.txt_summary.config(state='normal')
                         self.txt_summary.delete(1.0, tk.END)
                         self.txt_summary.insert(tk.END, "✅ Paramètres et résultats chargés avec succès.\n\n", "success")
@@ -6335,6 +6416,17 @@ Débit Oxydant   : {mdot_ox_available:.4f} kg/s
                         
                     except Exception as e:
                         print(f"Erreur reconstruction géométrie: {e}")
+            else:
+                # Aucun résultat sauvegardé, on efface juste les résultats existants
+                self.results = {}
+                self.geometry_profile = None
+                
+                # Message dans le résumé
+                self.txt_summary.config(state='normal')
+                self.txt_summary.delete(1.0, tk.END)
+                self.txt_summary.insert(tk.END, "✅ Paramètres chargés avec succès.\n\n", "success")
+                self.txt_summary.insert(tk.END, "Cliquez sur 'CALCULER TOUT' pour générer les résultats.\n", "warning")
+                self.txt_summary.config(state='disabled')
             
             messagebox.showinfo("Succès", f"Paramètres chargés:\n{f}")
         except Exception as e:
