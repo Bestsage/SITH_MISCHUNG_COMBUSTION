@@ -184,5 +184,26 @@
     }
   },
   "active": "96ac1e6ea3da3a8c",
-  "lastOpenFiles": []
+  "lastOpenFiles": [
+    "wiki/README.md",
+    "wiki/Partie-5-Documentation-Technique.md",
+    "wiki/Partie-4-Guide-Logiciel.md",
+    "wiki/Partie-3-Materiaux.md",
+    "wiki/Partie-2-Theorie-Avancee.md",
+    "wiki/Partie-1-Les-Bases.md",
+    "wiki/Home.md",
+    "wiki/9-Criteres-Selection.md",
+    "wiki/5-Chimie-Combustion.md",
+    "wiki/4-Refroidissement-Regeneratif.md",
+    "wiki/3-Probleme-Thermique.md",
+    "wiki/2-Tuyere-de-Laval.md",
+    "wiki/13-Concepts-Fondamentaux.md",
+    "wiki/1-Introduction.md",
+    "deploy-wiki.sh",
+    "deploy-wiki.bat",
+    "WIKI_IMPROVEMENTS.md",
+    "VISUAL_COMPARISON.md",
+    "SUMMARY.md",
+    "DEPLOYMENT_GUIDE.md"
+  ]
 }

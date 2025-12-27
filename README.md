@@ -30,7 +30,10 @@ Le wiki couvre:
 - Simulation transitoire
 - Références bibliographiques
 
-**Pour déployer le wiki sur GitHub:** Utilisez le script `./deploy-wiki.sh`
+**Pour déployer le wiki sur GitHub:** 
+- Linux/macOS : `./deploy-wiki.sh`
+- Windows : `deploy-wiki.bat`
+- Voir [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) pour plus de détails
 
 ### What is NASA CEA?
 
@@ -434,6 +437,6 @@ All thermochemical data and performance calculations are powered by NASA's CEA p
 
 ---
 
-**Version**: PROMETHEUS v6.1 (Regen Cooling)  
+**Version**: DARK SIDE EDITION v6.3  
 **Last Updated**: 2025  
 **Author**: Bestsage & Sabuc
