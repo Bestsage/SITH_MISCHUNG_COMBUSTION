@@ -5702,18 +5702,31 @@ class RocketApp:
         ctk.CTkButton(toolbar, text="Suivant", command=self.wiki_search_next).pack(side=tk.LEFT)
         
         # Widget Text Standard (pas de HTML)
-        self.wiki_text = tk.Text(self.tab_wiki, bg=self.bg_surface, fg=self.text_primary,
+        # Création d'un PanedWindow pour diviser l'espace
+        paned_window = ctk.CTkFrame(self.tab_wiki, fg_color="transparent")
+        paned_window.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+        
+        # Frame pour le sommaire (gauche)
+        self.toc_frame = ctk.CTkFrame(paned_window, width=250)
+        self.toc_frame.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 5))
+        
+        # Frame pour le contenu (droite)
+        content_frame = ctk.CTkFrame(paned_window, fg_color="transparent")
+        content_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        
+        self.wiki_text = tk.Text(content_frame, bg=self.bg_surface, fg=self.text_primary,
                                  font=(UI_FONT, 11), wrap=tk.WORD,
                                  insertbackground=self.accent, padx=20, pady=15,
                                  highlightthickness=0, bd=0,
                                  relief=tk.FLAT,  # Style plat moderne
                                  selectbackground=self.accent,
                                  selectforeground=self.bg_main)
+        self.wiki_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         
-        scrollbar = ctk.CTkScrollbar(self.wiki_text, command=self.wiki_text.yview)
+        # Scrollbar pour le texte principal
+        scrollbar = ctk.CTkScrollbar(content_frame, command=self.wiki_text.yview)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         self.wiki_text.config(yscrollcommand=scrollbar.set)
-        self.wiki_text.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
         
         # === CONFIGURATION DES STYLES TEXTE ===
         # Titres (Tags)
@@ -5743,6 +5756,10 @@ class RocketApp:
         
         # Variable pour la recherche
         self.wiki_search_pos = "1.0"
+        
+        # Cache pour les images et positions du sommaire
+        self.wiki_images = []
+        self.section_positions = {}
     
     def render_latex(self, formula, fontsize=12):
         """Renders LaTeX formula to a tk.PhotoImage using Matplotlib"""
@@ -5806,6 +5823,10 @@ class RocketApp:
         
         self.wiki_text.config(state=tk.NORMAL)
         self.wiki_text.delete(1.0, tk.END)
+        
+        # Vider l'ancien sommaire
+        for widget in self.toc_frame.winfo_children():
+            widget.destroy()
         
         # Appliquer le formatage approprié
         if wiki_format == 'markdown':
@@ -5892,6 +5913,15 @@ class RocketApp:
                 start_index = self.wiki_text.index("end-1c")
                 
                 self.wiki_text.insert(tk.END, text + '\n', tag)
+                
+                # Ajouter au sommaire
+                indent = "  " * (level - 1)
+                
+                # Créer un bouton cliquable pour le sommaire
+                btn = ctk.CTkButton(self.toc_frame, text=f"{indent}{text}",
+                                    anchor="w", fg_color="transparent",
+                                    command=lambda pos=start_index: self.wiki_goto_section(pos))
+                btn.pack(fill=tk.X, pady=1)
                 
                 i += 1
                 continue
@@ -6085,6 +6115,13 @@ class RocketApp:
             # Revenir au début
             self.wiki_search_pos = "1.0"
             messagebox.showinfo("Recherche", f"Fin du document atteinte pour '{search_term}'")
+
+    def wiki_goto_section(self, pos):
+        """Fait défiler le texte vers une position donnée et la met en surbrillance."""
+        self.wiki_text.see(pos)
+        self.wiki_text.tag_remove("highlight", "1.0", tk.END)
+        line_end = f"{pos} lineend"
+        self.wiki_text.tag_add("highlight", pos, line_end)
 
     def load_database(self):
         """Charge tous les propergols depuis RocketCEA"""
@@ -6461,11 +6498,11 @@ class RocketApp:
                 "Gamma": data[4],
                 "MW": data[3]
             }
-
-            # Mise en cache des résultats pour cette combinaison
-            cache_key = (round(pc_psi, 2), round(mr, 2), round(eps, 2), round(pamb_psi, 2))
-            self.parametric_cache[cache_key] = results_map
             
+            # Mise en cache des résultats pour cette combinaison (CORRIGÉ)
+            cache_key = (round(pc_psi, 2), round(mr, 2), round(eps, 2), round(pamb_psi, 2))
+            self.parametric_cache[cache_key] = results_map.copy()
+
             return results_map.get(var_name, 0.0)
             
         except Exception as e:
@@ -7584,13 +7621,12 @@ Débit Oxydant   : {mdot_ox_available:.4f} kg/s
             pamb_psi = pamb * 14.5038
 
             # Vérifier le cache
-            cache_key = (round(pc_psi, 2), round(mr, 2), round(eps_ov, 2), round(pamb_psi, 2), var_out)
+            cache_key = (round(pc_psi, 2), round(mr, 2), round(eps_ov, 2), round(pamb_psi, 2))
             if cache_key in self.parametric_cache:
                 result = self.parametric_cache[cache_key].get(var_out, 0)
             else:
-            
                 result = self.get_cea_value_safe(ispObj, pc_psi, mr, pe_psi, eps_ov, pamb_psi, var_out)
-            
+
             if result > 0:
                 X_vals.append(val)
                 Y_vals.append(result)
