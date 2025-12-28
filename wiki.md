@@ -28,9 +28,12 @@ PARTIE 5 : DOCUMENTATION TECHNIQUE APPROFONDIE
    13. Analyse Thermique Complète
    14. Modèle de Bartz Détaillé
    15. Propriétés des Matériaux
-   16. Propriétés des Coolants
-   17. Exemples de Calculs
-   18. Références & Bibliographie
+   16. Carte Thermique 2D/3D
+   17. Export CAD & Géométrie
+   18. Optimisation Automatique
+   19. Analyse des Contraintes Mécaniques
+   20. Simulation Transitoire
+   21. Références & Bibliographie
 
 ════════════════════════════════════════════════════════════════════
    PARTIE 1 : LES BASES (Niveau Débutant & Intermédiaire)
@@ -338,6 +341,285 @@ Générez des fichiers pour la CAO et la simulation externe.
 - Prévoyez des surépaisseurs pour l'usinage des surfaces fonctionnelles.
 
 ════════════════════════════════════════════════════════════════════
+   PARTIE 5 : FONCTIONNALITÉS AVANCÉES (DOCUMENTATION)
+════════════════════════════════════════════════════════════════════
+
+## 16. CARTE THERMIQUE ET ANALYSE 2D/3D
+
+L'analyse thermique 1D (Bartz + Dittus-Boelter) donne une moyenne.
+L'onglet "Heatmap" permet d'affiner cette analyse en visualisant les gradients locaux, notamment entre les canaux de refroidissement.
+
+
+### 16.1 EFFET D'AILETTE (FIN EFFECT)
+
+Dans un moteur à canaux fraisés, la "nervure" (rib) entre deux canaux agit comme une ailette de refroidissement.
+
+**EFFICACITÉ DE L'AILETTE ($\eta_{fin}$):**
+
+$$ \eta_{fin} = \frac{\tanh(m H)}{m H} $$
+
+où:
+*   $m = \sqrt{2 h_c / (k w_{rib})}$
+*   $H$ = hauteur du canal
+*   $w_{rib}$ = largeur de la nervure
+
+CONSÉQUENCE:
+*   Le sommet de la nervure (côté chaud) est plus chaud que le fond du canal.
+*   Si la nervure est trop fine ou trop haute, le sommet peut fondre même si le calcul 1D semble correct.
+
+
+### 16.2 INTERPOLATION THERMIQUE 2D
+
+Le logiciel génère une carte de température $T(x,y)$ en résolvant l'équation de la chaleur simplifiée sur la surface développée.
+
+MODÈLE:
+$$ T_{paroi}(\theta) = T_{base} + \Delta T_{rib} \cos(N_{canaux} \theta) $$
+
+*   $T_{base}$: Température au-dessus du canal (zone la mieux refroidie)
+*   $T_{peak}$: Température entre deux canaux (zone la plus chaude)
+*   $\Delta T_{rib}$: Gradient thermique latéral
+
+CRITÈRE DE CONCEPTION:
+Il faut vérifier que $T_{peak} < T_{limite\_matériau}$.
+Le calcul 1D donne souvent une valeur entre $T_{base}$ et $T_{peak}$.
+
+
+### 16.3 VISUALISATIONS DISPONIBLES
+
+**A) VUE EN COUPE RADIALE (Cross-Section):**
+Montre la distribution $T$ dans l'épaisseur de la paroi.
+Permet de voir le gradient radial ($T_{hot}$ vers $T_{cold}$).
+
+**B) VUE DÉVELOPPÉE (Unrolled Surface):**
+"Déroule" le cylindre/cône du moteur à plat.
+*   Axe X: Position axiale ($z$)
+*   Axe Y: Position circonférentielle ($\theta$)
+*   Couleur: Température locale
+
+Permet d'identifier les "Hot Spots" thermiques situés généralement au col et ENTRE les canaux.
+
+**C) SURFACE 3D:**
+Projection de la carte thermique sur la géométrie réelle.
+Utile pour vérifier la continuité du refroidissement.
+
+
+## 17. EXPORT CAD ET GÉOMÉTRIE
+
+L'onglet "CAD" génère la géométrie solide du moteur pour la fabrication (CAM) ou l'intégration (CAD).
+
+
+### 17.1 GÉNÉRATION DU PROFIL (LAVAL)
+
+Le profil interne est généré par des courbes mathématiques:
+
+1.  **CONVERGENT:**
+    *   Arc de cercle ou courbe cubique
+    *   Angle d'entrée (typiquement 30-45°)
+    *   Rayon de courbure amont ($R_1 = 1.5 R_t$)
+
+2.  **COL (THROAT):**
+    *   Arc de cercle
+    *   Rayon de courbure aval ($R_2 = 0.382 R_t$)
+
+3.  **DIVERGENT:**
+    *   Parabole (Méthode de Rao approximée) ou Conique
+    *   Angle initial ($\theta_n$) et angle de sortie ($\theta_e$)
+    *   $L = (R_e - R_t) / \tan(\theta_{moyen})$
+
+
+### 17.2 MODÉLISATION DES CANAUX
+
+Les canaux sont générés par soustraction booléenne:
+$$ Volume_{Final} = Volume_{Paroi} - \sum(Volume_{Canaux}) $$
+
+GÉOMÉTRIE DES CANAUX:
+*   Section rectangulaire variable
+*   Profondeur ($d$) et largeur ($w$) évoluent le long de l'axe Z
+*   Suivent la courbure de la tuyère (conformal cooling)
+
+
+### 17.3 FORMATS D'EXPORT
+
+**A) STEP (.stp / .step) - RECOMMANDÉ:**
+*   Format vectoriel standard ISO 10303
+*   Géométrie exacte (NURBS)
+*   Compatible: SolidWorks, Fusion 360, CATIA, FreeCAD
+*   Idéal pour l'usinage CNC 5 axes
+
+**B) STL (.stl):**
+*   Maillage triangulaire
+*   Résolution dépend du paramètre "Mesh Resolution"
+*   Idéal pour l'impression 3D (Slicers: Cura, PrusaSlicer)
+*   Difficile à modifier en CAD
+
+**C) DXF (.dxf):**
+*   Profil 2D (coupe longitudinale)
+*   Utile pour le tournage (Lathe) ou la découpe jet d'eau
+
+
+## 18. OPTIMISATION AUTOMATIQUE (ALGORITHME)
+
+L'optimiseur cherche la "meilleure" configuration de refroidissement sans intervention manuelle, en résolvant un problème mathématique.
+
+
+### 18.1 FONCTION OBJECTIF (COST FUNCTION)
+
+On cherche à minimiser une fonction de coût $J(x)$:
+
+$$ J(x) = w_M \frac{Masse}{M_{ref}} + w_P \frac{\Delta P}{P_{ref}} + w_T \times Penalté_T $$
+
+Où:
+*   Masse: Masse totale du moteur (cuivre + liner)
+*   $\Delta P$: Perte de charge totale dans les canaux
+*   $Penalté_T$: Augmente exponentiellement si $T_{paroi} > T_{cible}$
+
+Les poids ($w$) sont ajustables:
+*   "Masse Min": $w_M$ élevé
+*   "Performance": $w_P$ élevé (minimiser perte de charge)
+*   "Sécurité": $w_T$ élevé (maximiser marge thermique)
+
+
+### 18.2 VARIABLES DE DÉCISION (x)
+
+L'algorithme modifie itérativement:
+1.  Nombre de canaux ($N$)
+2.  Largeur des canaux ($w$)
+3.  Profondeur des canaux ($d$)
+4.  Épaisseur de paroi côté gaz ($e_{wg}$)
+
+
+### 18.3 CONTRAINTES (CONSTRAINTS)
+
+Le design doit respecter:
+*   $g_1(x): T_{wall,hot} < T_{max,matériau}$ (ex: 900K pour Cu)
+*   $g_2(x): \Delta P < \Delta P_{max,disponible}$ (ex: 20% de $P_c$)
+*   $g_3(x): e_{wg} > e_{min,fabrication}$ (ex: 0.8 mm)
+*   $g_4(x): w_{rib} > w_{min,fabrication}$ (ex: 1.0 mm)
+
+
+### 18.4 ALGORITHME SLSQP
+
+Utilise "Sequential Least Squares Programming" (SciPy):
+1.  Calcule le gradient de $J(x)$
+2.  Projette vers la direction de descente
+3.  Vérifie les contraintes
+4.  Converge quand $J(x)$ ne diminue plus
+
+RÉSULTAT:
+L'optimiseur trouve souvent des solutions non-intuitives, comme des canaux très profonds et fins au col (haute efficacité) et larges dans le divergent (faible perte de charge).
+
+
+## 19. ANALYSE DES CONTRAINTES MÉCANIQUES
+
+La paroi du moteur subit des charges extrêmes combinant pression et dilatation thermique.
+
+
+### 19.1 CONTRAINTES PRIMAIRES (PRESSION)
+
+Modèle du tube à paroi mince (Thin-walled pressure vessel):
+
+$$ \sigma_{hoop} = \frac{(P_{int} - P_{ext}) R}{e} $$
+
+*   $\sigma_{hoop}$: Contrainte circonférentielle (traction)
+*   $P_{int}$: Pression gaz (chambre)
+*   $P_{ext}$: Pression coolant (canaux)
+*   $R$: Rayon moyen
+*   $e$: Épaisseur effective
+
+Note: Si $P_{coolant} > P_{gaz}$ (cycle expander/staged), la paroi interne est en COMPRESSION (risque de flambage/buckling).
+
+
+### 19.2 CONTRAINTES THERMIQUES (SECONDAIRES)
+
+Dues au gradient de température $\Delta T = T_{hot} - T_{cold}$.
+La face chaude veut se dilater mais est retenue par la face froide.
+
+$$ \sigma_{thermal} = \pm \frac{E \alpha \Delta T}{2 (1 - \nu)} $$
+
+*   $E$: Module de Young (GPa)
+*   $\alpha$: Coefficient de dilatation thermique (K⁻¹)
+*   $\nu$: Coefficient de Poisson (~0.3)
+
+DISTRIBUTION:
+*   Face Chaude: COMPRESSION ($\sigma < 0$) car dilatation empêchée
+*   Face Froide: TRACTION ($\sigma > 0$)
+
+**ATTENTION:** C'est souvent la contrainte dominante (peut dépasser 500 MPa)!
+
+
+### 19.3 CRITÈRE DE VON MISES
+
+Pour prédire la plastification, on combine les contraintes:
+
+$$ \sigma_{vm} = \sqrt{\sigma_{hoop}^2 + \sigma_{long}^2 + \sigma_{radial}^2 - ...} $$
+
+Simplifié (état plan):
+$$ \sigma_{vm} \approx \sqrt{\sigma_{hoop}^2 + \sigma_{thermal}^2 - \sigma_{hoop}\sigma_{thermal}} $$
+
+CRITÈRE DE SÉCURITÉ:
+$$ FoS = \frac{\sigma_{yield}}{\sigma_{vm}} $$
+
+*   $FoS > 1.0$ : Domaine élastique (OK)
+*   $FoS < 1.0$ : Plastification (Déformation permanente)
+
+
+### 19.4 FATIGUE OLIGOCYCLIQUE (LCF)
+
+Dans un moteur fusée, il est courant que $\sigma_{vm} > \sigma_{yield}$ localement ($FoS < 1$). La paroi plastifie à chaque allumage.
+
+LOI DE COFFIN-MANSON:
+$$ N_{cycles} = C (\Delta\epsilon_{plastique})^{-k} $$
+
+*   Si on plastifie beaucoup, la durée de vie est courte (ex: 50 cycles).
+*   C'est acceptable pour un moteur jetable (ELV).
+*   Pour du réutilisable (RLV), il faut viser $FoS > 1.2$.
+
+
+## 20. SIMULATION TRANSITOIRE (DÉMARRAGE)
+
+Le régime permanent (Steady State) n'est atteint qu'après plusieurs secondes. Le pic de température peut survenir avant.
+
+
+### 20.1 ÉQUATION DE LA CHALEUR INSTATIONNAIRE
+
+$$ \rho C_p \frac{\partial T}{\partial t} = \nabla \cdot (k \nabla T) $$
+
+Discrétisation 1D (Différences Finies Explicites):
+
+$$ T_i^{n+1} = T_i^n + \frac{dt}{\rho C_p V} \sum Flux_{entrants} $$
+
+Où $T_i^n$ est la température du nœud $i$ au temps $n$.
+
+
+### 20.2 STABILITÉ NUMÉRIQUE (CRITÈRE DE FOURIER)
+
+Pour que la simulation ne diverge pas, le pas de temps $dt$ doit être très petit:
+
+$$ dt < \frac{\rho C_p dx^2}{2 k} $$
+
+Pour le cuivre ($k$ élevé) et $dx$ petit (0.1 mm), $dt \approx 10^{-5} \text{ s}$ !
+C'est pourquoi la simulation peut prendre du temps.
+
+
+### 20.3 PHÉNOMÈNES TRANSITOIRES CLÉS
+
+**A) OVERSHOOT AU DÉMARRAGE:**
+Si le film de refroidissement met du temps à s'établir (lag hydraulique), la paroi peut chauffer brutalement avant d'être refroidie.
+$\rightarrow$ Risque de fusion flash ("Burn-through").
+
+**B) INERTIE THERMIQUE:**
+Temps caractéristique $\tau = (\rho C_p e^2) / k$
+*   Cuivre: $\tau$ très court (réponse rapide)
+*   Inconel: $\tau$ long (la paroi chauffe lentement)
+
+**C) SOAK-BACK (ARRÊT):**
+À l'extinction, le refroidissement s'arrête mais la chaleur stockée dans la masse du moteur diffuse vers les injecteurs et les vannes.
+$\rightarrow$ Risque de vaporisation du carburant résiduel (explosif).
+$\rightarrow$ Nécessite souvent une purge à l'azote post-tir.
+
+## 21. RÉFÉRENCES BIBLIOGRAPHIQUES
+═══════════════════════════════════════════════════════════════
+Document généré par Rocket Motor Design Plotter v6 - Décembre 2025
    PARTIE 5 : DOCUMENTATION TECHNIQUE APPROFONDIE
 ════════════════════════════════════════════════════════════════════
 "May the Thrust be with you."
