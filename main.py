@@ -437,6 +437,9 @@ class RocketApp:
 
         # Apply UI scaling after layout is ready
         self.apply_ui_scale(self.ui_scale)
+        
+        # Gérer la fermeture propre de l'application
+        self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
 
     def auto_scale_from_display(self):
         """Calcule un facteur de zoom en fonction de la résolution écran."""
@@ -980,8 +983,22 @@ class RocketApp:
         ctrl_frame.pack(side=tk.TOP, fill=tk.X, padx=10, pady=(5, 5))
         
         # Titre (plus compact)
-        ctk.CTkLabel(ctrl_frame, text="🔥 Carte Thermique 2D",
-                     font=ctk.CTkFont(size=13, weight="bold"), text_color="#ff6b35").pack(anchor="w", padx=10, pady=(5, 3))
+        header = ctk.CTkFrame(ctrl_frame, fg_color="transparent")
+        header.pack(fill=tk.X, padx=10, pady=(5, 3))
+        
+        ctk.CTkLabel(header, text="🔥 Carte Thermique 2D",
+                     font=ctk.CTkFont(size=13, weight="bold"), text_color="#ff6b35").pack(side=tk.LEFT)
+        
+        ctk.CTkButton(header, text="🖼️ Ouvrir Visualisation", 
+                      fg_color=self.accent_alt3, hover_color="#ff8c42", text_color=self.bg_main,
+                      font=ctk.CTkFont(size=11, weight="bold"),
+                      command=self.visualize_heatmap_in_window,
+                      width=180, height=28).pack(side=tk.RIGHT, padx=5)
+        
+        ctk.CTkButton(header, text="📖", width=40, height=24,
+                      fg_color="transparent", border_width=1, border_color=self.accent,
+                      hover_color=self.bg_surface, text_color=self.accent,
+                      command=lambda: self.open_wiki_at("23. CARTE THERMIQUE")).pack(side=tk.RIGHT, padx=2)
         
         # Ligne 1: Options de visualisation
         row1 = ctk.CTkFrame(ctrl_frame, fg_color="transparent")
@@ -1049,17 +1066,13 @@ class RocketApp:
                                             command=lambda v: self.update_heatmap())
         self.heatmap_x_pos.set(0)
         self.heatmap_x_pos.pack(side=tk.LEFT, padx=5)
-        self.heatmap_x_label = ctk.CTkLabel(row2, text_color=self.accent)
+        self.heatmap_x_label = ctk.CTkLabel(row2, text="0.0 mm", text_color=self.accent)
         self.heatmap_x_label.pack(side=tk.LEFT)
         
-        # Boutons (réduits)
+        # Bouton refresh
         ctk.CTkButton(row2, text="🔄", width=40, height=24,
                       fg_color=self.accent, hover_color=self.accent_alt, text_color=self.bg_main,
                       command=self.update_heatmap).pack(side=tk.RIGHT, padx=2)
-        ctk.CTkButton(row2, text="📖", width=40, height=24,
-                      fg_color="transparent", border_width=1, border_color=self.accent,
-                      hover_color=self.bg_surface, text_color=self.accent,
-                      command=lambda: self.open_wiki_at("23. CARTE THERMIQUE")).pack(side=tk.RIGHT, padx=2)
         
         # Ligne 3: Informations thermiques en temps réel (compactée)
         info_frame = ctk.CTkFrame(ctrl_frame, fg_color=self.bg_surface, corner_radius=8)
@@ -1079,62 +1092,21 @@ class RocketApp:
             lbl.pack(side=tk.LEFT, padx=(0, 8))
             self.heatmap_info_labels[key] = lbl
         
-        # Container pour le graphique
-        graph_container = ctk.CTkFrame(self.tab_heatmap, fg_color=self.bg_panel, corner_radius=10)
-        graph_container.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
-        
-        # Figure matplotlib pour la carte thermique
-        self.fig_heatmap = plt.Figure(figsize=(10, 6), dpi=100)
-        self.fig_heatmap.patch.set_facecolor(self.bg_main)
-        
-        self.ax_heatmap = self.fig_heatmap.add_subplot(111)
-        self.ax_heatmap.set_facecolor(self.bg_surface)
-        self.apply_dark_axes([self.ax_heatmap])
-        
-        self.canvas_heatmap = FigureCanvasTkAgg(self.fig_heatmap, master=graph_container)
-        self.canvas_heatmap.get_tk_widget().configure(bg=self.bg_main, highlightthickness=0)
-        self.canvas_heatmap.get_tk_widget().pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
-        
-        # Connecter l'événement de clic pour afficher les infos
-        self.canvas_heatmap.mpl_connect('motion_notify_event', self.on_heatmap_hover)
-        self.canvas_heatmap.mpl_connect('button_press_event', self.on_heatmap_click)
-        
         # Données stockées pour interaction
         self.heatmap_data = None
+        self.heatmap_window = None  # Référence à la fenêtre de visualisation
 
     def update_heatmap(self):
-        """Met à jour la carte thermique 2D."""
-        # Vérifier que l'onglet est initialisé
-        if not hasattr(self, 'ax_heatmap') or self.ax_heatmap is None:
-            return
-        if not hasattr(self, 'canvas_heatmap') or self.canvas_heatmap is None:
-            return
-            
-        if not self.results or "thermal_profile" not in self.results:
-            # Nettoyer complètement la figure
-            self.fig_heatmap.clear()
-            self.ax_heatmap = self.fig_heatmap.add_subplot(111)
-            self.ax_heatmap.set_facecolor(self.bg_surface)
-            self.ax_heatmap.text(0.5, 0.5, "Calculez d'abord le moteur\n(bouton CALCULER)", 
-                                ha='center', va='center', fontsize=14, color=self.text_muted,
-                                transform=self.ax_heatmap.transAxes)
-            self.apply_dark_axes([self.ax_heatmap])
-            self.canvas_heatmap.draw()
-            return
-        
-        mode = self.heatmap_mode.get()
-        
-        if mode == "coupe_radiale":
-            self.draw_heatmap_radial_cut()
-        elif mode == "developpee":
-            self.draw_heatmap_developed()
-        elif mode == "surface_3d":
-            self.draw_heatmap_3d_surface()
-        
-        self.canvas_heatmap.draw()
+        """Met à jour la carte thermique 2D - met à jour la fenêtre si elle est ouverte."""
+        # Mettre à jour la fenêtre si elle est ouverte
+        if hasattr(self, 'heatmap_window') and self.heatmap_window is not None:
+            # Créer une variable temporaire pour le mode
+            mode_var = tk.StringVar(value=self.heatmap_mode.get())
+            self.update_heatmap_window(mode_var)
 
     def draw_heatmap_radial_cut(self):
         """Dessine la carte thermique en coupe radiale à une position X donnée."""
+        # Nettoyer complètement la figure
         self.fig_heatmap.clear()
         self.ax_heatmap = self.fig_heatmap.add_subplot(111)
         self.ax_heatmap.set_facecolor(self.bg_surface)
@@ -1359,6 +1331,7 @@ class RocketApp:
         """Dessine une surface 3D de la température sur la tuyère."""
         from mpl_toolkits.mplot3d import Axes3D
         
+        # Nettoyer complètement la figure
         self.fig_heatmap.clear()
         self.ax_heatmap = self.fig_heatmap.add_subplot(111, projection='3d')
         
@@ -1462,6 +1435,379 @@ class RocketApp:
         """Gère le clic sur la carte thermique."""
         # Pourrait être étendu pour sélectionner un point et afficher plus de détails
         pass
+
+    def draw_heatmap_radial_cut_in_window(self, ax, fig, canvas):
+        """Dessine la carte thermique en coupe radiale dans la fenêtre."""
+        profile = self.results["thermal_profile"]
+        X_mm = np.array(profile["X_mm"])
+        Y_mm = np.array(profile["Y_mm"])
+        T_gas = np.array(profile["T_gas"])
+        T_wall_hot = np.array(profile["T_wall_hot"])
+        T_wall_cold = profile["T_wall_cold"]
+        Flux_MW = np.array(profile["Flux_MW"])
+        
+        # Position X sélectionnée (depuis l'onglet principal)
+        x_pos = float(self.heatmap_x_pos.get())
+        self.heatmap_x_label.configure(text=f"{x_pos:.1f} mm")
+        
+        # Trouver l'index le plus proche
+        idx = np.argmin(np.abs(X_mm - x_pos))
+        
+        # Données à cette position
+        r_inner = Y_mm[idx]
+        wall_thickness = self.results.get("wall_thickness_mm", 3.0)
+        r_outer = r_inner + wall_thickness
+        
+        t_gas_local = T_gas[idx]
+        t_hot_local = T_wall_hot[idx]
+        t_cold_local = T_wall_cold if isinstance(T_wall_cold, (int, float)) else T_wall_cold
+        flux_local = Flux_MW[idx]
+        t_coolant = self.get_val("coolant_tin") if self.get_val("coolant_tin") else 300
+        
+        # Créer une grille pour la visualisation
+        n_theta = int(self.heatmap_resolution_var.get())
+        n_r = 30
+        
+        theta = np.linspace(0, 2*np.pi, n_theta)
+        r = np.linspace(r_inner, r_outer, n_r)
+        
+        THETA, R = np.meshgrid(theta, r)
+        X = R * np.cos(THETA)
+        Y = R * np.sin(THETA)
+        
+        T = t_hot_local + (t_cold_local - t_hot_local) * (R - r_inner) / wall_thickness
+        
+        # Tracer la carte de couleur
+        cmap = self.heatmap_cmap_var.get()
+        levels = np.linspace(t_cold_local - 50, t_hot_local + 50, 50)
+        
+        contour = ax.contourf(X, Y, T, levels=levels, cmap=cmap, extend='both')
+        
+        # Barre de couleur
+        cbar = fig.colorbar(contour, ax=ax, label='Température (K)', pad=0.02)
+        cbar.ax.yaxis.label.set_color(self.text_primary)
+        cbar.ax.tick_params(colors=self.text_primary)
+        
+        # Isothermes
+        if self.heatmap_show_isotherms.get():
+            iso_levels = np.linspace(t_cold_local, t_hot_local, 8)
+            iso = ax.contour(X, Y, T, levels=iso_levels, colors='white', linewidths=0.5, alpha=0.7)
+            ax.clabel(iso, inline=True, fontsize=8, fmt='%.0f K', colors='white')
+        
+        # Limites du matériau
+        if self.heatmap_show_limits.get():
+            t_limit = self.get_val("twall") if self.get_val("twall") else 1000
+            if t_hot_local > t_limit:
+                r_limit = r_inner + (t_limit - t_hot_local) / (t_cold_local - t_hot_local) * wall_thickness
+                if r_inner < r_limit < r_outer:
+                    circle_limit = plt.Circle((0, 0), r_limit, fill=False, color='red', 
+                                              linewidth=2, label=f'T_limite ({t_limit:.0f} K)')
+                    ax.add_patch(circle_limit)
+        
+        # Canaux de refroidissement
+        if self.heatmap_show_channels.get():
+            n_channels = 40
+            for i in range(n_channels):
+                angle = 2 * np.pi * i / n_channels
+                x_ch = r_outer * np.cos(angle)
+                y_ch = r_outer * np.sin(angle)
+                ax.plot(x_ch, y_ch, 's', color=self.accent, markersize=4, alpha=0.8)
+        
+        # Cercles de référence
+        circle_inner = plt.Circle((0, 0), r_inner, fill=False, color=self.accent, linewidth=1.5, linestyle='-')
+        circle_outer = plt.Circle((0, 0), r_outer, fill=False, color='#00ff88', linewidth=1.5, linestyle='-')
+        ax.add_patch(circle_inner)
+        ax.add_patch(circle_outer)
+        
+        # Zone gaz
+        gas_circle = plt.Circle((0, 0), r_inner * 0.98, color='#ff4444', alpha=0.15)
+        ax.add_patch(gas_circle)
+        ax.text(0, 0, f'GAZ\n{t_gas_local:.0f} K', ha='center', va='center', 
+                fontsize=10, color='#ff6666', fontweight='bold')
+        
+        # Annotations
+        ax.annotate(f'T_hot = {t_hot_local:.0f} K', xy=(r_inner, 0), xytext=(r_inner + wall_thickness/4, wall_thickness),
+                    fontsize=9, color='yellow', ha='center',
+                    arrowprops=dict(color='yellow', lw=0.5))
+        ax.annotate(f'T_cold = {t_cold_local:.0f} K', xy=(r_outer, 0), xytext=(r_outer + 5, -wall_thickness),
+                    fontsize=9, color='#00ff88', ha='center',
+                    arrowprops=dict(color='#00ff88', lw=0.5))
+        
+        # Configuration des axes
+        max_r = r_outer * 1.3
+        ax.set_xlim(-max_r, max_r)
+        ax.set_ylim(-max_r, max_r)
+        ax.set_aspect('equal')
+        ax.set_xlabel('Position (mm)', color=self.text_primary)
+        ax.set_ylabel('Position (mm)', color=self.text_primary)
+        
+        region = "Chambre" if x_pos < -self.results.get('lc', 0) else ("Col" if abs(x_pos) < 5 else "Divergent")
+        ax.set_title(f'Coupe Radiale @ X = {x_pos:.1f} mm ({region}) | Flux = {flux_local:.2f} MW/m²',
+                     color=self.text_primary, fontsize=12, fontweight='bold')
+        
+        self.apply_dark_axes([ax])
+        fig.tight_layout()
+        
+        # Mettre à jour les labels d'info dans l'onglet principal
+        self.update_heatmap_info(x_pos, t_gas_local, t_hot_local, t_cold_local, t_coolant, flux_local)
+
+    def draw_heatmap_developed_in_window(self, ax, fig, canvas):
+        """Dessine la carte thermique développée dans la fenêtre."""
+        profile = self.results["thermal_profile"]
+        X_mm = np.array(profile["X_mm"])
+        Y_mm = np.array(profile["Y_mm"])
+        T_gas = np.array(profile["T_gas"])
+        T_wall_hot = np.array(profile["T_wall_hot"])
+        T_wall_cold = profile["T_wall_cold"]
+        Flux_MW = np.array(profile["Flux_MW"])
+        
+        wall_thickness = self.results.get("wall_thickness_mm", 3.0)
+        n_depth = 30
+        
+        depth = np.linspace(0, wall_thickness, n_depth)
+        X_grid, D_grid = np.meshgrid(X_mm, depth)
+        
+        T_grid = np.zeros_like(X_grid)
+        for i, x in enumerate(X_mm):
+            t_hot = T_wall_hot[i]
+            t_cold = T_wall_cold if isinstance(T_wall_cold, (int, float)) else T_wall_cold
+            for j, d in enumerate(depth):
+                T_grid[j, i] = t_hot + (t_cold - t_hot) * d / wall_thickness
+        
+        cmap = self.heatmap_cmap_var.get()
+        t_min = min(T_wall_cold if isinstance(T_wall_cold, (int, float)) else min(T_wall_cold), min(T_wall_hot)) - 50
+        t_max = max(T_wall_hot) + 100
+        levels = np.linspace(t_min, t_max, 50)
+        
+        contour = ax.contourf(X_grid, D_grid, T_grid, levels=levels, cmap=cmap, extend='both')
+        
+        cbar = fig.colorbar(contour, ax=ax, label='Température (K)', pad=0.02)
+        cbar.ax.yaxis.label.set_color(self.text_primary)
+        cbar.ax.tick_params(colors=self.text_primary)
+        
+        if self.heatmap_show_isotherms.get():
+            iso_levels = np.linspace(t_min + 100, t_max - 100, 10)
+            iso = ax.contour(X_grid, D_grid, T_grid, levels=iso_levels, 
+                             colors='white', linewidths=0.5, alpha=0.7)
+            ax.clabel(iso, inline=True, fontsize=7, fmt='%.0f K', colors='white')
+        
+        if self.heatmap_show_limits.get():
+            t_limit = self.get_val("twall") if self.get_val("twall") else 1000
+            limit_contour = ax.contour(X_grid, D_grid, T_grid, levels=[t_limit], 
+                                       colors=['red'], linewidths=2, linestyles='--')
+            if hasattr(limit_contour, 'allsegs') and any(len(seg) > 0 for seg in limit_contour.allsegs):
+                ax.clabel(limit_contour, inline=True, fontsize=9, fmt=f'T_limite = {t_limit:.0f} K', colors='red')
+        
+        ax.axhline(y=0, color=self.accent, linewidth=1.5, label='Côté gaz')
+        ax.axhline(y=wall_thickness, color='#00ff88', linewidth=1.5, label='Côté coolant')
+        ax.axvline(x=0, color='white', linewidth=1, alpha=0.5)
+        ax.text(0, wall_thickness * 1.05, 'Col', ha='center', color='white', fontsize=9)
+        
+        ax_flux = ax.twinx()
+        ax_flux.fill_between(X_mm, 0, Flux_MW, alpha=0.2, color='red')
+        ax_flux.plot(X_mm, Flux_MW, 'r-', linewidth=1, alpha=0.6)
+        ax_flux.set_ylabel('Flux (MW/m²)', color='red')
+        ax_flux.tick_params(axis='y', colors='red')
+        ax_flux.set_ylim(0, max(Flux_MW) * 3)
+        
+        ax.set_xlabel('Position axiale X (mm)', color=self.text_primary)
+        ax.set_ylabel('Profondeur dans la paroi (mm)', color=self.text_primary)
+        ax.set_title('Carte Thermique Développée - Température dans la paroi', 
+                     color=self.text_primary, fontsize=12, fontweight='bold')
+        ax.legend(loc='upper right', fontsize=8)
+        self.apply_dark_axes([ax])
+        fig.tight_layout()
+
+    def draw_heatmap_3d_surface_in_window(self, ax, fig, canvas):
+        """Dessine une surface 3D de la température dans la fenêtre."""
+        from mpl_toolkits.mplot3d import Axes3D
+        
+        profile = self.results["thermal_profile"]
+        X_mm = np.array(profile["X_mm"])
+        Y_mm = np.array(profile["Y_mm"])
+        T_wall_hot = np.array(profile["T_wall_hot"])
+        
+        n_theta = int(self.heatmap_resolution_var.get())
+        theta = np.linspace(0, 2*np.pi, n_theta)
+        
+        THETA, X = np.meshgrid(theta, X_mm)
+        R = np.tile(Y_mm.reshape(-1, 1), (1, n_theta))
+        T = np.tile(T_wall_hot.reshape(-1, 1), (1, n_theta))
+        
+        Y_3d = R * np.cos(THETA)
+        Z_3d = R * np.sin(THETA)
+        
+        cmap = self.heatmap_cmap_var.get()
+        norm = plt.Normalize(vmin=min(T_wall_hot), vmax=max(T_wall_hot))
+        colormap = plt.colormaps.get_cmap(cmap) if hasattr(plt, 'colormaps') else plt.cm.get_cmap(cmap)
+        surf = ax.plot_surface(X, Y_3d, Z_3d, facecolors=colormap(norm(T)),
+                                shade=True, alpha=0.9, antialiased=True)
+        
+        mappable = plt.cm.ScalarMappable(norm=norm, cmap=cmap)
+        mappable.set_array(T)
+        cbar = fig.colorbar(mappable, ax=ax, label='T paroi hot (K)', 
+                            shrink=0.6, pad=0.1)
+        cbar.ax.yaxis.label.set_color(self.text_primary)
+        cbar.ax.tick_params(colors=self.text_primary)
+        
+        ax.set_xlabel('X (mm)', color=self.text_primary, labelpad=12)
+        ax.set_ylabel('Y (mm)', color=self.text_primary, labelpad=12)
+        ax.set_zlabel('Z (mm)', color=self.text_primary, labelpad=12)
+        ax.set_title('Surface 3D - Température paroi côté gaz', 
+                     color=self.text_primary, fontsize=13, fontweight='bold', pad=20)
+        
+        ax.set_facecolor(self.bg_surface)
+        ax.xaxis.pane.fill = False
+        ax.yaxis.pane.fill = False
+        ax.zaxis.pane.fill = False
+        ax.xaxis.pane.set_edgecolor(self.grid_color)
+        ax.yaxis.pane.set_edgecolor(self.grid_color)
+        ax.zaxis.pane.set_edgecolor(self.grid_color)
+        ax.xaxis.pane.set_alpha(0.05)
+        ax.yaxis.pane.set_alpha(0.05)
+        ax.zaxis.pane.set_alpha(0.05)
+        ax.tick_params(colors=self.text_primary, labelsize=9)
+        ax.grid(True, color=self.grid_color, alpha=0.3, linestyle='--', linewidth=0.5)
+        ax.view_init(elev=20, azim=45)
+        
+        fig.tight_layout()
+        
+        # La référence de l'axe est déjà mise à jour dans update_heatmap_window
+
+
+    def visualize_heatmap_in_window(self):
+        """Ouvre la visualisation de la carte thermique dans une nouvelle fenêtre (comme l'optimiseur)."""
+        if not self.results or "thermal_profile" not in self.results:
+            messagebox.showwarning("Attention", "Calculez d'abord le moteur (bouton CALCULER)!")
+            return
+        
+        # Fermer la fenêtre précédente si elle existe
+        if hasattr(self, 'heatmap_window') and self.heatmap_window is not None:
+            try:
+                self.heatmap_window.destroy()
+            except:
+                pass
+        
+        # Créer une nouvelle fenêtre Toplevel
+        self.heatmap_window = tk.Toplevel(self.root)
+        self.heatmap_window.title("Carte Thermique 2D - Visualisation")
+        self.heatmap_window.geometry("1400x900")
+        self.heatmap_window.configure(bg=self.bg_main)
+        
+        # Maximiser l'utilisation de l'espace
+        try:
+            self.heatmap_window.state('zoomed')
+        except:
+            pass
+        
+        # Pas de contrôles dans la fenêtre - juste le titre
+        title_frame = ctk.CTkFrame(self.heatmap_window, fg_color=self.bg_panel, corner_radius=10)
+        title_frame.pack(side=tk.TOP, fill=tk.X, padx=10, pady=(10, 5))
+        
+        ctk.CTkLabel(title_frame, text="🔥 Carte Thermique 2D - Visualisation",
+                     font=ctk.CTkFont(size=14, weight="bold"), text_color="#ff6b35").pack(padx=10, pady=8)
+        
+        ctk.CTkLabel(title_frame, text="Les paramètres sont contrôlés depuis l'onglet principal",
+                     font=ctk.CTkFont(size=10), text_color=self.text_muted).pack(padx=10, pady=(0, 8))
+        
+        # Container pour le graphique - PRINCIPAL et bien visible
+        graph_container_win = ctk.CTkFrame(self.heatmap_window, fg_color=self.bg_panel, corner_radius=10)
+        graph_container_win.pack(fill=tk.BOTH, expand=True, padx=10, pady=(5, 10))
+        
+        # Figure matplotlib pour la carte thermique (grande taille, adaptative)
+        # Utiliser une taille plus grande pour mieux utiliser l'espace
+        fig_heatmap_win = plt.Figure(figsize=(16, 10), dpi=100)
+        fig_heatmap_win.patch.set_facecolor(self.bg_main)
+        fig_heatmap_win.subplots_adjust(left=0.08, right=0.95, top=0.95, bottom=0.08)
+        
+        # Axe initial (sera recréé dans update_heatmap_window)
+        ax_heatmap_win = fig_heatmap_win.add_subplot(111)
+        ax_heatmap_win.set_facecolor(self.bg_surface)
+        ax_heatmap_win.text(0.5, 0.5, "Chargement...", 
+                           ha='center', va='center', fontsize=14, color=self.text_muted,
+                           transform=ax_heatmap_win.transAxes)
+        self.apply_dark_axes([ax_heatmap_win])
+        
+        canvas_heatmap_win = FigureCanvasTkAgg(fig_heatmap_win, master=graph_container_win)
+        canvas_heatmap_win.get_tk_widget().configure(bg=self.bg_main, highlightthickness=0)
+        canvas_heatmap_win.get_tk_widget().pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        # Stocker les références dans la fenêtre pour les utiliser dans update_heatmap_window
+        self.heatmap_window._fig = fig_heatmap_win
+        self.heatmap_window._ax = ax_heatmap_win
+        self.heatmap_window._canvas = canvas_heatmap_win
+        
+        # Mettre à jour le graphique initial
+        self.update_heatmap_window()
+        
+        # Gérer la fermeture de la fenêtre
+        def on_close():
+            try:
+                if self.heatmap_window is not None:
+                    self.heatmap_window.destroy()
+            except:
+                pass
+            finally:
+                self.heatmap_window = None
+        
+        self.heatmap_window.protocol("WM_DELETE_WINDOW", on_close)
+
+    def update_heatmap_window(self, mode_var=None):
+        """Met à jour le graphique dans la fenêtre de visualisation."""
+        if not hasattr(self, 'heatmap_window') or self.heatmap_window is None:
+            return
+        
+        if not self.results or "thermal_profile" not in self.results:
+            fig = self.heatmap_window._fig
+            canvas = self.heatmap_window._canvas
+            fig.clear()
+            ax = fig.add_subplot(111)
+            ax.set_facecolor(self.bg_surface)
+            ax.text(0.5, 0.5, "Calculez d'abord le moteur\n(bouton CALCULER)", 
+                    ha='center', va='center', fontsize=14, color=self.text_muted,
+                    transform=ax.transAxes)
+            self.apply_dark_axes([ax])
+            self.heatmap_window._ax = ax
+            canvas.draw()
+            return
+        
+        fig = self.heatmap_window._fig
+        canvas = self.heatmap_window._canvas
+        
+        # Nettoyer complètement la figure
+        fig.clear()
+        
+        # Utiliser les valeurs de l'onglet principal
+        mode = self.heatmap_mode.get() if mode_var is None else mode_var.get()
+        
+        try:
+            if mode == "coupe_radiale":
+                ax = fig.add_subplot(111)
+                ax.set_facecolor(self.bg_surface)
+                self.draw_heatmap_radial_cut_in_window(ax, fig, canvas)
+            elif mode == "developpee":
+                ax = fig.add_subplot(111)
+                ax.set_facecolor(self.bg_surface)
+                self.draw_heatmap_developed_in_window(ax, fig, canvas)
+            elif mode == "surface_3d":
+                from mpl_toolkits.mplot3d import Axes3D
+                ax = fig.add_subplot(111, projection='3d')
+                self.draw_heatmap_3d_surface_in_window(ax, fig, canvas)
+            
+            # Mettre à jour la référence de l'axe
+            self.heatmap_window._ax = ax
+            canvas.draw()
+        except Exception as e:
+            import traceback
+            fig.clear()
+            ax = fig.add_subplot(111)
+            ax.set_facecolor(self.bg_surface)
+            ax.text(0.5, 0.5, f"Erreur:\n{str(e)}", 
+                    ha='center', va='center', fontsize=12, color='red',
+                    transform=ax.transAxes)
+            self.apply_dark_axes([ax])
+            self.heatmap_window._ax = ax
+            canvas.draw()
 
     def init_cad_tab(self):
         """Initialise l'onglet Visualisation & Export CAD."""
@@ -7471,6 +7817,30 @@ Débit Oxydant   : {mdot_ox_available:.4f} kg/s
         ax.grid(True, color=self.grid_color, alpha=0.35)
         
         self.canvas_graph.draw()
+
+    def on_closing(self):
+        """Gère la fermeture propre de l'application."""
+        import sys
+        import os
+        
+        # Fermer toutes les fenêtres secondaires
+        if hasattr(self, 'heatmap_window') and self.heatmap_window is not None:
+            try:
+                self.heatmap_window.destroy()
+            except:
+                pass
+        
+        # Fermer la fenêtre principale
+        try:
+            self.root.destroy()
+        except:
+            pass
+        
+        # Forcer l'arrêt du processus Python
+        try:
+            sys.exit(0)
+        except:
+            os._exit(0)
 
 
 if __name__ == "__main__":
