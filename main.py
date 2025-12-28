@@ -14,6 +14,7 @@ import os
 import io
 import re
 import sys
+import threading
 from datetime import datetime
 
 # Configuration CustomTkinter
@@ -575,6 +576,9 @@ class RocketApp:
         self.init_database_tab()
         self.init_solver_tab()
         self.init_wiki_tab()
+        
+        # Charger le contenu du wiki après l'initialisation
+        self.load_wiki_content()
 
         # Apply UI scaling after layout is ready
         self.apply_ui_scale(self.ui_scale)
@@ -600,6 +604,9 @@ class RocketApp:
         
         # Gérer la fermeture propre de l'application
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
+
+        # Cache pour les calculs paramétriques
+        self.parametric_cache = {}
 
     def setup_ttk_style(self):
         """Configure le thème des widgets standards TTK (Treeview, etc.) pour correspondre au mode sombre."""
@@ -773,6 +780,8 @@ class RocketApp:
         # 2. Créer la nouvelle fenêtre
         win = ctk.CTkToplevel(self.root)
         win.title(f"{tab_name} - Détaché")
+        # Restaurer la géométrie si elle a été sauvegardée
+        win.geometry(getattr(self, f"{var_name}_geom", "1000x800"))
         win.geometry("1000x800")
         win.configure(fg_color=self.bg_main)
         
@@ -807,6 +816,9 @@ class RocketApp:
 
         # 6. Gérer la fermeture pour "Rentrer" l'onglet
         def on_close():
+            # Sauvegarder la géométrie de la fenêtre
+            setattr(self, f"{var_name}_geom", win.geometry())
+
             win.destroy()
             
             # A. Restaurer la référence
@@ -1343,6 +1355,41 @@ class RocketApp:
         self.canvas_thermal.get_tk_widget().configure(bg=self.bg_main, highlightthickness=0)
         self.canvas_thermal.get_tk_widget().pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
 
+        # Ajout du zoom/pan à la souris
+        self.add_mouse_zoom(self.canvas_thermal, self.fig_thermal)
+
+    def add_mouse_zoom(self, canvas, fig):
+        """Ajoute la fonctionnalité de zoom et de pan à un canevas Matplotlib."""
+        
+        def zoom_factory(ax, base_scale=1.1):
+            def zoom_fun(event):
+                if event.button == 'up':
+                    # Zoom in
+                    scale = 1 / base_scale
+                elif event.button == 'down':
+                    # Zoom out
+                    scale = base_scale
+                else:
+                    return
+                
+                cur_xlim = ax.get_xlim()
+                cur_ylim = ax.get_ylim()
+                xdata = event.xdata
+                ydata = event.ydata
+                
+                new_xlim = [xdata - (xdata - cur_xlim[0]) * scale, xdata + (cur_xlim[1] - xdata) * scale]
+                new_ylim = [ydata - (ydata - cur_ylim[0]) * scale, ydata + (cur_ylim[1] - ydata) * scale]
+                ax.set_xlim(new_xlim)
+                ax.set_ylim(new_ylim)
+                canvas.draw_idle()
+
+            fig.canvas.mpl_connect('scroll_event', zoom_fun)
+
+        # Appliquer le zoom à tous les axes de la figure
+        for ax in fig.get_axes():
+            if not hasattr(ax, 'projection') or ax.projection != '3d':
+                 zoom_factory(ax)
+
     def init_heatmap_tab(self):
         """Initialise l'onglet Carte Thermique 2D avec visualisation colorée."""
         # Barre d'accent
@@ -1770,7 +1817,11 @@ class RocketApp:
 
     def update_heatmap_info(self, x_pos, t_gas, t_hot, t_cold, t_coolant, flux):
         """Met à jour les labels d'information de la carte thermique."""
-        hg = profile["hg_throat"] if "hg_throat" in (profile := self.results.get("thermal_profile", {})) else 0
+        profile = self.results.get("thermal_profile", {})
+        if "hg_throat" in profile:
+            hg = profile["hg_throat"]
+        else:
+            hg = 0
         
         self.heatmap_info_labels["T_gaz"].configure(text=f"{t_gas:.0f} K")
         self.heatmap_info_labels["T_hot"].configure(text=f"{t_hot:.0f} K")
@@ -4266,6 +4317,9 @@ class RocketApp:
         self.canvas_graph.get_tk_widget().configure(bg=self.bg_main, highlightthickness=0)
         self.canvas_graph.get_tk_widget().pack(fill=tk.BOTH, expand=True)
 
+        # Ajout du zoom/pan à la souris
+        self.add_mouse_zoom(self.canvas_graph, self.fig_graph)
+
     def apply_dark_axes(self, axes):
         """Applique le thème sombre aux axes matplotlib (2D et 3D)."""
         if not isinstance(axes, (list, tuple, np.ndarray)):
@@ -5622,8 +5676,8 @@ class RocketApp:
         main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
         
         # Titre
-        title_frame = ctk.CTkFrame(main_frame)
-        title_frame.pack(fill=tk.X, pady=(0, 10))
+        title_frame = ctk.CTkFrame(self.tab_wiki, fg_color="transparent")
+        title_frame.pack(fill=tk.X, padx=10, pady=(5,0))
         
         ctk.CTkLabel(
             title_frame,
@@ -5631,10 +5685,12 @@ class RocketApp:
             font=(UI_FONT, 16, "bold"),
             text_color=self.accent
         ).pack(side=tk.LEFT)
+        ctk.CTkLabel(title_frame, text="📖 Wiki & Documentation",
+                     font=(UI_FONT, 16, "bold"), text_color="#9966ff").pack(side=tk.LEFT)
         
         # Barre d'outils
-        toolbar = ctk.CTkFrame(main_frame)
-        toolbar.pack(fill=tk.X, pady=(0, 5))
+        toolbar = ctk.CTkFrame(self.tab_wiki, fg_color="transparent")
+        toolbar.pack(fill=tk.X, padx=10, pady=5)
         
         # Variable pour la recherche
         self.wiki_search_var = tk.StringVar()
@@ -5642,186 +5698,11 @@ class RocketApp:
         search_entry = ctk.CTkEntry(toolbar, textvariable=self.wiki_search_var, width=200)
         search_entry.pack(side=tk.LEFT, padx=(0, 5))
         search_entry.bind("<Return>", lambda e: self.wiki_search())
-        
-        # Boutons avec texte et icônes
-        ctk.CTkButton(toolbar, text="🔍 Chercher", width=100, command=self.wiki_search).pack(side=tk.LEFT, padx=5)
-        ctk.CTkButton(toolbar, text="⬇️ Suivant", width=100, command=self.wiki_search_next).pack(side=tk.LEFT)
-        
-        # Bouton pour lancer le viewer Textual
-        ctk.CTkButton(toolbar, text="🚀 Viewer Avancé (Textual)", 
-                      command=self.launch_textual_viewer,
-                      fg_color=self.accent_alt, hover_color=self.accent).pack(side=tk.RIGHT, padx=5)
-        
-        # Sommaire à gauche (Horizontal PanedWindow)
-        paned = ttk.PanedWindow(main_frame, orient=tk.HORIZONTAL)
-        paned.pack(fill=tk.BOTH, expand=True)
-        
-        # Panneau sommaire
-        toc_frame = ctk.CTkFrame(paned, width=250)
-        paned.add(toc_frame, weight=1)
-        
-        # Titre du sommaire
-        ctk.CTkLabel(toc_frame, text="Sommaire", font=("Segoe UI", 12, "bold")).pack(pady=2)
-        
-        # Liste du sommaire
-        self.wiki_toc = tk.Listbox(toc_frame, bg=self.bg_surface, fg=self.text_primary,
-                                   selectbackground=self.accent, selectforeground="#000000",
-                                   font=("Consolas", 10), height=25, activestyle='none',
-                                   borderwidth=0, highlightthickness=0)
-        self.wiki_toc.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
-        self.wiki_toc.bind("<<ListboxSelect>>", self.wiki_goto_section)
-        
-        # Sections du sommaire - GUIDE ULTIME
-        toc_items = [
-            "════ PARTIE 1 : LES BASES ════",
-            "1. Action-Réaction : Comment ça vole",
-            "2. La Tuyère de Laval",
-            "3. Le Problème Thermique",
-            "4. Refroidissement Régénératif",
-            "",
-            "════ PARTIE 2 : THÉORIE AVANCÉE ════",
-            "5. Chimie Combustion (NASA CEA)",
-            "6. Équation de Bartz",
-            "7. Dimensionnement Canaux",
-            "8. Mécanique & Contraintes",
-            "",
-            "════ PARTIE 3 : MATÉRIAUX ════",
-            "9. Critères de Sélection",
-            "10. Base de Données Matériaux",
-            "",
-            "════ PARTIE 4 : LOGICIEL ════",
-            "11. Guide de l'Interface et Analyse",
-            "12. Outils Avancés et Production",
-            "",
-            "════ PARTIE 5 : DOCUMENTATION APPROFONDIE ════",
-            "13. Introduction & Concepts",
-            "   13.1 Pourquoi refroidir ?",
-            "   13.2 Stratégies refroidissement",
-            "   13.3 Schéma du transfert",
-            "   13.4 Équations fondamentales",
-            "   13.5 Ordres de grandeur",
-            "14. Théorie Transfert Thermique",
-            "   14.1 Conduction thermique",
-            "   14.2 Convection thermique", 
-            "   14.3 Nombres adimensionnels",
-            "15. Modèle de Bartz Détaillé",
-            "   15.1 Historique",
-            "   15.2 Équation complète",
-            "   15.3 Formule simplifiée",
-            "   15.4 Propriétés gaz",
-            "   15.5 Valeurs typiques h_g",
-            "   15.6 Limitations",
-            "   15.7 Autres corrélations",
-            "16. Calcul Températures Paroi",
-            "   16.1 Système d'équations",
-            "   16.2 Calcul T_wall_hot",
-            "   16.3 Calcul T_wall_cold",
-            "   16.4 Profil dans la paroi",
-            "   16.5 Contraintes thermiques",
-            "   16.6 Régime transitoire",
-            "   16.7 Température adiabatique",
-            "   16.8 Calcul itératif",
-            "17. Corrélations Coolant",
-            "   17.1 Dittus-Boelter",
-            "   17.2 Gnielinski",
-            "   17.3 Régime laminaire",
-            "   17.4 Régime transitoire",
-            "   17.5 Ébullition sous-refroidie",
-            "   17.6 Géométrie canaux",
-            "   17.7 Pertes de charge",
-            "   17.8 Valeurs typiques h_c",
-            "18. Épaisseur Critique",
-            "   18.1 Épaisseur de fusion",
-            "   18.2 Épaisseur de service",
-            "   18.3 Processus d'ablation",
-            "   18.4 Épaisseur sacrificielle",
-            "   18.5 Temps d'ablation",
-            "   18.6 Ablation acceptable?",
-            "   18.7 Dimensionnement",
-            "   18.8 Carte thermique",
-            "19. Propriétés Matériaux",
-            "   19.1 Tableau récapitulatif",
-            "   19.2 Alliages de cuivre",
-            "   19.3 Superalliages nickel",
-            "   19.4 Alliages aluminium",
-            "   19.5 Métaux réfractaires",
-            "   19.6 Céramiques/composites",
-            "   19.7 Critères de sélection",
-            "   19.8 Exemples moteurs réels",
-            "20. Propriétés Coolants",
-            "   20.1 Tableau récapitulatif",
-            "   20.2 Hydrogène (LH2)",
-            "   20.3 Oxygène (LOX)",
-            "   20.4 Méthane (LCH4)",
-            "   20.5 RP-1 / Kérosène",
-            "   20.6 Éthanol",
-            "   20.7 Hydrazines",
-            "   20.8 Eau (H2O)",
-            "   20.9 Ammoniac (NH3)",
-            "   20.10 Sélection coolant",
-            "   20.11 Propriétés vs T",
-            "21. Exemples de Calcul",
-            "   21.1 Exemple LOX/RP-1",
-            "   21.2 Exemple LOX/LH2",
-            "   21.3 Exemple LOX/CH4",
-            "   21.4 Dimensionnement canaux",
-            "   21.5 Élévation T coolant",
-            "   21.6 Analyse dimensionnelle",
-            "   21.7 Tableau récapitulatif",
-            "   21.8 Exercices",
-            "22. Formules Rapides",
-            "   22.1 Équations fondamentales",
-            "   22.2 Équation de Bartz",
-            "   22.3 Nombres adimensionnels",
-            "   22.4 Corrélations convection",
-            "   22.5 Température paroi",
-            "   22.6 Épaisseur paroi",
-            "   22.7 Puissance thermique",
-            "   22.8 Pertes de charge",
-            "   22.9 Film cooling",
-            "   22.10 Propriétés gaz",
-            "   22.11 Tableau formules",
-            "   22.12 Ordres de grandeur",
-            "   22.13 Conversions",
-            "   22.14 Constantes",
-            "23. Carte Thermique 2D/3D",
-            "   23.1 Effet d'ailette",
-            "   23.2 Interpolation 2D",
-            "   23.3 Visualisations",
-            "24. Export CAD Géométrie",
-            "   24.1 Génération profil",
-            "   24.2 Modélisation canaux",
-            "   24.3 Formats d'export",
-            "25. Optimisation Automatique",
-            "   25.1 Fonction Objectif",
-            "   25.2 Variables décision",
-            "   25.3 Contraintes",
-            "   25.4 Algorithme SLSQP",
-            "26. Analyse Contraintes Méca",
-            "   26.1 Contraintes primaires",
-            "   26.2 Contraintes thermiques",
-            "   26.3 Critère Von Mises",
-            "   26.4 Fatigue LCF",
-            "27. Simulation Transitoire",
-            "   27.1 Équation chaleur",
-            "   27.2 Stabilité numérique",
-            "   27.3 Phénomènes clés",
-            "",
-            "Références & Bibliographie",
-        ]
-        for item in toc_items:
-            self.wiki_toc.insert(tk.END, item)
-        
-        # Panneau contenu
-        content_frame = ctk.CTkFrame(paned)
-        paned.add(content_frame, weight=4)
-        
-        # Zone de texte avec scrollbar
-        text_frame = ctk.CTkFrame(content_frame)
-        text_frame.pack(fill=tk.BOTH, expand=True)
+        ctk.CTkButton(toolbar, command=self.wiki_search).pack(side=tk.LEFT, padx=5)
+        ctk.CTkButton(toolbar, text="Suivant", command=self.wiki_search_next).pack(side=tk.LEFT)
         
         # Widget Text Standard (pas de HTML)
-        self.wiki_text = tk.Text(text_frame, bg=self.bg_surface, fg=self.text_primary,
+        self.wiki_text = tk.Text(self.tab_wiki, bg=self.bg_surface, fg=self.text_primary,
                                  font=(UI_FONT, 11), wrap=tk.WORD,
                                  insertbackground=self.accent, padx=20, pady=15,
                                  highlightthickness=0, bd=0,
@@ -5829,13 +5710,13 @@ class RocketApp:
                                  selectbackground=self.accent,
                                  selectforeground=self.bg_main)
         
-        scrollbar = ctk.CTkScrollbar(text_frame, command=self.wiki_text.yview)
+        scrollbar = ctk.CTkScrollbar(self.wiki_text, command=self.wiki_text.yview)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         self.wiki_text.config(yscrollcommand=scrollbar.set)
-        self.wiki_text.pack(fill=tk.BOTH, expand=True)
+        self.wiki_text.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
         
         # === CONFIGURATION DES STYLES TEXTE ===
-        # Titres
+        # Titres (Tags)
         self.wiki_text.tag_configure("h1", font=(UI_FONT, 20, "bold"), foreground="#ff79c6", spacing1=20, spacing3=15)
         self.wiki_text.tag_configure("h2", font=(UI_FONT, 15, "bold"), foreground="#ffb86c", spacing1=18, spacing3=8)
         self.wiki_text.tag_configure("h3", font=(UI_FONT, 13, "bold"), foreground="#8be9fd", spacing1=12, spacing3=5)
@@ -5846,14 +5727,14 @@ class RocketApp:
         self.wiki_text.tag_configure("numbered_list", font=(UI_FONT, 11), foreground=self.text_primary, lmargin1=30, lmargin2=50, spacing1=2)
         
         # Code et Tableaux (Monospace)
-        self.wiki_text.tag_configure("code", font=("Consolas", 10), background="#1a1a2e", foreground="#50fa7b", lmargin1=40, lmargin2=40, spacing1=1)
-        self.wiki_text.tag_configure("table_header", font=("Consolas", 10, "bold"), foreground="#8be9fd", background="#1a1a2e")
-        self.wiki_text.tag_configure("table_row", font=("Consolas", 10), foreground="#e8f1ff", background="#1a1a2e")
-        self.wiki_text.tag_configure("formula", font=("Consolas", 11, "bold"), foreground="#bd93f9", background="#1a1a2e", lmargin1=40, lmargin2=40, spacing1=3, spacing3=3)
+        self.wiki_text.tag_configure("code", font=(MONOSPACE_FONT, 10), background=self.bg_surface, foreground="#50fa7b", lmargin1=40, lmargin2=40, spacing1=1)
+        self.wiki_text.tag_configure("table_header", font=(MONOSPACE_FONT, 10, "bold"), foreground="#8be9fd", background=self.bg_surface)
+        self.wiki_text.tag_configure("table_row", font=(MONOSPACE_FONT, 10), foreground=self.text_primary, background=self.bg_surface)
+        self.wiki_text.tag_configure("formula", font=(MONOSPACE_FONT, 11, "bold"), foreground="#bd93f9", background=self.bg_surface, lmargin1=40, lmargin2=40, spacing1=3, spacing3=3)
         
         # Mises en évidence
-        self.wiki_text.tag_configure("important", foreground="#ff5555", font=(UI_FONT, 11, "bold"), lmargin1=20, lmargin2=40, spacing1=3, spacing3=3)
-        self.wiki_text.tag_configure("warning", foreground="#ffb347", font=(UI_FONT, 11, "bold"), background="#2a1a0a", lmargin1=20, lmargin2=40, spacing1=3, spacing3=3)
+        self.wiki_text.tag_configure("important", foreground="#ff5555", font=(UI_FONT, 11, "bold"), background=self.bg_surface, lmargin1=20, lmargin2=40, spacing1=3, spacing3=3)
+        self.wiki_text.tag_configure("warning", foreground="#ffb347", font=(UI_FONT, 11, "bold"), background=self.bg_surface, lmargin1=20, lmargin2=40, spacing1=3, spacing3=3)
         self.wiki_text.tag_configure("success", foreground="#50fa7b", font=(UI_FONT, 11, "bold"), lmargin1=20, lmargin2=40, spacing1=3, spacing3=3)
         self.wiki_text.tag_configure("quote", font=(UI_FONT, 11, "italic"), foreground="#9fb4d3", lmargin1=50, lmargin2=50, spacing1=5, spacing3=5)
         self.wiki_text.tag_configure("highlight", background="#3d3d00", foreground="#ffff00")
@@ -5862,12 +5743,6 @@ class RocketApp:
         
         # Variable pour la recherche
         self.wiki_search_pos = "1.0"
-        
-        # Cache pour les images (LaTeX)
-        self.wiki_images = []
-        
-        # Charger le contenu du wiki
-        self.load_wiki_content()
     
     def render_latex(self, formula, fontsize=12):
         """Renders LaTeX formula to a tk.PhotoImage using Matplotlib"""
@@ -5898,6 +5773,10 @@ class RocketApp:
             return None
 
     def load_wiki_content(self):
+        # Cette méthode est maintenant appelée par init_wiki_tab
+        if not hasattr(self, 'wiki_text'):
+            return # Ne rien faire si l'onglet n'est pas initialisé
+
         """Charge le contenu du wiki depuis un fichier externe"""
         # Charger le contenu depuis le fichier externe - préférer .md si disponible
         import os
@@ -5927,11 +5806,6 @@ class RocketApp:
         
         self.wiki_text.config(state=tk.NORMAL)
         self.wiki_text.delete(1.0, tk.END)
-        
-        # New: Clear TOC and positions
-        self.wiki_toc.delete(0, tk.END)
-        self.section_positions = {}
-        self.wiki_images = [] # Clear image cache
         
         # Appliquer le formatage approprié
         if wiki_format == 'markdown':
@@ -6019,11 +5893,6 @@ class RocketApp:
                 
                 self.wiki_text.insert(tk.END, text + '\n', tag)
                 
-                # Add to TOC
-                indent = "  " * (level - 1)
-                self.wiki_toc.insert(tk.END, indent + text)
-                self.section_positions[self.wiki_toc.size()-1] = start_index
-
                 i += 1
                 continue
             
@@ -6147,8 +6016,6 @@ class RocketApp:
             else:
                 self.wiki_text.insert(tk.END, line + '\n', "normal")
 
-
-
     def open_wiki_at(self, search_text):
         """Ouvre l'onglet Wiki et scrolle vers le texte spécifié"""
         self.tabs.set("📖 Wiki")
@@ -6218,22 +6085,6 @@ class RocketApp:
             # Revenir au début
             self.wiki_search_pos = "1.0"
             messagebox.showinfo("Recherche", f"Fin du document atteinte pour '{search_term}'")
-    
-    def wiki_goto_section(self, event):
-        """Aller à une section du sommaire"""
-        selection = self.wiki_toc.curselection()
-        if not selection:
-            return
-        
-        index = selection[0]
-        if hasattr(self, 'section_positions') and index in self.section_positions:
-            pos = self.section_positions[index]
-            self.wiki_text.see(pos)
-            self.wiki_text.tag_remove("highlight", "1.0", tk.END)
-            self.wiki_text.tag_add("highlight", pos, f"{pos} lineend")
-        else:
-            # Fallback legacy (si section_positions vide ou non init)
-            pass
 
     def load_database(self):
         """Charge tous les propergols depuis RocketCEA"""
@@ -6567,6 +6418,11 @@ class RocketApp:
             # Données de base
             data = ispObj.get_IvacCstrTc_ChmMwGam(Pc=pc_psi, MR=mr, eps=eps)
             # data = [IspVac, Cstar, Tc, MW, Gamma]
+
+            # Vérification pour les cas où CEA retourne des zéros
+            if not data or len(data) < 5:
+                print(f"DEBUG WARNING: CEA returned invalid data for {pc_psi}, {mr}, {eps}")
+                return 0
             
             if data[1] == 0:
                 return 0
@@ -6605,13 +6461,18 @@ class RocketApp:
                 "Gamma": data[4],
                 "MW": data[3]
             }
+
+            # Mise en cache des résultats pour cette combinaison
+            cache_key = (round(pc_psi, 2), round(mr, 2), round(eps, 2), round(pamb_psi, 2))
+            self.parametric_cache[cache_key] = results_map
             
-            return results_map.get(var_name, 0)
+            return results_map.get(var_name, 0.0)
             
         except Exception as e:
             if debug:
                 print(f"DEBUG ERROR: {e}")
             return 0
+
 
     # ==========================================================================
     # SIMULATION PRINCIPALE
@@ -7721,8 +7582,14 @@ Débit Oxydant   : {mdot_ox_available:.4f} kg/s
             pc_psi = pc * 14.5038
             pe_psi = pe_def * 14.5038
             pamb_psi = pamb * 14.5038
+
+            # Vérifier le cache
+            cache_key = (round(pc_psi, 2), round(mr, 2), round(eps_ov, 2), round(pamb_psi, 2), var_out)
+            if cache_key in self.parametric_cache:
+                result = self.parametric_cache[cache_key].get(var_out, 0)
+            else:
             
-            result = self.get_cea_value_safe(ispObj, pc_psi, mr, pe_psi, eps_ov, pamb_psi, var_out)
+                result = self.get_cea_value_safe(ispObj, pc_psi, mr, pe_psi, eps_ov, pamb_psi, var_out)
             
             if result > 0:
                 X_vals.append(val)
@@ -7823,8 +7690,15 @@ Débit Oxydant   : {mdot_ox_available:.4f} kg/s
                 pc_psi = pc * 14.5038
                 pe_psi = pe_def * 14.5038
                 pamb_psi = pamb_def * 14.5038
-                
-                Z[i, j] = self.get_cea_value_safe(ispObj, pc_psi, mr, pe_psi, eps_ov, pamb_psi, var_z)
+
+                # Vérifier le cache
+                cache_key = (round(pc_psi, 2), round(mr, 2), round(eps_ov, 2), round(pamb_psi, 2))
+                if cache_key in self.parametric_cache:
+                    Z[i, j] = self.parametric_cache[cache_key].get(var_z, 0)
+                else:
+                    Z[i, j] = self.get_cea_value_safe(ispObj, pc_psi, mr, pe_psi, eps_ov, pamb_psi, var_z)
+
+
         
         # Surface 3D améliorée avec meilleures options visuelles
         # Utiliser une colormap plus moderne et visible
