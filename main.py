@@ -17,7 +17,241 @@ from datetime import datetime
 
 # Configuration CustomTkinter
 ctk.set_appearance_mode("dark")
-ctk.set_default_color_theme("dark-blue") 
+ctk.set_default_color_theme("dark-blue")
+
+# Fonction pour obtenir la meilleure police monospace disponible
+def get_monospace_font():
+    """Retourne une police monospace appropriée selon le système."""
+    import platform
+    import tkinter as tk
+    
+    # Test des polices dans l'ordre de préférence
+    test_fonts = ["Consolas", "Monaco", "Menlo", "Courier New", "Liberation Mono", "DejaVu Sans Mono", "Courier"]
+    
+    # Créer une fenêtre temporaire pour tester les polices (non affichée)
+    test_root = tk.Tk()
+    test_root.withdraw()
+    
+    for font_name in test_fonts:
+        try:
+            test_font = tk.font.Font(family=font_name, size=10)
+            # Vérifier si la police existe en testant ses métriques
+            if test_font.actual()['family'] == font_name:
+                test_root.destroy()
+                return font_name
+        except:
+            continue
+    
+    test_root.destroy()
+    # Fallback: utiliser la police monospace par défaut du système
+    return "Courier" if platform.system() != "Linux" else "Liberation Mono"
+
+# Police monospace système pour les widgets Text
+MONOSPACE_FONT = get_monospace_font()
+
+# Fonction pour obtenir la meilleure police UI (sans serif) disponible
+def get_ui_font():
+    """Retourne une police UI appropriée selon le système."""
+    import platform
+    import tkinter as tk
+    
+    # Test des polices dans l'ordre de préférence
+    test_fonts = ["Segoe UI", "Roboto", "Ubuntu", "Cantarell", "DejaVu Sans", "Liberation Sans", "Arial", "Helvetica", "Sans"]
+    
+    # Créer une fenêtre temporaire pour tester les polices (non affichée)
+    test_root = tk.Tk()
+    test_root.withdraw()
+    
+    for font_name in test_fonts:
+        try:
+            test_font = tk.font.Font(family=font_name, size=10)
+            # Vérifier si la police existe
+            if test_font.actual()['family'] == font_name:
+                test_root.destroy()
+                return font_name
+        except:
+            continue
+    
+    test_root.destroy()
+    # Fallback: utiliser la police sans serif par défaut
+    return "Sans"
+
+# Police UI système
+UI_FONT = get_ui_font()
+
+# Fonction pour détecter le scaling du bureau sur Linux
+def get_linux_desktop_scale():
+    """Détecte le facteur de scaling du bureau Linux (GNOME/KDE).
+    
+    Réf: https://github.com/TomSchimansky/CustomTkinter/issues/2597
+    Le bug connu est que CustomTkinter ne détecte pas correctement le desktop scaling
+    sur Linux, ce qui rend les widgets écrasés.
+    """
+    import platform
+    import subprocess
+    import os
+    
+    if platform.system() != "Linux":
+        return 1.0
+    
+    scale = 1.0
+    detection_method = "none"
+    
+    # Méthode 1: Détection via DPI réel vs logique (la plus fiable)
+    # Cette méthode fonctionne même avec le fractional scaling de GNOME
+    try:
+        import tkinter as tk
+        root_temp = tk.Tk()
+        root_temp.withdraw()
+        
+        # Obtenir les dimensions réelles et logiques
+        root_temp.update_idletasks()
+        # Mesurer 1 pouce réel
+        real_dpi = root_temp.winfo_fpixels('1i')
+        # Mesurer 1 pouce logique (ce que le système pense)
+        logical_dpi = root_temp.winfo_pixels('1i')
+        root_temp.destroy()
+        
+        if real_dpi > 0 and logical_dpi > 0:
+            # Le ratio donne le scaling réel
+            detected_scale = real_dpi / logical_dpi
+            if detected_scale > 0.5 and detected_scale < 5.0:  # Plage raisonnable
+                # Arrondir à des valeurs communes pour éviter les variations mineures
+                common_scales = [1.0, 1.25, 1.5, 1.75, 2.0, 2.25, 2.5, 3.0]
+                detected_scale = min(common_scales, key=lambda x: abs(x - detected_scale))
+                scale = detected_scale
+                detection_method = "DPI"
+    except Exception as e:
+        pass
+    
+    # Méthode 2: Variables d'environnement (Wayland/X11)
+    if scale == 1.0:
+        try:
+            # GDK_SCALE pour GTK/Wayland
+            gdk_scale = os.environ.get("GDK_SCALE", "")
+            if gdk_scale:
+                try:
+                    scale = float(gdk_scale)
+                    detection_method = "GDK_SCALE"
+                except:
+                    pass
+            
+            # QT_SCALE_FACTOR (pour KDE/Qt apps)
+            if scale == 1.0:
+                qt_scale = os.environ.get("QT_SCALE_FACTOR", "")
+                if qt_scale:
+                    try:
+                        scale = float(qt_scale)
+                        detection_method = "QT_SCALE_FACTOR"
+                    except:
+                        pass
+        except:
+            pass
+    
+    # Méthode 3: GNOME avec gsettings (scaling entier, ancienne méthode)
+    if scale == 1.0:
+        try:
+            result = subprocess.run(
+                ["gsettings", "get", "org.gnome.desktop.interface", "scaling-factor"],
+                capture_output=True, text=True, timeout=1, stderr=subprocess.DEVNULL
+            )
+            if result.returncode == 0:
+                scale_str = result.stdout.strip()
+                if scale_str and scale_str.startswith("uint32"):
+                    # Format: uint32 2 pour 200%
+                    parts = scale_str.split()
+                    if len(parts) >= 2:
+                        scale_int = int(parts[1])
+                        if scale_int > 0:
+                            scale = float(scale_int)
+                            detection_method = "gsettings"
+        except:
+            pass
+    
+    # Méthode 4: Détection via xrandr (X11)
+    if scale == 1.0:
+        try:
+            result = subprocess.run(
+                ["xrandr", "--query"],
+                capture_output=True, text=True, timeout=1, stderr=subprocess.DEVNULL
+            )
+            if result.returncode == 0:
+                for line in result.stdout.split('\n'):
+                    if ' connected' in line and 'mm' in line:
+                        # Essayer d'extraire le DPI depuis les dimensions
+                        # Format: 1920x1080+0+0 (512mm x 288mm)
+                        import re
+                        match = re.search(r'\((\d+)mm.*?(\d+)mm\)', line)
+                        if match:
+                            width_mm = float(match.group(1))
+                            height_mm = float(match.group(2))
+                            # Extraire la résolution
+                            res_match = re.search(r'(\d+)x(\d+)', line)
+                            if res_match:
+                                width_px = float(res_match.group(1))
+                                height_px = float(res_match.group(2))
+                                # Calculer le DPI
+                                width_dpi = width_px / (width_mm / 25.4)
+                                height_dpi = height_px / (height_mm / 25.4)
+                                avg_dpi = (width_dpi + height_dpi) / 2
+                                detected_scale = avg_dpi / 96.0
+                                if 0.5 < detected_scale < 5.0:
+                                    common_scales = [1.0, 1.25, 1.5, 1.75, 2.0, 2.25, 2.5, 3.0]
+                                    detected_scale = min(common_scales, key=lambda x: abs(x - detected_scale))
+                                    scale = detected_scale
+                                    detection_method = "xrandr"
+                                    break
+        except:
+            pass
+    
+    # S'assurer que le scale est dans une plage valide
+    scale = max(1.0, min(5.0, scale))
+    
+    return scale, detection_method
+
+# Configuration spécifique pour Linux pour améliorer le rendu
+try:
+    import platform
+    import os
+    if platform.system() == "Linux":
+        # Vérifier si l'utilisateur a défini manuellement le scaling
+        manual_scale = os.environ.get("CUSTOMTKINTER_SCALE", None)
+        if manual_scale:
+            try:
+                desktop_scale = float(manual_scale)
+                method = "manuel (variable CUSTOMTKINTER_SCALE)"
+            except:
+                desktop_scale, method = get_linux_desktop_scale()
+        else:
+            # Détecter le scaling du bureau automatiquement
+            desktop_scale, method = get_linux_desktop_scale()
+        
+        # Appliquer le scaling à CustomTkinter
+        # Le widget scaling doit correspondre au scaling du bureau pour éviter l'écrasement
+        # Référence: https://github.com/TomSchimansky/CustomTkinter/issues/2597
+        ctk.set_widget_scaling(desktop_scale)
+        ctk.set_window_scaling(desktop_scale)
+        
+        print(f"📝 Police monospace utilisée: {MONOSPACE_FONT}")
+        print(f"📝 Police UI utilisée: {UI_FONT}")
+        print(f"🖥️  Scaling du bureau détecté: {desktop_scale:.2f}x (méthode: {method})")
+        if desktop_scale != 1.0:
+            print(f"✅ Scaling CustomTkinter configuré pour corriger le bug d'affichage Linux")
+        if manual_scale is None and desktop_scale == 1.0:
+            print(f"💡 Astuce: Si les widgets semblent écrasés, définissez CUSTOMTKINTER_SCALE=2.0 (exemple)")
+            print(f"   Exemple: CUSTOMTKINTER_SCALE=2.0 python3.10 main.py")
+    else:
+        # Pour Windows/Mac, utiliser les valeurs par défaut
+        ctk.set_widget_scaling(1.0)
+        ctk.set_window_scaling(1.0)
+except Exception as e:
+    print(f"⚠️  Erreur lors de la configuration du scaling: {e}")
+    # Valeurs par défaut en cas d'erreur
+    try:
+        ctk.set_widget_scaling(1.0)
+        ctk.set_window_scaling(1.0)
+    except:
+        pass 
 
 #this code only works with python 3.10 and below, 3.11, 3.13, and 3.14 dont support rocketcea.
 
@@ -258,27 +492,27 @@ class RocketApp:
         
         # Widget Résumé
         if hasattr(self, 'txt_summary'):
-            self.txt_summary.configure(font=("Consolas", fs))
-            self.txt_summary.tag_configure("title", font=("Consolas", fs_title, "bold"))
-            self.txt_summary.tag_configure("section", font=("Consolas", fs, "bold"))
+            self.txt_summary.configure(font=(MONOSPACE_FONT, fs))
+            self.txt_summary.tag_configure("title", font=(MONOSPACE_FONT, fs_title, "bold"))
+            self.txt_summary.tag_configure("section", font=(MONOSPACE_FONT, fs, "bold"))
         
         # Widget CEA
         if hasattr(self, 'txt_cea'):
-            self.txt_cea.configure(font=("Consolas", fs))
-            self.txt_cea.tag_configure("cea_header", font=("Consolas", fs, "bold"))
-            self.txt_cea.tag_configure("cea_comment", font=("Consolas", fs, "italic"))
+            self.txt_cea.configure(font=(MONOSPACE_FONT, fs))
+            self.txt_cea.tag_configure("cea_header", font=(MONOSPACE_FONT, fs, "bold"))
+            self.txt_cea.tag_configure("cea_comment", font=(MONOSPACE_FONT, fs, "italic"))
         
         # Widget Base de données
         if hasattr(self, 'db_details'):
-            self.db_details.configure(font=("Consolas", fs))
-            self.db_details.tag_configure("db_title", font=("Consolas", fs_title, "bold"))
-            self.db_details.tag_configure("db_section", font=("Consolas", fs, "bold"))
+            self.db_details.configure(font=(MONOSPACE_FONT, fs))
+            self.db_details.tag_configure("db_title", font=(MONOSPACE_FONT, fs_title, "bold"))
+            self.db_details.tag_configure("db_section", font=(MONOSPACE_FONT, fs, "bold"))
         
         # Widget Solveur
         if hasattr(self, 'txt_solver'):
-            self.txt_solver.configure(font=("Consolas", fs))
-            self.txt_solver.tag_configure("title", font=("Consolas", fs_title, "bold"))
-            self.txt_solver.tag_configure("section", font=("Consolas", fs, "bold"))
+            self.txt_solver.configure(font=(MONOSPACE_FONT, fs))
+            self.txt_solver.tag_configure("title", font=(MONOSPACE_FONT, fs_title, "bold"))
+            self.txt_solver.tag_configure("section", font=(MONOSPACE_FONT, fs, "bold"))
 
     def set_ui_scale_from_control(self):
         val = self.zoom_var.get()
@@ -498,12 +732,15 @@ class RocketApp:
             bg=self.bg_surface,
             fg=self.text_primary,
             insertbackground=self.accent,
-            font=("Consolas", fs),
+            font=(MONOSPACE_FONT, fs),
             highlightthickness=0,
             bd=0,
             wrap=tk.WORD,
             padx=15,
             pady=10,
+            relief=tk.FLAT,  # Style plat moderne
+            selectbackground=self.accent,  # Couleur de sélection
+            selectforeground=self.bg_main,  # Texte sélectionné
         )
         self.txt_summary.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
         
@@ -676,13 +913,16 @@ class RocketApp:
         
         self.txt_cea = scrolledtext.ScrolledText(
             text_container,
-            font=("Consolas", fs),
+            font=(MONOSPACE_FONT, fs),
             state='disabled',
             bg=self.bg_surface,
             fg=self.text_primary,
             insertbackground=self.accent,
             highlightthickness=0,
             bd=0,
+            relief=tk.FLAT,  # Style plat moderne
+            selectbackground=self.accent,
+            selectforeground=self.bg_main,
             padx=10,
             pady=10,
         )
@@ -1155,19 +1395,31 @@ class RocketApp:
         cbar.ax.yaxis.label.set_color(self.text_primary)
         cbar.ax.tick_params(colors=self.text_primary)
         
-        # Configuration 3D
-        self.ax_heatmap.set_xlabel('X (mm)', color=self.text_primary)
-        self.ax_heatmap.set_ylabel('Y (mm)', color=self.text_primary)
-        self.ax_heatmap.set_zlabel('Z (mm)', color=self.text_primary)
+        # Configuration 3D améliorée
+        self.ax_heatmap.set_xlabel('X (mm)', color=self.text_primary, labelpad=12)
+        self.ax_heatmap.set_ylabel('Y (mm)', color=self.text_primary, labelpad=12)
+        self.ax_heatmap.set_zlabel('Z (mm)', color=self.text_primary, labelpad=12)
         self.ax_heatmap.set_title('Surface 3D - Température paroi côté gaz', 
-                                  color=self.text_primary, fontsize=12, fontweight='bold')
+                                  color=self.text_primary, fontsize=13, fontweight='bold', pad=20)
         
-        # Style sombre pour 3D
+        # Style sombre pour 3D amélioré
         self.ax_heatmap.set_facecolor(self.bg_surface)
         self.ax_heatmap.xaxis.pane.fill = False
         self.ax_heatmap.yaxis.pane.fill = False
         self.ax_heatmap.zaxis.pane.fill = False
-        self.ax_heatmap.tick_params(colors=self.text_primary)
+        self.ax_heatmap.xaxis.pane.set_edgecolor(self.grid_color)
+        self.ax_heatmap.yaxis.pane.set_edgecolor(self.grid_color)
+        self.ax_heatmap.zaxis.pane.set_edgecolor(self.grid_color)
+        self.ax_heatmap.xaxis.pane.set_alpha(0.05)
+        self.ax_heatmap.yaxis.pane.set_alpha(0.05)
+        self.ax_heatmap.zaxis.pane.set_alpha(0.05)
+        self.ax_heatmap.tick_params(colors=self.text_primary, labelsize=9)
+        
+        # Grille améliorée
+        self.ax_heatmap.grid(True, color=self.grid_color, alpha=0.3, linestyle='--', linewidth=0.5)
+        
+        # Vue 3D optimisée
+        self.ax_heatmap.view_init(elev=20, azim=45)
         
         self.fig_heatmap.tight_layout()
 
@@ -1774,7 +2026,7 @@ class RocketApp:
         header.pack(fill=tk.X, pady=(5, 10))
         
         ctk.CTkLabel(header, text="🛠️ Optimiseur de Conception",
-                  font=("Segoe UI", 14, "bold"), text_color=self.accent).pack(side=tk.LEFT)
+                  font=(UI_FONT, 14, "bold"), text_color=self.accent).pack(side=tk.LEFT)
         
         # Bouton d'aide Wiki
         ctk.CTkButton(header, text="📖 Aide Optimiseur",
@@ -1847,7 +2099,7 @@ class RocketApp:
         # Tableau des variables
         headers = ["Variable", "Min", "Max", "Pas", "Actif"]
         for col, h in enumerate(headers):
-            ctk.CTkLabel(vars_frame, text=h, font=("Segoe UI", 10, "bold")).grid(row=0, column=col, padx=5, pady=2)
+            ctk.CTkLabel(vars_frame, text=h, font=(UI_FONT, 10, "bold")).grid(row=0, column=col, padx=5, pady=2)
         
         self.optim_vars = {}
         design_vars = [
@@ -2573,19 +2825,39 @@ class RocketApp:
         row1 = ctk.CTkFrame(ctrl_frame)
         row1.pack(fill=tk.X, pady=5)
         
+        # Mode 2D/3D
+        row0 = ctk.CTkFrame(ctrl_frame)
+        row0.pack(fill=tk.X, pady=(0, 5))
+        ctk.CTkLabel(row0, text="Mode:").pack(side=tk.LEFT, padx=(0, 10))
+        mode_var = tk.StringVar(value="2D")
+        ctk.CTkRadioButton(row0, text="2D (Scatter)", variable=mode_var, value="2D", 
+                          command=lambda: update_plot()).pack(side=tk.LEFT, padx=5)
+        ctk.CTkRadioButton(row0, text="3D (Scatter 3D)", variable=mode_var, value="3D",
+                          command=lambda: update_plot()).pack(side=tk.LEFT, padx=5)
+        
+        row1 = ctk.CTkFrame(ctrl_frame)
+        row1.pack(fill=tk.X, pady=5)
+        
         ctk.CTkLabel(row1, text="Axe X:").pack(side=tk.LEFT)
         var_x = tk.StringVar(value=varied_vars[0])
-        cb_x = ctk.CTkComboBox(row1, textvariable=var_x, values=varied_vars, width=20)
+        cb_x = ctk.CTkComboBox(row1, variable=var_x, values=varied_vars, width=20)
         cb_x.pack(side=tk.LEFT, padx=5)
         
         ctk.CTkLabel(row1, text="Axe Y:").pack(side=tk.LEFT, padx=(15,0))
         var_y = tk.StringVar(value="score")
-        cb_y = ctk.CTkComboBox(row1, textvariable=var_y, values=["score"] + metric_keys, width=20)
+        cb_y = ctk.CTkComboBox(row1, variable=var_y, values=["score"] + metric_keys, width=20)
         cb_y.pack(side=tk.LEFT, padx=5)
+        
+        # Axe Z (pour mode 3D - choisir une valeur par défaut intelligente)
+        default_z = varied_vars[1] if len(varied_vars) > 1 else ("score" if metric_keys else varied_vars[0])
+        ctk.CTkLabel(row1, text="Axe Z:").pack(side=tk.LEFT, padx=(15,0))
+        var_z = tk.StringVar(value=default_z)
+        cb_z = ctk.CTkComboBox(row1, variable=var_z, values=["score"] + metric_keys + varied_vars, width=20)
+        cb_z.pack(side=tk.LEFT, padx=5)
         
         ctk.CTkLabel(row1, text="Couleur:").pack(side=tk.LEFT, padx=(15,0))
         var_c = tk.StringVar(value="score")
-        cb_c = ctk.CTkComboBox(row1, textvariable=var_c, values=["score"] + metric_keys, width=20)
+        cb_c = ctk.CTkComboBox(row1, variable=var_c, values=["score"] + metric_keys, width=20)
         cb_c.pack(side=tk.LEFT, padx=5)
         
         ctk.CTkButton(row1, text="🔄 Actualiser", command=lambda: update_plot()).pack(side=tk.RIGHT, padx=10)
@@ -2600,47 +2872,117 @@ class RocketApp:
         def update_plot(event=None):
             # Nettoyer complètement la figure pour éviter les bugs de colorbar
             fig.clear()
-            ax = fig.add_subplot(111)
-            self.apply_dark_axes(ax)
             
+            mode = mode_var.get()
             x_key = var_x.get()
             y_key = var_y.get()
+            z_key = var_z.get()
             c_key = var_c.get()
             
-            # Récupérer les valeurs
-            X = [d['config'][x_key] for d in data]
+            # Récupérer les valeurs X
+            if x_key in varied_vars:
+                X = [d['config'][x_key] for d in data]
+            elif x_key == "score":
+                X = scores
+            else:
+                X = [d['metrics'][x_key] for d in data]
             
+            # Récupérer les valeurs Y
             if y_key == "score":
                 Y = scores
+            elif y_key in varied_vars:
+                Y = [d['config'][y_key] for d in data]
             else:
                 Y = [d['metrics'][y_key] for d in data]
+            
+            # Récupérer les valeurs Z (pour mode 3D)
+            if z_key == "score":
+                Z = scores
+            elif z_key in varied_vars:
+                Z = [d['config'][z_key] for d in data]
+            else:
+                Z = [d['metrics'][z_key] for d in data]
                 
+            # Récupérer les valeurs pour la couleur
             if c_key == "score":
                 C = scores
+            elif c_key in varied_vars:
+                C = [d['config'][c_key] for d in data]
             else:
                 C = [d['metrics'][c_key] for d in data]
             
-            sc = ax.scatter(X, Y, c=C, cmap='viridis', s=50, alpha=0.8, edgecolors='none')
+            if mode == "3D":
+                # Mode 3D avec scatter plot 3D
+                ax = fig.add_subplot(111, projection='3d')
+                self.apply_dark_axes(ax)
+                
+                # Scatter 3D avec couleur
+                sc = ax.scatter(X, Y, Z, c=C, cmap='viridis', s=50, alpha=0.8, 
+                               edgecolors='black', linewidth=0.5, depthshade=True)
+                
+                ax.set_xlabel(x_key, color=self.text_primary, labelpad=10)
+                ax.set_ylabel(y_key, color=self.text_primary, labelpad=10)
+                ax.set_zlabel(z_key, color=self.text_primary, labelpad=10)
+                ax.set_title(f"Optimisation 3D: {x_key} × {y_key} × {z_key}", 
+                           color=self.text_primary, pad=20)
+                
+                # Colorbar pour 3D
+                cbar = fig.colorbar(sc, ax=ax, shrink=0.6, aspect=20, pad=0.1, label=c_key)
+                cbar.ax.yaxis.label.set_color(self.text_primary)
+                cbar.ax.tick_params(colors=self.text_primary)
+                
+                # Mettre en évidence le meilleur point en 3D
+                best_idx = scores.index(min(scores))
+                ax.scatter([X[best_idx]], [Y[best_idx]], [Z[best_idx]], 
+                          s=200, facecolors='none', edgecolors='red', linewidth=3, 
+                          label="Meilleur", marker='*')
+                
+                # Configuration 3D améliorée
+                ax.xaxis.pane.fill = False
+                ax.yaxis.pane.fill = False
+                ax.zaxis.pane.fill = False
+                ax.xaxis.pane.set_edgecolor(self.grid_color)
+                ax.yaxis.pane.set_edgecolor(self.grid_color)
+                ax.zaxis.pane.set_edgecolor(self.grid_color)
+                ax.xaxis.pane.set_alpha(0.1)
+                ax.yaxis.pane.set_alpha(0.1)
+                ax.zaxis.pane.set_alpha(0.1)
+                ax.grid(True, color=self.grid_color, alpha=0.3, linestyle='--')
+                
+                # Améliorer la vue 3D
+                ax.view_init(elev=20, azim=45)
+                
+            else:
+                # Mode 2D classique
+                ax = fig.add_subplot(111)
+                self.apply_dark_axes(ax)
+                
+                sc = ax.scatter(X, Y, c=C, cmap='viridis', s=50, alpha=0.8, edgecolors='none')
+                
+                ax.set_xlabel(x_key, color=self.text_primary)
+                ax.set_ylabel(y_key, color=self.text_primary)
+                ax.set_title(f"Optimisation: {y_key} vs {x_key}", color=self.text_primary)
+                
+                # Colorbar pour 2D
+                cbar = fig.colorbar(sc, ax=ax, label=c_key)
+                cbar.ax.yaxis.label.set_color(self.text_primary)
+                cbar.ax.tick_params(colors=self.text_primary)
+                
+                # Mettre en évidence le meilleur point
+                best_idx = scores.index(min(scores))
+                ax.scatter([X[best_idx]], [Y[best_idx]], s=150, facecolors='none', 
+                          edgecolors='red', linewidth=2, label="Meilleur", marker='*')
             
-            ax.set_xlabel(x_key, color=self.text_primary)
-            ax.set_ylabel(y_key, color=self.text_primary)
-            ax.set_title(f"Optimisation: {y_key} vs {x_key}", color=self.text_primary)
-            
-            # Colorbar
-            cbar = fig.colorbar(sc, ax=ax, label=c_key)
-            cbar.ax.yaxis.label.set_color(self.text_primary)
-            cbar.ax.tick_params(colors=self.text_primary)
-            
-            # Mettre en évidence le meilleur point
-            best_idx = scores.index(min(scores))
-            ax.scatter([X[best_idx]], [Y[best_idx]], s=150, facecolors='none', edgecolors='red', linewidth=2, label="Meilleur")
-            ax.legend(facecolor=self.bg_surface, edgecolor=self.accent, labelcolor=self.text_primary)
+            # Légende
+            ax.legend(facecolor=self.bg_surface, edgecolor=self.accent, 
+                     labelcolor=self.text_primary, loc='best')
             
             canvas.draw()
         
         # Bind events using configure(command=) for CTkComboBox
         cb_x.configure(command=lambda v: update_plot())
         cb_y.configure(command=lambda v: update_plot())
+        cb_z.configure(command=lambda v: update_plot())
         cb_c.configure(command=lambda v: update_plot())
         
         # Initial plot
@@ -2670,7 +3012,7 @@ class RocketApp:
         header = ctk.CTkFrame(scroll_frame)
         header.pack(fill=tk.X, pady=(5, 10))
         ctk.CTkLabel(header, text="🛡️ Contraintes Thermomécaniques",
-                  font=("Segoe UI", 14, "bold"), text_color="#27ae60").pack(side=tk.LEFT)
+                  font=(UI_FONT, 14, "bold"), text_color="#27ae60").pack(side=tk.LEFT)
         
         # Section: Paramètres du matériau
         mat_frame = ctk.CTkFrame(scroll_frame)
@@ -3272,7 +3614,7 @@ class RocketApp:
         
         self.db_details = scrolledtext.ScrolledText(
             detail_frame,
-            font=("Consolas", fs),
+            font=(MONOSPACE_FONT, fs),
             width=50,
             height=25,
             state='disabled',
@@ -3281,6 +3623,9 @@ class RocketApp:
             insertbackground=self.accent,
             highlightthickness=0,
             bd=0,
+            relief=tk.FLAT,  # Style plat moderne
+            selectbackground=self.accent,
+            selectforeground=self.bg_main,
         )
         self.db_details.pack(fill=tk.BOTH, expand=True)
         
@@ -3537,9 +3882,15 @@ class RocketApp:
             bg=self.bg_surface,
             fg=self.text_primary,
             insertbackground=self.accent,
-            font=("Consolas", fs),
+            font=(MONOSPACE_FONT, fs),
             highlightthickness=0,
             bd=0,
+            wrap=tk.WORD,
+            relief=tk.FLAT,  # Style plat moderne
+            selectbackground=self.accent,
+            selectforeground=self.bg_main,
+            padx=10,
+            pady=10,
         )
         self.txt_solver.pack(fill=tk.BOTH, expand=True)
         
@@ -4481,7 +4832,7 @@ class RocketApp:
         title_frame.pack(fill=tk.X, pady=(0, 10))
         
         ctk.CTkLabel(title_frame, 
-                 font=("Segoe UI", 16, "bold"), text_color=self.accent).pack(side=tk.LEFT)
+                 font=(UI_FONT, 16, "bold"), text_color=self.accent).pack(side=tk.LEFT)
         
         # Barre d'outils
         toolbar = ctk.CTkFrame(main_frame)
@@ -4662,9 +5013,12 @@ class RocketApp:
         
         # Widget Text Standard (pas de HTML)
         self.wiki_text = tk.Text(text_frame, bg=self.bg_surface, fg=self.text_primary,
-                                 font=("Segoe UI", 11), wrap=tk.WORD,
+                                 font=(UI_FONT, 11), wrap=tk.WORD,
                                  insertbackground=self.accent, padx=20, pady=15,
-                                 highlightthickness=0, bd=0)
+                                 highlightthickness=0, bd=0,
+                                 relief=tk.FLAT,  # Style plat moderne
+                                 selectbackground=self.accent,
+                                 selectforeground=self.bg_main)
         
         scrollbar = ctk.CTkScrollbar(text_frame, command=self.wiki_text.yview)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
@@ -4673,14 +5027,14 @@ class RocketApp:
         
         # === CONFIGURATION DES STYLES TEXTE ===
         # Titres
-        self.wiki_text.tag_configure("h1", font=("Segoe UI", 20, "bold"), foreground="#ff79c6", spacing1=20, spacing3=15)
-        self.wiki_text.tag_configure("h2", font=("Segoe UI", 15, "bold"), foreground="#ffb86c", spacing1=18, spacing3=8)
-        self.wiki_text.tag_configure("h3", font=("Segoe UI", 13, "bold"), foreground="#8be9fd", spacing1=12, spacing3=5)
-        self.wiki_text.tag_configure("h4", font=("Segoe UI", 12, "bold"), foreground="#bd93f9", spacing1=8, spacing3=3)
+        self.wiki_text.tag_configure("h1", font=(UI_FONT, 20, "bold"), foreground="#ff79c6", spacing1=20, spacing3=15)
+        self.wiki_text.tag_configure("h2", font=(UI_FONT, 15, "bold"), foreground="#ffb86c", spacing1=18, spacing3=8)
+        self.wiki_text.tag_configure("h3", font=(UI_FONT, 13, "bold"), foreground="#8be9fd", spacing1=12, spacing3=5)
+        self.wiki_text.tag_configure("h4", font=(UI_FONT, 12, "bold"), foreground="#bd93f9", spacing1=8, spacing3=3)
         
         # Listes
-        self.wiki_text.tag_configure("bullet", font=("Segoe UI", 11), foreground=self.text_primary, lmargin1=30, lmargin2=50, spacing1=2)
-        self.wiki_text.tag_configure("numbered_list", font=("Segoe UI", 11), foreground=self.text_primary, lmargin1=30, lmargin2=50, spacing1=2)
+        self.wiki_text.tag_configure("bullet", font=(UI_FONT, 11), foreground=self.text_primary, lmargin1=30, lmargin2=50, spacing1=2)
+        self.wiki_text.tag_configure("numbered_list", font=(UI_FONT, 11), foreground=self.text_primary, lmargin1=30, lmargin2=50, spacing1=2)
         
         # Code et Tableaux (Monospace)
         self.wiki_text.tag_configure("code", font=("Consolas", 10), background="#1a1a2e", foreground="#50fa7b", lmargin1=40, lmargin2=40, spacing1=1)
@@ -4689,13 +5043,13 @@ class RocketApp:
         self.wiki_text.tag_configure("formula", font=("Consolas", 11, "bold"), foreground="#bd93f9", background="#1a1a2e", lmargin1=40, lmargin2=40, spacing1=3, spacing3=3)
         
         # Mises en évidence
-        self.wiki_text.tag_configure("important", foreground="#ff5555", font=("Segoe UI", 11, "bold"), lmargin1=20, lmargin2=40, spacing1=3, spacing3=3)
-        self.wiki_text.tag_configure("warning", foreground="#ffb347", font=("Segoe UI", 11, "bold"), background="#2a1a0a", lmargin1=20, lmargin2=40, spacing1=3, spacing3=3)
-        self.wiki_text.tag_configure("success", foreground="#50fa7b", font=("Segoe UI", 11, "bold"), lmargin1=20, lmargin2=40, spacing1=3, spacing3=3)
-        self.wiki_text.tag_configure("quote", font=("Segoe UI", 11, "italic"), foreground="#9fb4d3", lmargin1=50, lmargin2=50, spacing1=5, spacing3=5)
+        self.wiki_text.tag_configure("important", foreground="#ff5555", font=(UI_FONT, 11, "bold"), lmargin1=20, lmargin2=40, spacing1=3, spacing3=3)
+        self.wiki_text.tag_configure("warning", foreground="#ffb347", font=(UI_FONT, 11, "bold"), background="#2a1a0a", lmargin1=20, lmargin2=40, spacing1=3, spacing3=3)
+        self.wiki_text.tag_configure("success", foreground="#50fa7b", font=(UI_FONT, 11, "bold"), lmargin1=20, lmargin2=40, spacing1=3, spacing3=3)
+        self.wiki_text.tag_configure("quote", font=(UI_FONT, 11, "italic"), foreground="#9fb4d3", lmargin1=50, lmargin2=50, spacing1=5, spacing3=5)
         self.wiki_text.tag_configure("highlight", background="#3d3d00", foreground="#ffff00")
         self.wiki_text.tag_configure("center", justify='center')
-        self.wiki_text.tag_configure("normal", font=("Segoe UI", 11), foreground=self.text_primary, spacing1=2)
+        self.wiki_text.tag_configure("normal", font=(UI_FONT, 11), foreground=self.text_primary, spacing1=2)
         
         # Variable pour la recherche
         self.wiki_search_pos = "1.0"
@@ -6640,13 +6994,53 @@ Débit Oxydant   : {mdot_ox_available:.4f} kg/s
                 
                 Z[i, j] = self.get_cea_value_safe(ispObj, pc_psi, mr, pe_psi, eps_ov, pamb_psi, var_z)
         
-        surf = ax.plot_surface(X, Y, Z, cmap=cm.coolwarm, linewidth=0, antialiased=True)
-        ax.set_xlabel(mode_x.split(" ")[0])
-        ax.set_ylabel(mode_y.split(" ")[0])
-        ax.set_zlabel(var_z.split(" ")[0])
-        cb = self.fig_graph.colorbar(surf, shrink=0.5, aspect=5)
+        # Surface 3D améliorée avec meilleures options visuelles
+        # Utiliser une colormap plus moderne et visible
+        surf = ax.plot_surface(X, Y, Z, cmap='viridis', linewidth=0, 
+                               antialiased=True, alpha=0.9, shade=True,
+                               edgecolor='none', rstride=1, cstride=1)
+        
+        # Ajouter des courbes de niveau sur la surface pour plus de clarté
+        ax.contour(X, Y, Z, zdir='z', offset=Z.min() - (Z.max() - Z.min()) * 0.1, 
+                  cmap='viridis', alpha=0.5, linewidths=1)
+        
+        # Labels avec noms complets
+        ax.set_xlabel(mode_x, color=self.text_primary, labelpad=12, fontsize=11)
+        ax.set_ylabel(mode_y, color=self.text_primary, labelpad=12, fontsize=11)
+        ax.set_zlabel(var_z, color=self.text_primary, labelpad=12, fontsize=11)
+        
+        # Titre
+        ax.set_title(f"Surface 3D: {var_z} = f({mode_x}, {mode_y})", 
+                    color=self.text_primary, fontsize=13, pad=20)
+        
+        # Colorbar améliorée
+        cb = self.fig_graph.colorbar(surf, ax=ax, shrink=0.6, aspect=25, pad=0.1, label=var_z)
         cb.ax.yaxis.set_tick_params(color=self.text_primary)
+        cb.ax.yaxis.label.set_color(self.text_primary)
         plt.setp(cb.ax.get_yticklabels(), color=self.text_primary)
+        
+        # Configuration 3D améliorée pour meilleure visibilité
+        ax.xaxis.pane.fill = False
+        ax.yaxis.pane.fill = False
+        ax.zaxis.pane.fill = False
+        ax.xaxis.pane.set_edgecolor(self.grid_color)
+        ax.yaxis.pane.set_edgecolor(self.grid_color)
+        ax.zaxis.pane.set_edgecolor(self.grid_color)
+        ax.xaxis.pane.set_alpha(0.05)
+        ax.yaxis.pane.set_alpha(0.05)
+        ax.zaxis.pane.set_alpha(0.05)
+        
+        # Grille améliorée
+        ax.grid(True, color=self.grid_color, alpha=0.3, linestyle='--', linewidth=0.5)
+        
+        # Vue 3D optimale
+        ax.view_init(elev=25, azim=45)
+        
+        # Couleurs des axes
+        ax.xaxis.label.set_color(self.text_primary)
+        ax.yaxis.label.set_color(self.text_primary)
+        ax.zaxis.label.set_color(self.text_primary)
+        ax.tick_params(colors=self.text_primary, labelsize=9)
         
         self.canvas_graph.draw()
 
