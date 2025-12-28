@@ -287,8 +287,8 @@ except ImportError:
 
 class MultiRowTabview(ctk.CTkFrame):
     """
-    A custom TabView that arranges tab buttons in multiple rows (2 rows)
-    to accommodate many tabs without overcrowding a single line.
+    A custom TabView that arranges tab buttons in multiple rows.
+    Supports detaching tabs into separate windows via Right-Click.
     """
     def __init__(self, master, 
                  fg_color=None, 
@@ -297,6 +297,7 @@ class MultiRowTabview(ctk.CTkFrame):
                  btn_selected_color=None,
                  btn_text_color=None,
                  btn_selected_text_color=None,
+                 command_right_click=None,
                  **kwargs):
         super().__init__(master, fg_color="transparent", **kwargs)
         
@@ -306,6 +307,7 @@ class MultiRowTabview(ctk.CTkFrame):
         self.btn_selected_color = btn_selected_color
         self.btn_text_color = btn_text_color
         self.btn_selected_text_color = btn_selected_text_color
+        self.command_right_click = command_right_click
         
         # Frame for buttons (Top)
         self.btn_frame = ctk.CTkFrame(self, fg_color="transparent")
@@ -323,6 +325,7 @@ class MultiRowTabview(ctk.CTkFrame):
         
         self.tabs = {}     # name -> frame
         self.buttons = {}  # name -> button
+        self.popped_windows = set() # Set of names of popped out tabs
         self.current_tab = None
 
     def add(self, name):
@@ -347,31 +350,57 @@ class MultiRowTabview(ctk.CTkFrame):
                             command=lambda: self.set(name))
         
         btn.pack(side="left", fill="x", expand=True, padx=2)
-        self.buttons[name] = btn
         
+        # Bind Right Click if callback provided
+        if self.command_right_click:
+            btn.bind("<Button-3>", lambda event, n=name: self.command_right_click(n))
+        
+        self.buttons[name] = btn
         return frame
 
     def set(self, name):
         if name not in self.tabs:
             return
-            
+        
         # Hide all tabs
         for f in self.tabs.values():
             f.pack_forget()
             
         # Reset all buttons color
         for n, b in self.buttons.items():
+            is_popped = n in self.popped_windows
             if n == name:
                 b.configure(fg_color=self.btn_selected_color)
                 if self.btn_selected_text_color:
                     b.configure(text_color=self.btn_selected_text_color)
             else:
-                b.configure(fg_color=self.btn_fg_color)
-                b.configure(text_color=self.btn_text_color)
+                b.configure(fg_color=self.btn_fg_color if not is_popped else "gray20")
+                b.configure(text_color=self.btn_text_color if not is_popped else "gray60")
                 
-        # Show selected tab
-        self.tabs[name].pack(fill="both", expand=True, padx=5, pady=5)
+        # Show selected tab (only if not popped out)
+        if name not in self.popped_windows:
+            self.tabs[name].pack(fill="both", expand=True, padx=5, pady=5)
+            
         self.current_tab = name
+        
+    def pop_out(self, name):
+        """Marque l'onglet comme détaché (visuel uniquement)."""
+        self.popped_windows.add(name)
+        self.buttons[name].configure(text=f"❐ {name}")
+        # Masquer le contenu si c'était l'onglet actif
+        if self.current_tab == name:
+            self.tabs[name].pack_forget()
+        self.set(self.current_tab) # Rafraîchir les couleurs
+
+    def dock_in(self, name):
+        """Marque l'onglet comme rattaché (visuel uniquement)."""
+        if name in self.popped_windows:
+            self.popped_windows.remove(name)
+            self.buttons[name].configure(text=name)
+            # Réafficher si c'est l'onglet actif
+            if self.current_tab == name:
+                self.tabs[name].pack(fill="both", expand=True, padx=5, pady=5)
+            self.set(self.current_tab) # Rafraîchir les couleurs
         
     def get(self):
         return self.current_tab
@@ -402,7 +431,7 @@ class RocketApp:
         self.accent_alt4 = "#7b9bff"  # lavande
         self.text_primary = "#e8f1ff"
         self.text_muted = "#8b949e"
-        self.grid_color = "#21262d"
+        self.grid_color = "#15191d"
         self.border_color = "#30363d"
 
         self.tab_accent = {
@@ -509,6 +538,7 @@ class RocketApp:
             btn_hover_color=self.grid_color,
             btn_text_color=self.text_primary,
             btn_selected_text_color=self.bg_main,
+            command_right_click=self.handle_tab_detach,
             corner_radius=10
         )
         self.tabs.pack(fill=tk.BOTH, expand=True)
@@ -542,14 +572,67 @@ class RocketApp:
         self.init_solver_tab()
         self.init_wiki_tab()
 
+        # Configurer le style TTK pour les Treeviews (fonds sombres)
+        self.setup_ttk_style()
+
         # Apply UI scaling after layout is ready
         self.apply_ui_scale(self.ui_scale)
+
+        # MAPPING DES ONGLETS POUR LE DÉTACHEMENT
+        # Format: "Nom": {"var": "nom_variable_frame", "init": "nom_methode_init", "update": "nom_methode_update_ou_None"}
+        self.tab_map = {
+            "📊 Résumé": {"var": "tab_summary", "init": "init_summary_tab", "update": "refresh_summary_tab"},
+            "👁️ Visu & CAD": {"var": "tab_cad", "init": "init_cad_tab", "update": "update_cad_preview"},
+            "🌡️ Thermique": {"var": "tab_thermal", "init": "init_thermal_tab", "update": "refresh_thermal_tab"},
+            "🔥 Carte 2D": {"var": "tab_heatmap", "init": "init_heatmap_tab", "update": "update_heatmap"},
+            "⚙️ Optimiseur": {"var": "tab_optimizer", "init": "init_optimizer_tab", "update": "refresh_optimizer_tab"},
+            "🛡️ Contraintes": {"var": "tab_stress", "init": "init_stress_tab", "update": "calculate_stresses"},
+            "📈 Analyses": {"var": "tab_graphs", "init": "init_graphs_tab", "update": "plot_manager"},
+            "🔬 NASA CEA": {"var": "tab_cea", "init": "init_cea_tab", "update": None},
+            "🔍 Matériaux": {"var": "tab_database", "init": "init_database_tab", "update": "search_database"},
+            "🧊 Coolant": {"var": "tab_solver", "init": "init_solver_tab", "update": None},
+            "📖 Wiki": {"var": "tab_wiki", "init": "init_wiki_tab", "update": None},
+        }
 
         # Sélectionner le premier onglet par défaut
         self.tabs.set("📊 Résumé")
         
         # Gérer la fermeture propre de l'application
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
+
+    def setup_ttk_style(self):
+        """Configure le thème des widgets standards TTK (Treeview, etc.) pour correspondre au mode sombre."""
+        style = ttk.Style()
+        style.theme_use('clam') # 'clam' permet plus de personnalisation que 'vista' ou 'xpnative'
+        
+        # Configuration Treeview (Tableaux)
+        style.configure("Treeview",
+                        background=self.bg_surface,
+                        fieldbackground=self.bg_surface,
+                        foreground=self.text_primary,
+                        borderwidth=0,
+                        font=(UI_FONT, self.scaled_font_size(10)))
+        
+        style.map("Treeview",
+                  background=[('selected', self.accent)],
+                  foreground=[('selected', self.bg_main)])
+        
+        # En-têtes Treeview
+        style.configure("Treeview.Heading",
+                        background=self.bg_panel,
+                        foreground=self.accent,
+                        relief="flat",
+                        font=(UI_FONT, self.scaled_font_size(11), "bold"))
+        
+        style.map("Treeview.Heading",
+                  background=[('active', self.bg_surface)])
+        
+        # Ascenseurs (Scrollbars)
+        style.configure("Vertical.TScrollbar",
+                        background=self.bg_panel,
+                        troughcolor=self.bg_main,
+                        bordercolor=self.border_color,
+                        arrowcolor=self.accent)
 
     def auto_scale_from_display(self):
         """Calcule un facteur de zoom en fonction de la résolution écran."""
@@ -637,6 +720,132 @@ class RocketApp:
             except ValueError:
                 return
         self.apply_ui_scale(scale)
+
+    def handle_tab_detach(self, tab_name):
+        """Gère le détachement complet d'un onglet dans une nouvelle fenêtre."""
+        if tab_name not in self.tab_map:
+            messagebox.showinfo("Info", f"Le détachement n'est pas configuré pour '{tab_name}'.")
+            return
+
+        info = self.tab_map[tab_name]
+        var_name = info["var"]
+        init_method_name = info["init"]
+        update_method_name = info["update"]
+
+        # Récupérer le frame original (qui est actuellement self.tab_...)
+        original_frame = self.tabs.tabs[tab_name]
+        
+        # S'assurer que l'onglet n'est pas déjà détaché (vérification basique)
+        if getattr(self, var_name) != original_frame:
+            # Déjà détaché, on pourrait ramener au premier plan la fenêtre existante
+            # Mais ici on suppose que MultiRowTabview gère l'état visuel
+            return
+
+        # 1. Vider le frame original (sans le détruire lui-même)
+        for child in original_frame.winfo_children():
+            child.destroy()
+
+        # 2. Créer la nouvelle fenêtre
+        win = ctk.CTkToplevel(self.root)
+        win.title(f"{tab_name} - Détaché")
+        win.geometry("1000x800")
+        
+        # Frame conteneur dans la fenêtre pour simuler l'environnement de l'onglet
+        container = ctk.CTkFrame(win, fg_color=self.bg_panel)
+        container.pack(fill=tk.BOTH, expand=True)
+
+        # 3. Détourner la variable d'instance (ex: self.tab_thermal) vers le nouveau conteneur
+        setattr(self, var_name, container)
+
+        # 4. Reconstruire l'interface de l'onglet dans la nouvelle fenêtre
+        if hasattr(self, init_method_name):
+            getattr(self, init_method_name)()
+        
+        # 5. Restaurer l'état / les données
+        if update_method_name and hasattr(self, update_method_name):
+            try:
+                getattr(self, update_method_name)()
+            except Exception as e:
+                print(f"Erreur lors de la mise à jour de l'onglet détaché: {e}")
+
+        # 6. Gérer la fermeture de la fenêtre pour "Rentrer" l'onglet
+        def on_close():
+            win.destroy()
+            
+            # Restaurer la variable d'instance vers le frame original
+            setattr(self, var_name, original_frame)
+            
+            # Reconstruire l'interface dans l'onglet original
+            if hasattr(self, init_method_name):
+                getattr(self, init_method_name)()
+            
+            # Restaurer les données
+            if update_method_name and hasattr(self, update_method_name):
+                try:
+                    getattr(self, update_method_name)()
+                except:
+                    pass
+            
+            # Notifier le TabView que l'onglet est revenu
+            self.tabs.dock_in(tab_name)
+
+        win.protocol("WM_DELETE_WINDOW", on_close)
+        
+        # Notifier le TabView que l'onglet est sorti (visuel bouton)
+        self.tabs.pop_out(tab_name)
+
+    # --- Helpers pour rafraîchir les onglets après reconstruction ---
+    
+    def refresh_summary_tab(self):
+        """Rafraîchit l'onglet Résumé."""
+        if hasattr(self, 'last_summary_data'):
+            self.insert_colored_summary(*self.last_summary_data)
+
+    def refresh_thermal_tab(self):
+        """Rafraîchit l'onglet Thermique."""
+        if not self.results: return
+        # On appelle une méthode qui redessine les graphiques thermiques
+        # Comme run_simulation fait tout, on peut extraire juste la partie graphique
+        if "thermal_profile" in self.results:
+            self.update_thermal_graphs()
+
+    def refresh_optimizer_tab(self):
+        """Rafraîchit l'onglet Optimiseur."""
+        # Si une optimisation était finie, on pourrait restaurer le tableau
+        # Pour l'instant, on laisse vide ou on restaure si self.optim_results_list existe
+        if hasattr(self, 'optim_results_list') and self.optim_results_list:
+            for r in self.optim_results_list:
+                # Recréer les lignes (simplifié)
+                pass
+
+    def update_thermal_graphs(self):
+        """Met à jour uniquement les graphiques thermiques (helper pour refresh)."""
+        if "thermal_profile" not in self.results: return
+        
+        profile = self.results["thermal_profile"]
+        X_mm = profile["X_mm"]
+        Flux_MW = profile["Flux_MW"]
+        T_gas = profile["T_gas"]
+        T_wall_hot = profile["T_wall_hot"]
+        
+        self.ax_flux.clear()
+        self.ax_temp.clear()
+        self.apply_dark_axes([self.ax_flux, self.ax_temp])
+        
+        self.ax_flux.plot(X_mm, Flux_MW, color=self.accent, label="Flux (MW/m²)")
+        self.ax_flux.fill_between(X_mm, 0, Flux_MW, color=self.accent, alpha=0.1)
+        self.ax_flux.set_ylabel("Flux Thermique (MW/m²)")
+        self.ax_flux.legend(loc='upper right', facecolor=self.bg_surface, labelcolor=self.text_primary)
+        self.ax_flux.grid(True, color=self.grid_color, alpha=0.35)
+        
+        self.ax_temp.plot(X_mm, T_gas, color=self.accent_alt, linestyle='--', alpha=0.7, label="Gaz (Adiabatique)")
+        self.ax_temp.plot(X_mm, T_wall_hot, color="#ff4444", linewidth=2, label="Paroi (Côté Gaz)")
+        self.ax_temp.set_ylabel("Température (K)")
+        self.ax_temp.set_xlabel("Position Axiale (mm)")
+        self.ax_temp.legend(loc='upper right', facecolor=self.bg_surface, labelcolor=self.text_primary)
+        self.ax_temp.grid(True, color=self.grid_color, alpha=0.35)
+        
+        self.canvas_thermal.draw()
 
     def toggle_sidebar(self):
         """Affiche ou cache la barre latérale des paramètres."""
@@ -4017,24 +4226,54 @@ class RocketApp:
         self.canvas_graph.get_tk_widget().pack(fill=tk.BOTH, expand=True)
 
     def apply_dark_axes(self, axes):
-        """Applique le thème sombre aux axes matplotlib."""
-        if not isinstance(axes, (list, tuple)):
+        """Applique le thème sombre aux axes matplotlib (2D et 3D)."""
+        if not isinstance(axes, (list, tuple, np.ndarray)):
             axes = [axes]
+        
         for ax in axes:
             ax.set_facecolor(self.bg_surface)
-            ax.tick_params(colors=self.text_primary)
+            ax.tick_params(colors=self.text_primary, which='both')
+            
+            # Gestion Labels
             if hasattr(ax, "xaxis"):
                 ax.xaxis.label.set_color(self.text_primary)
             if hasattr(ax, "yaxis"):
                 ax.yaxis.label.set_color(self.text_primary)
-            if hasattr(ax, "zaxis"):
+            if hasattr(ax, "zaxis"): # 3D specific
                 ax.zaxis.label.set_color(self.text_primary)
                 ax.zaxis.set_tick_params(colors=self.text_primary)
+                
+            # Titre
             if ax.get_title():
                 ax.title.set_color(self.text_primary)
+                
+            # Bordures (Spines) pour 2D
             for spine in getattr(ax, "spines", {}).values():
                 spine.set_color(self.accent)
-            ax.grid(True, color=self.grid_color, alpha=0.35)
+            
+            # --- Optimisation Spécifique 3D ---
+            # Détection si l'axe est 3D (possède l'attribut 'w_xaxis' ou 'xaxis.pane')
+            if hasattr(ax, 'xaxis') and hasattr(ax.xaxis, 'pane'):
+                # Supprimer les fonds gris (panes)
+                ax.xaxis.pane.fill = False
+                ax.yaxis.pane.fill = False
+                ax.zaxis.pane.fill = False
+                
+                # Bordures discrètes
+                ax.xaxis.pane.set_edgecolor(self.grid_color)
+                ax.yaxis.pane.set_edgecolor(self.grid_color)
+                ax.zaxis.pane.set_edgecolor(self.grid_color)
+                
+                # Transparence
+                ax.xaxis.pane.set_alpha(0.1)
+                ax.yaxis.pane.set_alpha(0.1)
+                ax.zaxis.pane.set_alpha(0.1)
+                
+                # Grille 3D
+                ax.grid(True, color=self.grid_color, alpha=0.3, linestyle='--')
+            else:
+                # Grille 2D classique
+                ax.grid(True, color=self.grid_color, alpha=0.35)
 
     def get_category_color(self):
         palette = {
