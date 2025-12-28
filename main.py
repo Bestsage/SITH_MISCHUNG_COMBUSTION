@@ -459,19 +459,37 @@ class RocketApp:
         main_frame = ctk.CTkFrame(self.root, fg_color=self.bg_main)
         main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
-        # Panneau Gauche (scrollable)
-        left_panel = ctk.CTkScrollableFrame(
+        # --- SYSTÈME SIDEBAR (Gauche) ---
+        # 1. Barre de contrôle fine (toujours visible)
+        self.sidebar_ctrl = ctk.CTkFrame(main_frame, width=32, fg_color=self.bg_panel, corner_radius=0)
+        self.sidebar_ctrl.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 0), pady=0)
+
+        # Bouton Toggle
+        self.btn_toggle = ctk.CTkButton(
+            self.sidebar_ctrl, text="◀", width=32, height=32,
+            fg_color="transparent", text_color=self.accent,
+            font=ctk.CTkFont(size=14, weight="bold"),
+            hover_color=self.bg_surface,
+            command=self.toggle_sidebar
+        )
+        self.btn_toggle.pack(side=tk.TOP, pady=5, padx=0)
+
+        # 2. Panneau Gauche (Contenu Scrollable & Masquable)
+        self.left_panel = ctk.CTkScrollableFrame(
             main_frame, 
             width=400,
             fg_color=self.bg_panel,
             border_color=self.border_color,
             border_width=1,
             corner_radius=10,
-            label_text="⚙️ Paramètres de Conception",
+            label_text="⚙️ Paramètres",
             label_fg_color=self.accent,
             label_text_color=self.bg_main
         )
-        left_panel.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 10), pady=0)
+        self.left_panel.pack(side=tk.LEFT, fill=tk.Y, padx=(5, 10), pady=0)
+        
+        # Alias pour compatibilité avec le reste du code
+        left_panel = self.left_panel
         
         # Panneau Droit
         right_panel = ctk.CTkFrame(main_frame, fg_color=self.bg_main)
@@ -613,6 +631,15 @@ class RocketApp:
             except ValueError:
                 return
         self.apply_ui_scale(scale)
+
+    def toggle_sidebar(self):
+        """Affiche ou cache la barre latérale des paramètres."""
+        if self.left_panel.winfo_viewable():
+            self.left_panel.pack_forget()
+            self.btn_toggle.configure(text="▶", fg_color=self.accent, text_color=self.bg_main)
+        else:
+            self.left_panel.pack(side=tk.LEFT, fill=tk.Y, padx=(5, 10), pady=0)
+            self.btn_toggle.configure(text="◀", fg_color="transparent", text_color=self.accent)
 
     def create_inputs(self, parent):
         row = 0
