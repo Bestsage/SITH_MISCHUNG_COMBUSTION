@@ -296,6 +296,7 @@ class MultiRowTabview(ctk.CTkFrame):
                  btn_hover_color=None,
                  btn_selected_color=None,
                  btn_text_color=None,
+                 btn_selected_text_color=None,
                  **kwargs):
         super().__init__(master, fg_color="transparent", **kwargs)
         
@@ -304,6 +305,7 @@ class MultiRowTabview(ctk.CTkFrame):
         self.btn_hover_color = btn_hover_color
         self.btn_selected_color = btn_selected_color
         self.btn_text_color = btn_text_color
+        self.btn_selected_text_color = btn_selected_text_color
         
         # Frame for buttons (Top)
         self.btn_frame = ctk.CTkFrame(self, fg_color="transparent")
@@ -361,8 +363,11 @@ class MultiRowTabview(ctk.CTkFrame):
         for n, b in self.buttons.items():
             if n == name:
                 b.configure(fg_color=self.btn_selected_color)
+                if self.btn_selected_text_color:
+                    b.configure(text_color=self.btn_selected_text_color)
             else:
                 b.configure(fg_color=self.btn_fg_color)
+                b.configure(text_color=self.btn_text_color)
                 
         # Show selected tab
         self.tabs[name].pack(fill="both", expand=True, padx=5, pady=5)
@@ -377,7 +382,7 @@ class RocketApp:
         self.root.title("SITH MISCHUNG COMBUSTION : DARK SIDE EDITION v6.3")
         self.root.geometry("1700x1080")
         
-        # Maximiser la fenêtre
+        # Maximiser la fenêtre dès le début (comportement d'origine)
         try:
             self.root.state('zoomed')
         except:
@@ -387,10 +392,10 @@ class RocketApp:
         self.zoom_options = ["Auto", "1.0", "1.15", "1.25", "1.35", "1.5"]
 
         # --- THEME (OLED + Néon) ---
-        self.bg_main = "#0a0a0f"
-        self.bg_panel = "#0d1117"
-        self.bg_surface = "#161b22"
-        self.accent = "#00eaff"       # cyan néon
+        self.bg_main = "#000000"
+        self.bg_panel = "#07080A"
+        self.bg_surface = "#080a0c"
+        self.accent = "#00d9ff"       # cyan néon
         self.accent_alt = "#ff5af1"   # magenta néon
         self.accent_alt2 = "#9dff6a"  # vert néon doux
         self.accent_alt3 = "#ffb347"  # orange chaud
@@ -503,6 +508,7 @@ class RocketApp:
             btn_selected_color=self.accent,
             btn_hover_color=self.grid_color,
             btn_text_color=self.text_primary,
+            btn_selected_text_color=self.bg_main,
             corner_radius=10
         )
         self.tabs.pack(fill=tk.BOTH, expand=True)
@@ -643,7 +649,19 @@ class RocketApp:
 
     def create_inputs(self, parent):
         row = 0
-        
+        ctk.CTkButton(
+            parent, text="🔥 CALCULER TOUT (CEA + THERMIQUE)",
+            command=self.run_simulation,
+            font=ctk.CTkFont(size=14, weight="bold"),
+            height=35,
+            fg_color=self.accent,
+            hover_color=self.accent_alt,
+            text_color=self.bg_main,
+            corner_radius=8
+        ).grid(row=row, column=0, columnspan=2, pady=8, padx=10, sticky="ew")
+
+        row += 1
+
         # --- SÉLECTION MATÉRIAU GLOBAL ---
         ctk.CTkLabel(parent, text="🔩 Matériau Paroi:", font=ctk.CTkFont(size=13, weight="bold"),
                      text_color=self.accent).grid(row=row, column=0, columnspan=2, sticky="w", padx=10, pady=(10, 5))
@@ -716,17 +734,7 @@ class RocketApp:
         row += 1
         
         # Bouton principal
-        ctk.CTkButton(
-            parent, text="🔥 CALCULER TOUT (CEA + THERMIQUE)",
-            command=self.run_simulation,
-            font=ctk.CTkFont(size=14, weight="bold"),
-            height=45,
-            fg_color=self.accent,
-            hover_color=self.accent_alt,
-            text_color=self.bg_main,
-            corner_radius=8
-        ).grid(row=row, column=0, columnspan=2, pady=8, padx=10, sticky="ew")
-        row += 1
+
         
         # Boutons secondaires
         btn_frame = ctk.CTkFrame(parent, fg_color="transparent")
@@ -2065,7 +2073,7 @@ class RocketApp:
                           fontsize=12, color=self.text_muted)
 
     def update_cad_preview(self):
-        """Met à jour la prévisualisation 3D du modèle CAD."""
+        """Met à jour la prévisualisation 3D du modèle CAD (Optimisé)."""
         if not hasattr(self, 'ax_cad'):
             return
             
@@ -2079,6 +2087,8 @@ class RocketApp:
         # Restaurer l'angle de vue
         if elev is not None and azim is not None:
             self.ax_cad.view_init(elev=elev, azim=azim)
+        else:
+            self.ax_cad.view_init(elev=20, azim=45)
         
         if not self.results or not self.geometry_profile:
             self.ax_cad.text2D(0.5, 0.5, "Calculez d'abord le moteur\n(bouton CALCULER)", 
@@ -2094,61 +2104,87 @@ class RocketApp:
         wall_thickness = self.results.get("wall_thickness_mm", 3.0)
         R_outer = R_inner + wall_thickness  # Rayon extérieur
         
-        n_theta = int(self.cad_n_theta.get())
-        theta = np.linspace(0, 2*np.pi, n_theta)
+        # OPTIMISATION: Limiter la résolution pour l'affichage uniquement
+        # Même si l'utilisateur demande 200 segments pour l'export, on n'en affiche que 40 max
+        target_n_theta = int(self.cad_n_theta.get())
+        display_n_theta = min(target_n_theta, 40)
+        
+        # Sous-échantillonnage axial si trop de points
+        step_axial = max(1, len(X_mm) // 50)
+        
+        X_disp = X_mm[::step_axial]
+        R_in_disp = R_inner[::step_axial]
+        R_out_disp = R_outer[::step_axial]
+        
+        theta = np.linspace(0, 2*np.pi, display_n_theta)
         
         # Créer les surfaces
-        THETA, X = np.meshgrid(theta, X_mm)
+        THETA, X = np.meshgrid(theta, X_disp)
         
         # Surface intérieure (côté gaz)
-        R_in_grid = np.tile(R_inner.reshape(-1, 1), (1, n_theta))
+        R_in_grid = np.tile(R_in_disp.reshape(-1, 1), (1, display_n_theta))
         Y_in = R_in_grid * np.cos(THETA)
         Z_in = R_in_grid * np.sin(THETA)
         
         # Surface extérieure (côté coolant)
         if self.cad_include_wall.get():
-            R_out_grid = np.tile(R_outer.reshape(-1, 1), (1, n_theta))
+            R_out_grid = np.tile(R_out_disp.reshape(-1, 1), (1, display_n_theta))
             Y_out = R_out_grid * np.cos(THETA)
             Z_out = R_out_grid * np.sin(THETA)
         
-        # Tracer surface intérieure
-        surf_in = self.ax_cad.plot_surface(X, Y_in, Z_in, alpha=0.7, color=self.accent, 
-                                            edgecolor='none', shade=True)
+        # Tracer surface intérieure (Wireframe partiel pour légèreté ou Surface)
+        # Surface est plus jolie mais plus lourde. Avec l'optimisation ci-dessus, surface passe bien.
+        surf_in = self.ax_cad.plot_surface(X, Y_in, Z_in, alpha=0.8, color=self.accent, 
+                                            edgecolor='none', shade=True, antialiased=True)
         
         # Tracer surface extérieure
         if self.cad_include_wall.get():
-            surf_out = self.ax_cad.plot_surface(X, Y_out, Z_out, alpha=0.4, color='#00ff88', 
-                                                 edgecolor='none', shade=True)
+            surf_out = self.ax_cad.plot_surface(X, Y_out, Z_out, alpha=0.3, color='#00ff88', 
+                                                 edgecolor='none', shade=True, antialiased=True)
         
-        # Tracer les canaux de refroidissement
+        # Tracer les canaux de refroidissement (simplifié)
         if self.cad_include_channels.get() and self.cad_include_wall.get():
             n_channels = int(self.cad_n_channels.get())
-            channel_width_mm = float(self.cad_channel_width.get())
+            # Limiter le nombre de canaux affichés pour la perf
+            display_n_channels = min(n_channels, 24) 
+            
             channel_depth_mm = float(self.cad_channel_depth.get())
             
             # Position angulaire des canaux
-            channel_angles = np.linspace(0, 2*np.pi, n_channels, endpoint=False)
+            channel_angles = np.linspace(0, 2*np.pi, display_n_channels, endpoint=False)
             
             for angle in channel_angles:
                 # Fond du canal
-                r_channel = R_inner + wall_thickness - channel_depth_mm
-                x_ch = X_mm
+                r_channel = R_in_disp + wall_thickness - channel_depth_mm
+                x_ch = X_disp
                 y_ch = r_channel * np.cos(angle)
                 z_ch = r_channel * np.sin(angle)
-                self.ax_cad.plot(x_ch, y_ch, z_ch, 'b-', linewidth=0.5, alpha=0.6)
+                self.ax_cad.plot(x_ch, y_ch, z_ch, color='#0088ff', linewidth=0.8, alpha=0.6)
         
-        # Configuration 3D
-        self.ax_cad.set_xlabel('X (mm)', color=self.text_primary)
-        self.ax_cad.set_ylabel('Y (mm)', color=self.text_primary)
-        self.ax_cad.set_zlabel('Z (mm)', color=self.text_primary)
+        # Configuration 3D STYLE "CLEAN" (comme Heatmap)
+        self.ax_cad.set_xlabel('X (mm)', color=self.text_primary, labelpad=5)
+        self.ax_cad.set_ylabel('Y (mm)', color=self.text_primary, labelpad=5)
+        self.ax_cad.set_zlabel('Z (mm)', color=self.text_primary, labelpad=5)
         self.ax_cad.set_title(f"Modèle 3D - {self.get_val('name')}", color=self.text_primary, fontweight='bold')
         
-        # Style sombre
+        # Style sombre optimisé
         self.ax_cad.set_facecolor(self.bg_surface)
+        
+        # Supprimer les fonds de grille gris (panes)
         self.ax_cad.xaxis.pane.fill = False
         self.ax_cad.yaxis.pane.fill = False
         self.ax_cad.zaxis.pane.fill = False
-        self.ax_cad.tick_params(colors=self.text_primary)
+        
+        # Bordures de grille discrètes
+        self.ax_cad.xaxis.pane.set_edgecolor(self.grid_color)
+        self.ax_cad.yaxis.pane.set_edgecolor(self.grid_color)
+        self.ax_cad.zaxis.pane.set_edgecolor(self.grid_color)
+        self.ax_cad.xaxis.pane.set_alpha(0.1)
+        self.ax_cad.yaxis.pane.set_alpha(0.1)
+        self.ax_cad.zaxis.pane.set_alpha(0.1)
+        
+        self.ax_cad.tick_params(colors=self.text_primary, labelsize=8)
+        self.ax_cad.grid(True, color=self.grid_color, alpha=0.3, linestyle='--')
         
         # Égaliser les axes
         max_range = max(max(X_mm) - min(X_mm), 2 * max(R_outer)) / 2
