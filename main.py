@@ -285,6 +285,92 @@ try:
 except ImportError:
     HAS_CADQUERY = False
 
+class MultiRowTabview(ctk.CTkFrame):
+    """
+    A custom TabView that arranges tab buttons in multiple rows (2 rows)
+    to accommodate many tabs without overcrowding a single line.
+    """
+    def __init__(self, master, 
+                 fg_color=None, 
+                 btn_fg_color=None,
+                 btn_hover_color=None,
+                 btn_selected_color=None,
+                 btn_text_color=None,
+                 **kwargs):
+        super().__init__(master, fg_color="transparent", **kwargs)
+        
+        self.main_fg_color = fg_color
+        self.btn_fg_color = btn_fg_color
+        self.btn_hover_color = btn_hover_color
+        self.btn_selected_color = btn_selected_color
+        self.btn_text_color = btn_text_color
+        
+        # Frame for buttons (Top)
+        self.btn_frame = ctk.CTkFrame(self, fg_color="transparent")
+        self.btn_frame.pack(side="top", fill="x", pady=(0, 5))
+        
+        # Rows for buttons
+        self.row1 = ctk.CTkFrame(self.btn_frame, fg_color="transparent")
+        self.row1.pack(side="top", fill="x", pady=(0, 2))
+        self.row2 = ctk.CTkFrame(self.btn_frame, fg_color="transparent")
+        self.row2.pack(side="top", fill="x")
+        
+        # Content frame (Bottom)
+        self.content_frame = ctk.CTkFrame(self, fg_color=self.main_fg_color, corner_radius=10)
+        self.content_frame.pack(side="bottom", fill="both", expand=True)
+        
+        self.tabs = {}     # name -> frame
+        self.buttons = {}  # name -> button
+        self.current_tab = None
+
+    def add(self, name):
+        # Create the tab content frame
+        frame = ctk.CTkFrame(self.content_frame, fg_color=self.main_fg_color, corner_radius=0)
+        self.tabs[name] = frame
+        
+        # Decide which row to put the button in (Split 6 / rest)
+        if len(self.buttons) < 6:
+            parent = self.row1
+        else:
+            parent = self.row2
+            
+        # Create the button
+        btn = ctk.CTkButton(parent, text=name,
+                            fg_color=self.btn_fg_color,
+                            hover_color=self.btn_hover_color,
+                            text_color=self.btn_text_color,
+                            corner_radius=6,
+                            height=28,
+                            width=80, # Allow expanding
+                            command=lambda: self.set(name))
+        
+        btn.pack(side="left", fill="x", expand=True, padx=2)
+        self.buttons[name] = btn
+        
+        return frame
+
+    def set(self, name):
+        if name not in self.tabs:
+            return
+            
+        # Hide all tabs
+        for f in self.tabs.values():
+            f.pack_forget()
+            
+        # Reset all buttons color
+        for n, b in self.buttons.items():
+            if n == name:
+                b.configure(fg_color=self.btn_selected_color)
+            else:
+                b.configure(fg_color=self.btn_fg_color)
+                
+        # Show selected tab
+        self.tabs[name].pack(fill="both", expand=True, padx=5, pady=5)
+        self.current_tab = name
+        
+    def get(self):
+        return self.current_tab
+
 class RocketApp:
     def __init__(self, root):
         self.root = root
@@ -391,17 +477,14 @@ class RocketApp:
         right_panel = ctk.CTkFrame(main_frame, fg_color=self.bg_main)
         right_panel.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
         
-        # TabView CustomTkinter
-        self.tabs = ctk.CTkTabview(
+        # MultiRowTabview personnalisé
+        self.tabs = MultiRowTabview(
             right_panel,
             fg_color=self.bg_panel,
-            segmented_button_fg_color=self.bg_surface,
-            segmented_button_selected_color=self.accent,
-            segmented_button_selected_hover_color=self.accent_alt,
-            segmented_button_unselected_color=self.bg_surface,
-            segmented_button_unselected_hover_color=self.grid_color,
-            text_color=self.text_primary,
-            text_color_disabled=self.text_muted,
+            btn_fg_color=self.bg_surface,
+            btn_selected_color=self.accent,
+            btn_hover_color=self.grid_color,
+            btn_text_color=self.text_primary,
             corner_radius=10
         )
         self.tabs.pack(fill=tk.BOTH, expand=True)
@@ -437,6 +520,9 @@ class RocketApp:
 
         # Apply UI scaling after layout is ready
         self.apply_ui_scale(self.ui_scale)
+
+        # Sélectionner le premier onglet par défaut
+        self.tabs.set("📊 Résumé")
         
         # Gérer la fermeture propre de l'application
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
@@ -1002,7 +1088,7 @@ class RocketApp:
         
         # Ligne 1: Options de visualisation
         row1 = ctk.CTkFrame(ctrl_frame, fg_color="transparent")
-        row1.pack(fill=tk.X, pady=5, padx=10)
+        row1.pack(fill=tk.X, pady=10, padx=10)
         
         ctk.CTkLabel(row1, text="Mode:", text_color=self.text_primary).pack(side=tk.LEFT, padx=(0, 10))
         self.heatmap_mode = tk.StringVar(value="coupe_radiale")
@@ -1013,8 +1099,9 @@ class RocketApp:
                                command=self.update_heatmap).pack(side=tk.LEFT, padx=8)
         
         # Séparateur vertical
-        sep = ctk.CTkFrame(row1, width=2, fg_color=self.border_color)
-        sep.pack(side=tk.LEFT, fill=tk.Y, padx=15, pady=5)
+        # Pour le premier séparateur (row1)
+        sep1 = ctk.CTkFrame(row1, width=2, height=16, fg_color=self.border_color) # On définit une hauteur fixe
+        sep1.pack(side=tk.LEFT, padx=15) # SURTOUT PAS de fill=tk.Y ici
         
         ctk.CTkLabel(row1, text="Colormap:", text_color=self.text_primary).pack(side=tk.LEFT, padx=(0, 5))
         self.heatmap_cmap_var = tk.StringVar(value="inferno")
@@ -1056,8 +1143,8 @@ class RocketApp:
                         command=self.update_heatmap).pack(side=tk.LEFT, padx=10)
         
         # Séparateur
-        sep2 = ctk.CTkFrame(row2, width=2, fg_color=self.border_color)
-        sep2.pack(side=tk.LEFT, fill=tk.Y, padx=15, pady=5)
+        sep2 = ctk.CTkFrame(row2, width=2, height=16, fg_color=self.border_color)
+        sep2.pack(side=tk.LEFT, padx=15)
         
         ctk.CTkLabel(row2, text="Position X (mm):", text_color=self.text_primary).pack(side=tk.LEFT, padx=(0, 5))
         self.heatmap_x_pos = ctk.CTkSlider(row2, from_=-100, to=200, width=150,
@@ -5164,6 +5251,25 @@ class RocketApp:
             error_msg = f"Erreur: {str(e)}\n\n{traceback.format_exc()}"
             messagebox.showerror("Erreur", error_msg)
     
+    def launch_textual_viewer(self):
+        """Lance le viewer wiki Textual dans une nouvelle fenêtre."""
+        import subprocess
+        import sys
+        import os
+        
+        script_path = os.path.join(os.path.dirname(__file__), "wiki_app.py")
+        if os.path.exists(script_path):
+            try:
+                if sys.platform == "win32":
+                    subprocess.Popen(f'start python "{script_path}"', shell=True)
+                else:
+                    # Tentative générique pour Linux/Mac
+                    subprocess.Popen(["python3", script_path])
+            except Exception as e:
+                messagebox.showerror("Erreur", f"Impossible de lancer le viewer:\n{e}")
+        else:
+            messagebox.showerror("Erreur", f"Script introuvable: {script_path}")
+
     def init_wiki_tab(self):
         """Onglet Wiki - Documentation complète sur l'analyse thermique"""
         # Barre de couleur en haut
@@ -5192,6 +5298,11 @@ class RocketApp:
         search_entry.bind("<Return>", lambda e: self.wiki_search())
         ctk.CTkButton(toolbar, command=self.wiki_search).pack(side=tk.LEFT, padx=5)
         ctk.CTkButton(toolbar, command=self.wiki_search_next).pack(side=tk.LEFT)
+        
+        # Bouton pour lancer le viewer Textual
+        ctk.CTkButton(toolbar, text="🚀 Viewer Avancé (Textual)", 
+                      command=self.launch_textual_viewer,
+                      fg_color=self.accent_alt, hover_color=self.accent).pack(side=tk.RIGHT, padx=5)
         
         # Sommaire à gauche
         paned = ttk.PanedWindow(main_frame, height=2)
