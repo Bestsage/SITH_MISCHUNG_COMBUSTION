@@ -735,13 +735,20 @@ class RocketApp:
         # Récupérer le frame original (qui est actuellement self.tab_...)
         original_frame = self.tabs.tabs[tab_name]
         
-        # S'assurer que l'onglet n'est pas déjà détaché (vérification basique)
-        if getattr(self, var_name) != original_frame:
-            # Déjà détaché, on pourrait ramener au premier plan la fenêtre existante
-            # Mais ici on suppose que MultiRowTabview gère l'état visuel
+        # S'assurer que l'onglet n'est pas déjà détaché
+        current_frame = getattr(self, var_name)
+        if current_frame != original_frame:
+            # Si c'est un widget (pas le frame original), c'est que c'est déjà détaché
+            # On essaie de retrouver la fenêtre parente pour la mettre au premier plan
+            try:
+                top = current_frame.winfo_toplevel()
+                top.lift()
+                top.focus_force()
+            except:
+                pass
             return
 
-        # 1. Vider le frame original (sans le détruire lui-même)
+        # 1. Vider le frame original
         for child in original_frame.winfo_children():
             child.destroy()
 
@@ -750,48 +757,60 @@ class RocketApp:
         win.title(f"{tab_name} - Détaché")
         win.geometry("1000x800")
         
-        # Frame conteneur dans la fenêtre pour simuler l'environnement de l'onglet
+        # --- MISE AU PREMIER PLAN ---
+        win.lift()
+        win.focus_force()
+        # Astuce pour forcer le focus sur Windows : mettre topmost brièvement
+        win.attributes('-topmost', True)
+        win.after(100, lambda: win.attributes('-topmost', False))
+        
+        # Frame conteneur dans la fenêtre
         container = ctk.CTkFrame(win, fg_color=self.bg_panel)
         container.pack(fill=tk.BOTH, expand=True)
 
-        # 3. Détourner la variable d'instance (ex: self.tab_thermal) vers le nouveau conteneur
+        # 3. Détourner la variable d'instance vers le nouveau conteneur
         setattr(self, var_name, container)
 
-        # 4. Reconstruire l'interface de l'onglet dans la nouvelle fenêtre
+        # 4. Reconstruire l'interface
         if hasattr(self, init_method_name):
             getattr(self, init_method_name)()
         
         # 5. Restaurer l'état / les données
         if update_method_name and hasattr(self, update_method_name):
             try:
-                getattr(self, update_method_name)()
+                # Petit délai pour laisser le temps au layout de se faire
+                self.root.after(50, lambda: getattr(self, update_method_name)())
             except Exception as e:
-                print(f"Erreur lors de la mise à jour de l'onglet détaché: {e}")
+                print(f"Erreur mise à jour détaché: {e}")
 
-        # 6. Gérer la fermeture de la fenêtre pour "Rentrer" l'onglet
+        # 6. Gérer la fermeture pour "Rentrer" l'onglet
         def on_close():
             win.destroy()
             
-            # Restaurer la variable d'instance vers le frame original
+            # A. Restaurer la référence
             setattr(self, var_name, original_frame)
             
-            # Reconstruire l'interface dans l'onglet original
+            # B. Signaler le retour (visuel bouton)
+            self.tabs.dock_in(tab_name)
+            
+            # C. Forcer l'affichage du conteneur parent (IMPORTANT pour que les widgets s'affichent)
+            self.tabs.set(tab_name)
+            self.root.update_idletasks() # Forcer la mise à jour géométrique
+            
+            # D. Reconstruire l'interface
             if hasattr(self, init_method_name):
                 getattr(self, init_method_name)()
             
-            # Restaurer les données
+            # E. Restaurer les données
             if update_method_name and hasattr(self, update_method_name):
                 try:
                     getattr(self, update_method_name)()
                 except:
                     pass
-            
-            # Notifier le TabView que l'onglet est revenu
-            self.tabs.dock_in(tab_name)
 
         win.protocol("WM_DELETE_WINDOW", on_close)
         
-        # Notifier le TabView que l'onglet est sorti (visuel bouton)
+        # Notifier le TabView que l'onglet est sorti
         self.tabs.pop_out(tab_name)
 
     # --- Helpers pour rafraîchir les onglets après reconstruction ---
