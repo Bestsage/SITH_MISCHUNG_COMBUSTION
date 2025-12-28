@@ -463,6 +463,7 @@ class RocketApp:
         self.inputs = {}
         self.results = {}
         self.geometry_profile = None
+        self.wiki_images = []  # Store PhotoImage objects for wiki LaTeX rendering
         
         # --- BASE DE DONNÉES MATÉRIAUX UNIFIÉE ---
         self.materials_db = {
