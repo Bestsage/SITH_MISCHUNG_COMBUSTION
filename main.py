@@ -13,6 +13,7 @@ import json
 import os
 import io
 import re
+import sys
 from datetime import datetime
 
 # Configuration CustomTkinter
@@ -432,7 +433,7 @@ class RocketApp:
         self.text_primary = "#e8f1ff"
         self.text_muted = "#8b949e"
         self.grid_color = "#15191d"
-        self.border_color = "#30363d"
+        self.border_color = "#25292e"
 
         self.tab_accent = {
             "summary": self.accent,
@@ -556,6 +557,9 @@ class RocketApp:
         self.tab_solver = self.tabs.add("🧊 Coolant")
         self.tab_wiki = self.tabs.add("📖 Wiki")
         
+        # Configurer le style TTK immédiatement
+        self.setup_ttk_style()
+        
         # Calculer le zoom AVANT d'initialiser les onglets
         self.ui_scale = self.auto_scale_from_display()
         
@@ -571,9 +575,6 @@ class RocketApp:
         self.init_database_tab()
         self.init_solver_tab()
         self.init_wiki_tab()
-
-        # Configurer le style TTK pour les Treeviews (fonds sombres)
-        self.setup_ttk_style()
 
         # Apply UI scaling after layout is ready
         self.apply_ui_scale(self.ui_scale)
@@ -603,7 +604,14 @@ class RocketApp:
     def setup_ttk_style(self):
         """Configure le thème des widgets standards TTK (Treeview, etc.) pour correspondre au mode sombre."""
         style = ttk.Style()
-        style.theme_use('clam') # 'clam' permet plus de personnalisation que 'vista' ou 'xpnative'
+        
+        # Sur Windows, 'clam' est le meilleur compromis pour la personnalisation
+        if sys.platform == "win32":
+            style.theme_use('clam')
+        
+        # Backgrounds globaux
+        style.configure("TFrame", background=self.bg_panel)
+        style.configure("TLabel", background=self.bg_panel, foreground=self.text_primary)
         
         # Configuration Treeview (Tableaux)
         style.configure("Treeview",
@@ -613,26 +621,36 @@ class RocketApp:
                         borderwidth=0,
                         font=(UI_FONT, self.scaled_font_size(10)))
         
+        # Enlever les bordures blanches (Layout)
+        style.layout("Treeview", [('Treeview.treearea', {'sticky': 'nswe'})])
+        
         style.map("Treeview",
                   background=[('selected', self.accent)],
-                  foreground=[('selected', self.bg_main)])
+                  foreground=[('selected', "#000000")],
+                  fieldbackground=[('selected', self.accent)])
         
         # En-têtes Treeview
         style.configure("Treeview.Heading",
                         background=self.bg_panel,
                         foreground=self.accent,
                         relief="flat",
+                        borderwidth=1,
                         font=(UI_FONT, self.scaled_font_size(11), "bold"))
         
         style.map("Treeview.Heading",
-                  background=[('active', self.bg_surface)])
+                  background=[('active', self.bg_surface)],
+                  foreground=[('active', self.accent_alt)])
         
-        # Ascenseurs (Scrollbars)
+        # Scrollbars (TTK) - Pour les cas où CTkScrollbar n'est pas utilisé
         style.configure("Vertical.TScrollbar",
                         background=self.bg_panel,
                         troughcolor=self.bg_main,
                         bordercolor=self.border_color,
-                        arrowcolor=self.accent)
+                        arrowcolor=self.accent,
+                        relief="flat")
+        
+        style.map("Vertical.TScrollbar",
+                  background=[('active', self.bg_surface), ('pressed', self.accent)])
 
     def auto_scale_from_display(self):
         """Calcule un facteur de zoom en fonction de la résolution écran."""
@@ -756,6 +774,7 @@ class RocketApp:
         win = ctk.CTkToplevel(self.root)
         win.title(f"{tab_name} - Détaché")
         win.geometry("1000x800")
+        win.configure(fg_color=self.bg_main)
         
         # --- MISE AU PREMIER PLAN ---
         win.lift()
@@ -775,11 +794,14 @@ class RocketApp:
         if hasattr(self, init_method_name):
             getattr(self, init_method_name)()
         
+        # Forcer le rendu
+        win.update_idletasks()
+        
         # 5. Restaurer l'état / les données
         if update_method_name and hasattr(self, update_method_name):
             try:
                 # Petit délai pour laisser le temps au layout de se faire
-                self.root.after(50, lambda: getattr(self, update_method_name)())
+                self.root.after(150, lambda: getattr(self, update_method_name)())
             except Exception as e:
                 print(f"Erreur mise à jour détaché: {e}")
 
@@ -5592,20 +5614,23 @@ class RocketApp:
             messagebox.showerror("Erreur", f"Script introuvable: {script_path}")
 
     def init_wiki_tab(self):
-        """Onglet Wiki - Documentation complète sur l'analyse thermique"""
         # Barre de couleur en haut
         tk.Frame(self.tab_wiki, height=4, bg="#9966ff").pack(fill=tk.X)
         
         # Frame principal
-        main_frame = ctk.CTkFrame(self.tab_wiki)
+        main_frame = ctk.CTkFrame(self.tab_wiki, fg_color=self.bg_main)
         main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
         
         # Titre
         title_frame = ctk.CTkFrame(main_frame)
         title_frame.pack(fill=tk.X, pady=(0, 10))
         
-        ctk.CTkLabel(title_frame, 
-                 font=(UI_FONT, 16, "bold"), text_color=self.accent).pack(side=tk.LEFT)
+        ctk.CTkLabel(
+            title_frame,
+            text="Wiki - Documentation complète et guide utilisateur.",
+            font=(UI_FONT, 16, "bold"),
+            text_color=self.accent
+        ).pack(side=tk.LEFT)
         
         # Barre d'outils
         toolbar = ctk.CTkFrame(main_frame)
@@ -5613,31 +5638,37 @@ class RocketApp:
         
         # Variable pour la recherche
         self.wiki_search_var = tk.StringVar()
-        ctk.CTkLabel(toolbar).pack(side=tk.LEFT, padx=(0, 5))
-        search_entry = ctk.CTkEntry(toolbar, textvariable=self.wiki_search_var, width=30)
+        ctk.CTkLabel(toolbar, text="Recherche:").pack(side=tk.LEFT, padx=(0, 5))
+        search_entry = ctk.CTkEntry(toolbar, textvariable=self.wiki_search_var, width=200)
         search_entry.pack(side=tk.LEFT, padx=(0, 5))
         search_entry.bind("<Return>", lambda e: self.wiki_search())
-        ctk.CTkButton(toolbar, command=self.wiki_search).pack(side=tk.LEFT, padx=5)
-        ctk.CTkButton(toolbar, command=self.wiki_search_next).pack(side=tk.LEFT)
+        
+        # Boutons avec texte et icônes
+        ctk.CTkButton(toolbar, text="🔍 Chercher", width=100, command=self.wiki_search).pack(side=tk.LEFT, padx=5)
+        ctk.CTkButton(toolbar, text="⬇️ Suivant", width=100, command=self.wiki_search_next).pack(side=tk.LEFT)
         
         # Bouton pour lancer le viewer Textual
         ctk.CTkButton(toolbar, text="🚀 Viewer Avancé (Textual)", 
                       command=self.launch_textual_viewer,
                       fg_color=self.accent_alt, hover_color=self.accent).pack(side=tk.RIGHT, padx=5)
         
-        # Sommaire à gauche
-        paned = ttk.PanedWindow(main_frame, height=2)
+        # Sommaire à gauche (Horizontal PanedWindow)
+        paned = ttk.PanedWindow(main_frame, orient=tk.HORIZONTAL)
         paned.pack(fill=tk.BOTH, expand=True)
         
         # Panneau sommaire
-        toc_frame = ctk.CTkFrame(paned)
+        toc_frame = ctk.CTkFrame(paned, width=250)
         paned.add(toc_frame, weight=1)
+        
+        # Titre du sommaire
+        ctk.CTkLabel(toc_frame, text="Sommaire", font=("Segoe UI", 12, "bold")).pack(pady=2)
         
         # Liste du sommaire
         self.wiki_toc = tk.Listbox(toc_frame, bg=self.bg_surface, fg=self.text_primary,
                                    selectbackground=self.accent, selectforeground="#000000",
-                                   font=("Consolas", 10), height=25, activestyle='none')
-        self.wiki_toc.pack(fill=tk.BOTH, expand=True)
+                                   font=("Consolas", 10), height=25, activestyle='none',
+                                   borderwidth=0, highlightthickness=0)
+        self.wiki_toc.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
         self.wiki_toc.bind("<<ListboxSelect>>", self.wiki_goto_section)
         
         # Sections du sommaire - GUIDE ULTIME
@@ -5937,9 +5968,18 @@ class RocketApp:
                     img = self.render_latex(formula, fontsize=14)
                     if img:
                         self.wiki_images.append(img)
+                        self.wiki_text.insert(tk.END, '\n') # Marge avant
+                        
+                        # Insérer l'image sur sa propre ligne
+                        idx_start = self.wiki_text.index("insert")
                         self.wiki_text.image_create(tk.END, image=img)
                         self.wiki_text.insert(tk.END, '\n')
-                        self.wiki_text.tag_add("center", "end-2c", "end-1c")
+                        
+                        # Centrer la ligne de l'image
+                        idx_end = self.wiki_text.index("insert")
+                        self.wiki_text.tag_add("center", idx_start, idx_end)
+                        
+                        self.wiki_text.insert(tk.END, '\n') # Marge après
                     else:
                         self.wiki_text.insert(tk.END, line + '\n', "code")
                 i += 1
@@ -6021,11 +6061,12 @@ class RocketApp:
             i += 1
 
     def _insert_formatted_table(self, table_lines):
-        """Formate et aligne un tableau Markdown pour affichage en monospace"""
+        """Formate et aligne un tableau Markdown pour affichage en monospace (Style Box)"""
         # Parser les cellules
         rows = []
         for line in table_lines:
             # Enlever les | de début et fin et split
+            # On suppose format | col1 | col2 |
             cells = [c.strip() for c in line.strip('|').split('|')]
             rows.append(cells)
         
@@ -6044,33 +6085,45 @@ class RocketApp:
                         continue
                     col_widths[idx] = max(col_widths[idx], len(cell))
         
+        # Ligne horizontale complète
+        def get_separator(char='─', junction='┼'):
+            parts = [char * (w + 2) for w in col_widths]
+            return junction.join(parts)
+            
+        top_border = "┌" + get_separator('─', '┬') + "┐"
+        mid_border = "├" + get_separator('─', '┼') + "┤"
+        bot_border = "└" + get_separator('─', '┴') + "┘"
+        
+        self.wiki_text.insert(tk.END, top_border + "\n", "code")
+        
         # Construire les lignes formatées
         for r_idx, row in enumerate(rows):
-            # Est-ce la ligne de séparation ?
+            # Est-ce la ligne de séparation markdown (---|---) ?
             is_separator = all(set(c) <= {'-', ':', ' '} for c in row) and len(row) > 0
             
             if is_separator:
-                # Créer une ligne de séparation jolie
-                sep_parts = []
-                for w in col_widths:
-                    sep_parts.append('─' * (w + 2))
-                formatted_line = "┼".join(sep_parts)
-                # Utiliser un style différent pour le séparateur
-                self.wiki_text.insert(tk.END, "  " + formatted_line + "\n", "code")
+                self.wiki_text.insert(tk.END, mid_border + "\n", "code")
                 continue
             
             # Formater les cellules avec padding
             formatted_cells = []
-            for c_idx, cell in enumerate(row):
-                if c_idx < len(col_widths):
-                    width = col_widths[c_idx]
-                    formatted_cells.append(f" {cell:<{width}} ") # Alignement gauche par défaut
+            for c_idx in range(num_cols):
+                if c_idx < len(row):
+                    cell = row[c_idx]
+                else:
+                    cell = "" # Cellule vide si manque de colonnes
+                
+                width = col_widths[c_idx]
+                formatted_cells.append(f" {cell:<{width}} ") # Alignement gauche
             
             line_str = "│".join(formatted_cells)
+            full_line = "│" + line_str + "│"
             
             # Premier rang est le header
             tag = "table_header" if r_idx == 0 else "table_row"
-            self.wiki_text.insert(tk.END, "  " + line_str + "\n", tag)
+            self.wiki_text.insert(tk.END, full_line + "\n", tag)
+            
+        self.wiki_text.insert(tk.END, bot_border + "\n", "code")
 
     def _load_text_wiki(self, content):
         """Charge et formate le contenu texte legacy du wiki"""
@@ -7329,22 +7382,23 @@ Débit Oxydant   : {mdot_ox_available:.4f} kg/s
             # Mettre à jour le widget texte (en activant l'état 'normal' temporairement)
             self.txt_summary.config(state='normal')
             self.txt_summary.delete(1.0, tk.END)
+            # Afficher le résumé
+            self.last_summary_data = (summary, cooling_status, coolant_warning)
             self.insert_colored_summary(summary, cooling_status, coolant_warning)
             self.txt_summary.config(state='disabled')
             
             # Raw CEA output avec coloration
-            try:
-                if HAS_ROCKETCEA:
+            if HAS_ROCKETCEA:
+                try:
                     raw = ispObj.get_full_cea_output(Pc=pc_psi, MR=mr, eps=eps, pc_units='bar', output='calories')
                     self.txt_cea.config(state='normal')
                     self.txt_cea.delete(1.0, tk.END)
                     self.insert_colored_cea(raw)
                     self.txt_cea.config(state='disabled')
-            except:
-                pass
+                except Exception:
+                    pass
             
             self.tabs.set("📊 Résumé")
-            
         except Exception as e:
             messagebox.showerror("Erreur Prometheus", str(e))
 
@@ -7821,6 +7875,24 @@ Débit Oxydant   : {mdot_ox_available:.4f} kg/s
         ax.tick_params(colors=self.text_primary, labelsize=9)
         
         self.canvas_graph.draw()
+
+    def get_cea_value_safe(self, ispObj, pc_psi, mr, pe_psi, eps_override, pamb_psi, var_name, debug=False):
+        """Helper pour récupérer une valeur CEA de manière sécurisée."""
+        try:
+            # Logique de récupération de valeur (à implémenter ou compléter selon les besoins)
+            # Pour l'instant, c'est un placeholder qui retourne 0 si non implémenté
+            # Vous devriez déplacer la logique spécifique de récupération ici
+            
+            # Exemple générique (à adapter)
+            if "ISP Vide" in var_name:
+                return ispObj.get_Isp(Pc=pc_psi, MR=mr, eps=eps_override)
+            elif "ISP Ambiante" in var_name:
+                return ispObj.estimate_Ambient_Isp(Pc=pc_psi, MR=mr, eps=eps_override, Pamb=pamb_psi)[0]
+            # ... autres cas ...
+            
+            return 0.0
+        except Exception:
+            return 0.0
 
     # ==========================================================================
     # ANALYSE THERMIQUE PARAMÉTRIQUE
