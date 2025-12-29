@@ -147,7 +147,7 @@ export default function Home() {
     return { sigmaHoop, sigmaThermal, sigmaVM, fos, tOuterShell };
   };
 
-  const stressData = useMemo(() => calculateStressData(), [results, config, materials]);
+  const stressData = calculateStressData();
 
   return (
     <AppLayout>
@@ -678,11 +678,19 @@ export default function Home() {
                               <div>
                                 <p className="text-[10px] uppercase text-[#a1a1aa] font-bold mb-1">FoS Cible</p>
                                 <input
-                                  type="number"
-                                  step="0.05"
+                                  type="text"
+                                  inputMode="decimal"
                                   value={config.jacket_fos}
-                                  onChange={(e) => updateConfig("jacket_fos", parseFloat(e.target.value) || 1.25)}
-                                  className="input-field text-xs py-0.5 w-full h-6"
+                                  onChange={(e) => {
+                                    const val = e.target.value.replace(',', '.');
+                                    const num = parseFloat(val);
+                                    if (!isNaN(num)) {
+                                      updateConfig("jacket_fos", num);
+                                    } else if (val === "") {
+                                      updateConfig("jacket_fos", 1.0);
+                                    }
+                                  }}
+                                  className="input-field text-xs py-0.5 w-full h-6 text-right font-mono"
                                 />
                               </div>
                             </div>
