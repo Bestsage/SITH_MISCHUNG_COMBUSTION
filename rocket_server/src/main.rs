@@ -285,15 +285,18 @@ async fn calculate_full(Json(motor): Json<MotorDefinition>) -> Result<Json<Calcu
             // Cylindrical chamber
             r_chamber
         } else if x <= throat_x {
-            // Convergent section (smooth sinusoidal transition)
-            let t = (throat_x - x) / l_conv;  // 1 at start, 0 at throat
-            let blend = (1.0 - (std::f64::consts::PI * (1.0 - t) / 2.0).cos()) / 2.0;
-            r_throat + (r_chamber - r_throat) * blend
+            // Convergent section (smooth cosine transition)
+            // t goes from 0 (start of convergent) to 1 (at throat)
+            let t = (x - (throat_x - l_conv)) / l_conv;
+            let t = t.clamp(0.0, 1.0);
+            // Cosine blend: smooth transition from r_chamber to r_throat
+            let blend = (1.0 - (t * std::f64::consts::PI).cos()) / 2.0;
+            r_chamber - (r_chamber - r_throat) * blend
         } else {
             // Divergent section (80% parabolic bell)
             let t = (x - throat_x) / l_nozzle;
             let t = t.clamp(0.0, 1.0);
-            // Parabolic profile: r = r_t + (r_e - r_t) * (2*t - t^2)^0.8
+            // Parabolic profile
             r_throat + (r_exit - r_throat) * (2.0 * t - t * t).powf(0.85)
         };
         r_profile.push(r);
