@@ -4,111 +4,36 @@ import { useState, useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
 import AppLayout from "@/components/AppLayout";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, AreaChart, Area, ComposedChart, Bar } from "recharts";
+import { useCalculation } from "@/contexts/CalculationContext";
 
 const Motor3DViewer = dynamic(() => import("@/components/Motor3DViewer"), { ssr: false });
-
-interface MotorConfig {
-  name: string;
-  oxidizer: string;
-  fuel: string;
-  of_ratio: number;
-  pc: number;
-  mdot: number;
-  lstar: number;
-  contraction_ratio: number;
-  pe: number;
-  pamb: number;
-  theta_n: number;
-  theta_e: number;
-  material_name: string;
-  wall_thickness: number;
-  wall_k: number;
-  twall_max: number;
-  coolant_name: string;
-  coolant_mdot: string;
-  coolant_pressure: number;
-  coolant_tin: number;
-  coolant_tout_max: number;
-  coolant_margin: number;
-  custom_cp: number;
-  custom_tboil: number;
-  custom_tcrit: number;
-  custom_hvap: number;
-}
-
-const defaultConfig: MotorConfig = {
-  name: "Moteur_Propane",
-  oxidizer: "O2",
-  fuel: "C3H8",
-  of_ratio: 2.8,
-  pc: 12.0,
-  mdot: 0.5,
-  lstar: 1.0,
-  contraction_ratio: 3.5,
-  pe: 1.013,
-  pamb: 1.013,
-  theta_n: 25.0,
-  theta_e: 8.0,
-  material_name: "Cuivre-Zirconium (CuZr)",
-  wall_thickness: 2.0,
-  wall_k: 340.0,
-  twall_max: 1000.0,
-  coolant_name: "Auto",
-  coolant_mdot: "Auto",
-  coolant_pressure: 15.0,
-  coolant_tin: 293.0,
-  coolant_tout_max: 350.0,
-  coolant_margin: 20.0,
-  custom_cp: 2500.0,
-  custom_tboil: 350.0,
-  custom_tcrit: 500.0,
-  custom_hvap: 400.0,
-};
 
 type ResultTab = "summary" | "3d" | "cea" | "graphs" | "bartz" | "heatmap" | "stress";
 
 export default function Home() {
-  const [materials, setMaterials] = useState<any>(null);
-  const [results, setResults] = useState<any>(null);
-  const [loading, setLoading] = useState(false);
+  // Use shared context for state persistence across pages
+  const {
+    config,
+    setConfig: setContextConfig,
+    results,
+    materials,
+    loading,
+    loadMaterials,
+    calculateFull
+  } = useCalculation();
+
   const [configTab, setConfigTab] = useState<"basic" | "coolant" | "advanced">("basic");
   const [resultTab, setResultTab] = useState<ResultTab>("summary");
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [config, setConfig] = useState<MotorConfig>(defaultConfig);
 
   useEffect(() => {
     loadMaterials();
-  }, []);
+  }, [loadMaterials]);
 
-  const loadMaterials = async () => {
-    try {
-      const res = await fetch("http://localhost:8000/api/materials");
-      const data = await res.json();
-      setMaterials(data.materials);
-    } catch (e) {
-      console.error("Materials load failed:", e);
-    }
-  };
+  // Note: calculateFull comes from context now, no local version needed
 
-  const calculateFull = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch("http://localhost:8000/api/calculate/full", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(config)
-      });
-      const data = await res.json();
-      setResults(data);
-    } catch (e) {
-      console.error("Calculation failed:", e);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const updateConfig = (key: keyof MotorConfig, value: any) => {
-    setConfig(prev => ({ ...prev, [key]: value }));
+  const updateConfig = (key: string, value: any) => {
+    setContextConfig({ [key]: value });
   };
 
   const exportJSON = () => {
@@ -190,19 +115,24 @@ export default function Home() {
     const sigmaHoop = (pc * r) / e / 1e6; // MPa
 
     const deltaT = results.t_chamber * 0.3 - 300; // Approximate wall temp gradient
-    const E = 120e9; // Pa (copper)
-    const alpha = 17e-6; // 1/K
-    const nu = 0.33;
+
+    const mat = materials?.[config.material_name];
+    const E = (mat?.E || 120) * 1e9; // Pa (from GPa)
+    const alpha = (mat?.alpha || 17) * 1e-6; // 1/K (from 10^-6)
+    const nu = mat?.nu || 0.33;
+
     const sigmaThermal = E * alpha * deltaT / (2 * (1 - nu)) / 1e6; // MPa
 
     const sigmaVM = Math.sqrt(sigmaHoop ** 2 + sigmaThermal ** 2 - sigmaHoop * sigmaThermal);
-    const sigmaYield = materials?.[config.material_name]?.sigma_y || 280;
+    const sigmaYield = mat?.sigma_y || 280;
     const fos = sigmaYield / sigmaVM;
 
-    // Outer shell thickness estimation (steel, 200 MPa yield)
+    // Outer shell thickness estimation (steel 316L, 290 MPa yield)
     const pCoolant = config.coolant_pressure * 1e5;
     const rOuter = (results.r_chamber || 0.05) + e;
-    const tOuterShell = (pCoolant * rOuter) / (200e6 * 0.8) * 1000; // mm with safety factor
+    const sigmaYieldOuter = 290e6; // Pa (316L)
+    const factorOfSafetyOuter = 1.25;
+    const tOuterShell = (pCoolant * rOuter) / (sigmaYieldOuter / factorOfSafetyOuter) * 1000; // mm
 
     return { sigmaHoop, sigmaThermal, sigmaVM, fos, tOuterShell };
   };

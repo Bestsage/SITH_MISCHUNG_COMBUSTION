@@ -20,7 +20,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     const pathname = usePathname();
 
     return (
-        <div className="min-h-screen bg-[#0a0a0f] flex">
+        <div className="min-h-screen w-full bg-[#0a0a0f] flex">
             {/* Sidebar */}
             <aside className="w-64 bg-[#12121a] border-r border-[#27272a] flex flex-col">
                 {/* Logo */}
