@@ -6,9 +6,9 @@ import { ReactNode } from "react";
 
 const NAV_ITEMS = [
     { name: "Vue d'ensemble", href: "/", icon: "📊" },
+    { name: "Éléments CEA", href: "/elements", icon: "⚗️" },
     { name: "Thermodynamique", href: "/thermo", icon: "🌡️" },
     { name: "Refroidissement", href: "/cooling", icon: "❄️" },
-    { name: "Combustion", href: "/combustion", icon: "🔥" },
     { name: "Matériaux", href: "/materials", icon: "🧱" },
     { name: "Wiki", href: "/wiki", icon: "📖" },
     { name: "Paramètres", href: "/settings", icon: "⚙️" },

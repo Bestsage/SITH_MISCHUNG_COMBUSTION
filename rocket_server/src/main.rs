@@ -264,7 +264,80 @@ async fn calculate_full(Json(motor): Json<MotorDefinition>) -> Result<Json<Calcu
     let thrust_vac = motor.mdot * cea_result.isp_vac * 9.81;
     let thrust_sl = motor.mdot * cea_result.isp_sl * 9.81;
     
-    // 4. Mock thermal results (would call actual solver)
+    // 4. Generate geometry profile for plotting (80% bell nozzle contour)
+    let n_points = 100;
+    let mut x_profile = Vec::with_capacity(n_points);
+    let mut r_profile = Vec::with_capacity(n_points);
+    let mut area_profile = Vec::with_capacity(n_points);
+    let mut area_ratio_profile = Vec::with_capacity(n_points);
+    
+    let total_length = l_chamber + l_nozzle;
+    let throat_x = l_chamber;
+    
+    // Throat radius of curvature (typical: 1.5 * r_throat for upstream, 0.382 * r_throat for downstream)
+    let r_curve_upstream = 1.5 * r_throat;
+    let r_curve_downstream = 0.382 * r_throat;
+    
+    // Bell nozzle parameters
+    let theta_n_rad = motor.theta_n.to_radians();
+    let theta_e_rad = motor.theta_e.to_radians();
+    
+    for i in 0..n_points {
+        let x = (i as f64 / (n_points - 1) as f64) * total_length;
+        x_profile.push(x);
+        
+        let r = if x < throat_x - r_curve_upstream {
+            // Cylindrical chamber
+            r_chamber
+        } else if x < throat_x - r_curve_upstream * 0.3 {
+            // Convergent section (smooth curve)
+            let t = (x - (throat_x - r_curve_upstream)) / (r_curve_upstream * 0.7);
+            let arc = r_curve_upstream * (1.0 - (1.0 - t.clamp(0.0, 1.0)).powi(2));
+            r_chamber - (r_chamber - r_throat - r_curve_upstream) * t.clamp(0.0, 1.0).sqrt() - arc * 0.1
+        } else if x < throat_x {
+            // Throat upstream arc
+            let dx = throat_x - x;
+            let dy_sq = r_curve_upstream.powi(2) - dx.powi(2);
+            if dy_sq > 0.0 {
+                r_throat + r_curve_upstream - dy_sq.sqrt()
+            } else {
+                r_throat
+            }
+        } else if x < throat_x + r_curve_downstream {
+            // Throat downstream arc
+            let dx = x - throat_x;
+            let dy_sq = r_curve_downstream.powi(2) - dx.powi(2);
+            if dy_sq > 0.0 {
+                r_throat + r_curve_downstream - dy_sq.sqrt()
+            } else {
+                r_throat + r_curve_downstream * (1.0 - theta_n_rad.cos())
+            }
+        } else {
+            // 80% Bell nozzle parabola (Rao contour approximation)
+            let x_start = throat_x + r_curve_downstream;
+            let r_start = r_throat + r_curve_downstream * (1.0 - theta_n_rad.cos());
+            let t = ((x - x_start) / (l_nozzle - r_curve_downstream)).clamp(0.0, 1.0);
+            
+            // Parabolic interpolation from theta_n to theta_e
+            let theta = theta_n_rad * (1.0 - t) + theta_e_rad * t;
+            let dr = (r_exit - r_start) * (2.0 * t - t * t); // Parabolic
+            r_start + dr
+        };
+        r_profile.push(r.max(r_throat * 0.95));  // Ensure minimum
+        
+        let area = std::f64::consts::PI * r * r;
+        area_profile.push(area);
+        area_ratio_profile.push(area / area_throat);
+    }
+    
+    let geometry_profile = motor_definition::GeometryProfile {
+        x: x_profile,
+        r: r_profile,
+        area: area_profile,
+        area_ratio: area_ratio_profile,
+    };
+    
+    // 5. Mock thermal results (would call actual solver)
     let cooling_status = if motor.twall_max > 1300.0 {
         "CRITICAL".to_string()
     } else if motor.twall_max > 1000.0 {
@@ -306,12 +379,19 @@ async fn calculate_full(Json(motor): Json<MotorDefinition>) -> Result<Json<Calcu
         coolant_pressure_drop: 3.5,  // bar
         cooling_status,
         
-        // Profiles (None for now, would be populated by solver)
+        // Profiles
         thermal_profile: None,
-        geometry_profile: None,
+        geometry_profile: Some(geometry_profile),
     };
     
     Ok(Json(results))
+}
+
+async fn get_wiki() -> Result<String, StatusCode> {
+    match std::fs::read_to_string("../wiki.md") {
+        Ok(content) => Ok(content),
+        Err(_) => Err(StatusCode::NOT_FOUND)
+    }
 }
 
 pub async fn create_app() -> Router {
@@ -328,6 +408,7 @@ pub async fn create_app() -> Router {
         .route("/api/geometry/generate", post(generate_geometry))
         .route("/api/solve", post(run_solver))
         .route("/api/calculate/full", post(calculate_full))
+        .route("/api/wiki", get(get_wiki))
         .layer(cors)
 }
 
