@@ -2,7 +2,7 @@ name: Build and Push Docker Image
 
 on:
   push:
-    branches: [ "main", "master" ]
+    branches: [ "v2-modern-stack" ]
   workflow_dispatch:  # Allow manual trigger
 
 env:

@@ -16,14 +16,14 @@ This project is configured for automatic deployment on CasaOS with updates on ev
 
 The workflow at `.github/workflows/deploy.yml` automatically builds and pushes Docker images to GitHub Container Registry (ghcr.io) on every push to `main` or `master`.
 
-**Image URL:** `ghcr.io/YOUR_USERNAME/rocket-motor-design-plotter:latest`
+**Image URL:** `ghcr.io/bestsage/sith_mischung_combustion:latest`
 
 ### 3. Install on CasaOS
 
 1. Open CasaOS Dashboard
 2. Click **App Store** → **Custom Install** (top right)
 3. Fill in the details:
-   - **Docker Image:** `ghcr.io/YOUR_USERNAME/rocket-motor-design-plotter:latest`
+   - **Docker Image:** `ghcr.io/bestsage/sith_mischung_combustion:latest`
    - **Container Name:** `rocket-studio`
    - **Network:** `bridge`
    - **Ports:**

@@ -50,9 +50,9 @@ export default function ElementsPage() {
 
     return (
         <AppLayout>
-            <div className="flex h-full overflow-hidden">
+            <div className="h-[calc(100vh-64px)] flex overflow-hidden">
                 {/* Left Panel - List */}
-                <div className="w-80 bg-[#12121a] border-r border-[#27272a] flex flex-col flex-shrink-0">
+                <div className="w-80 h-full bg-[#12121a] border-r border-[#27272a] flex flex-col flex-shrink-0">
                     <div className="p-4 border-b border-[#27272a]">
                         <h1 className="text-lg font-bold text-white mb-3">⚗️ Éléments CEA</h1>
 
@@ -70,8 +70,8 @@ export default function ElementsPage() {
                             <button
                                 onClick={() => { setActiveTab("fuels"); setSelectedElement(null); }}
                                 className={`flex-1 py-2 px-3 text-sm font-medium rounded transition-all ${activeTab === "fuels"
-                                        ? "bg-[#3b82f6]/20 text-[#3b82f6]"
-                                        : "text-[#71717a] hover:text-white hover:bg-[#1a1a25]"
+                                    ? "bg-[#3b82f6]/20 text-[#3b82f6]"
+                                    : "text-[#71717a] hover:text-white hover:bg-[#1a1a25]"
                                     }`}
                             >
                                 🔵 Fuels ({fuels.length})
@@ -79,8 +79,8 @@ export default function ElementsPage() {
                             <button
                                 onClick={() => { setActiveTab("oxidizers"); setSelectedElement(null); }}
                                 className={`flex-1 py-2 px-3 text-sm font-medium rounded transition-all ${activeTab === "oxidizers"
-                                        ? "bg-[#ef4444]/20 text-[#ef4444]"
-                                        : "text-[#71717a] hover:text-white hover:bg-[#1a1a25]"
+                                    ? "bg-[#ef4444]/20 text-[#ef4444]"
+                                    : "text-[#71717a] hover:text-white hover:bg-[#1a1a25]"
                                     }`}
                             >
                                 🔴 Oxid ({oxidizers.length})
@@ -131,7 +131,7 @@ export default function ElementsPage() {
                 </div>
 
                 {/* Right Panel - Details */}
-                <div className="flex-1 overflow-y-auto p-6">
+                <div className="flex-1 h-full overflow-y-auto p-6">
                     {selectedElement ? (
                         <div className="max-w-2xl mx-auto space-y-6">
                             {/* Header */}
