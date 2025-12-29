@@ -1,0 +1,52 @@
+# Dependencies
+node_modules
+web/node_modules
+.pnp
+.pnp.js
+
+# Build outputs (we build in Docker)
+.next
+web/.next
+target
+rocket_server/target
+
+# Testing
+coverage
+
+# Misc
+.DS_Store
+*.pem
+*.log
+
+# Debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Local env files
+.env*.local
+.env
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# Git
+.git
+.gitignore
+
+# Development files
+*.md
+!CASAOS_DEPLOY.md
+!wiki.md
+
+# Python cache
+__pycache__
+*.pyc
+*.pyo
+.pytest_cache
+
+# Rust dev files
+Cargo.lock

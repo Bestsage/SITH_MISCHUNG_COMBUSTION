@@ -1,203 +1,219 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import AppLayout from "@/components/AppLayout";
 
-// CEA Propellant database
-const oxidizers = [
-    { name: "O2", formula: "O2", description: "Oxygène Liquide (LOX)", tBoil: 90.2, density: 1141, enthalpy: 0, common: true },
-    { name: "N2O", formula: "N2O", description: "Protoxyde d'azote", tBoil: 184.7, density: 1230, enthalpy: 82.05, common: true },
-    { name: "N2O4", formula: "N2O4", description: "Tétroxyde de diazote", tBoil: 294.3, density: 1450, enthalpy: -19.56, common: true },
-    { name: "H2O2", formula: "H2O2", description: "Peroxyde d'hydrogène", tBoil: 423.4, density: 1450, enthalpy: -187.8, common: true },
-    { name: "ClF3", formula: "ClF3", description: "Trifluorure de chlore", tBoil: 284.9, density: 1770, enthalpy: -163.2, common: false },
-    { name: "ClF5", formula: "ClF5", description: "Pentafluorure de chlore", tBoil: 260.2, density: 1900, enthalpy: -238.5, common: false },
-    { name: "F2", formula: "F2", description: "Fluor liquide", tBoil: 85.0, density: 1505, enthalpy: 0, common: false },
-    { name: "IRFNA", formula: "HNO3", description: "Acide nitrique fumant rouge", tBoil: 356.0, density: 1560, enthalpy: -174.1, common: true },
-    { name: "MON25", formula: "N2O4+NO", description: "Mixed Oxides of Nitrogen", tBoil: 288.0, density: 1430, enthalpy: -10.0, common: true },
-    { name: "N2O4", formula: "N2O4", description: "Aérozine (NTO)", tBoil: 294.3, density: 1443, enthalpy: -19.56, common: true },
-];
-
-const fuels = [
-    { name: "H2", formula: "H2", description: "Hydrogène Liquide (LH2)", tBoil: 20.3, density: 71, enthalpy: 0, common: true },
-    { name: "CH4", formula: "CH4", description: "Méthane (LNG)", tBoil: 111.7, density: 422, enthalpy: -74.9, common: true },
-    { name: "C3H8", formula: "C3H8", description: "Propane", tBoil: 231.0, density: 493, enthalpy: -104.7, common: true },
-    { name: "RP-1", formula: "C12H24", description: "Kérosène raffiné", tBoil: 489.0, density: 810, enthalpy: -24.7, common: true },
-    { name: "C2H5OH", formula: "C2H5OH", description: "Éthanol", tBoil: 351.4, density: 789, enthalpy: -277.0, common: true },
-    { name: "CH3OH", formula: "CH3OH", description: "Méthanol", tBoil: 337.8, density: 792, enthalpy: -239.2, common: true },
-    { name: "MMH", formula: "CH3NHNH2", description: "Monométhylhydrazine", tBoil: 360.6, density: 878, enthalpy: 54.84, common: true },
-    { name: "UDMH", formula: "(CH3)2NNH2", description: "Diméthylhydrazine asymétrique", tBoil: 336.0, density: 793, enthalpy: 83.3, common: true },
-    { name: "N2H4", formula: "N2H4", description: "Hydrazine", tBoil: 386.7, density: 1021, enthalpy: 50.63, common: true },
-    { name: "NH3", formula: "NH3", description: "Ammoniac", tBoil: 239.8, density: 682, enthalpy: -45.9, common: false },
-    { name: "Aerozine-50", formula: "N2H4+UDMH", description: "50% Hydrazine + 50% UDMH", tBoil: 340.0, density: 903, enthalpy: 67.0, common: true },
-];
-
-const propellantCombos = [
-    { ox: "O2", fuel: "H2", isp: 455, tc: 3300, ofOpt: 6.0, usage: "Delta IV, SLS, Ariane 5" },
-    { ox: "O2", fuel: "CH4", isp: 365, tc: 3550, ofOpt: 3.6, usage: "Raptor, BE-4" },
-    { ox: "O2", fuel: "RP-1", isp: 340, tc: 3600, ofOpt: 2.7, usage: "Falcon 9, Atlas V" },
-    { ox: "O2", fuel: "C3H8", isp: 340, tc: 3500, ofOpt: 2.8, usage: "Amateur, Test" },
-    { ox: "O2", fuel: "C2H5OH", isp: 310, tc: 3200, ofOpt: 1.8, usage: "V-2, Amateur" },
-    { ox: "N2O4", fuel: "MMH", isp: 320, tc: 3300, ofOpt: 2.2, usage: "Proton, Dragon" },
-    { ox: "N2O4", fuel: "UDMH", isp: 315, tc: 3250, ofOpt: 2.6, usage: "Proton, Long March" },
-    { ox: "N2O4", fuel: "Aerozine-50", isp: 318, tc: 3280, ofOpt: 2.0, usage: "Titan, Apollo SPS" },
-    { ox: "N2O", fuel: "C3H8", isp: 280, tc: 2800, ofOpt: 8.0, usage: "Hybrid, Amateur" },
-    { ox: "H2O2", fuel: "RP-1", isp: 300, tc: 3000, ofOpt: 7.5, usage: "Black Arrow" },
-];
+interface PropellantItem {
+    name: string;
+    type: string;
+    card: string;
+}
 
 export default function ElementsPage() {
-    const [activeTab, setActiveTab] = useState<"oxidizers" | "fuels" | "combos">("oxidizers");
+    const [activeTab, setActiveTab] = useState<"fuels" | "oxidizers">("fuels");
     const [searchQuery, setSearchQuery] = useState("");
+    const [selectedElement, setSelectedElement] = useState<PropellantItem | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [fuels, setFuels] = useState<PropellantItem[]>([]);
+    const [oxidizers, setOxidizers] = useState<PropellantItem[]>([]);
+    const [error, setError] = useState<string | null>(null);
 
-    const filteredOxidizers = oxidizers.filter(o =>
-        o.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        o.description.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    useEffect(() => {
+        loadPropellants();
+    }, []);
 
-    const filteredFuels = fuels.filter(f =>
-        f.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        f.description.toLowerCase().includes(searchQuery.toLowerCase())
+    const loadPropellants = async () => {
+        setLoading(true);
+        setError(null);
+        try {
+            const res = await fetch("http://localhost:8001/propellants");
+            const data = await res.json();
+            if (data.error) {
+                setError(data.error);
+            } else {
+                setFuels(data.fuels || []);
+                setOxidizers(data.oxidizers || []);
+            }
+        } catch (e) {
+            setError("Impossible de charger les propergols. Le service CEA est-il en marche sur le port 8001?");
+            console.error("Load propellants failed:", e);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const currentList = activeTab === "fuels" ? fuels : oxidizers;
+
+    const filteredList = currentList.filter(item =>
+        item.name.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
     return (
         <AppLayout>
-            <div className="p-6 h-full overflow-y-auto">
-                <div className="max-w-6xl mx-auto">
-                    <div className="mb-6">
-                        <h1 className="text-3xl font-bold text-white mb-2">⚗️ Base de Données Propergols</h1>
-                        <p className="text-[#71717a]">Éléments CEA • Oxydants • Carburants • Combinaisons</p>
-                    </div>
+            <div className="flex h-full overflow-hidden">
+                {/* Left Panel - List */}
+                <div className="w-80 bg-[#12121a] border-r border-[#27272a] flex flex-col flex-shrink-0">
+                    <div className="p-4 border-b border-[#27272a]">
+                        <h1 className="text-lg font-bold text-white mb-3">⚗️ Éléments CEA</h1>
 
-                    {/* Search */}
-                    <div className="mb-6">
+                        {/* Search */}
                         <input
                             type="text"
-                            placeholder="🔍 Rechercher un propergol..."
+                            placeholder="🔍 Rechercher..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="input-field w-full max-w-md"
+                            className="input-field w-full text-sm mb-3"
                         />
-                    </div>
 
-                    {/* Tabs */}
-                    <div className="flex border-b border-[#27272a] mb-6">
-                        {[
-                            { key: "oxidizers", label: "🔴 Oxydants", count: oxidizers.length },
-                            { key: "fuels", label: "🔵 Carburants", count: fuels.length },
-                            { key: "combos", label: "⚡ Combinaisons", count: propellantCombos.length },
-                        ].map((tab) => (
+                        {/* Tabs */}
+                        <div className="flex gap-2">
                             <button
-                                key={tab.key}
-                                onClick={() => setActiveTab(tab.key as any)}
-                                className={`px-6 py-3 font-medium transition-all ${activeTab === tab.key
-                                        ? "text-[#00d4ff] border-b-2 border-[#00d4ff]"
-                                        : "text-[#71717a] hover:text-white"
+                                onClick={() => { setActiveTab("fuels"); setSelectedElement(null); }}
+                                className={`flex-1 py-2 px-3 text-sm font-medium rounded transition-all ${activeTab === "fuels"
+                                        ? "bg-[#3b82f6]/20 text-[#3b82f6]"
+                                        : "text-[#71717a] hover:text-white hover:bg-[#1a1a25]"
                                     }`}
                             >
-                                {tab.label} <span className="text-xs opacity-60">({tab.count})</span>
+                                🔵 Fuels ({fuels.length})
                             </button>
-                        ))}
+                            <button
+                                onClick={() => { setActiveTab("oxidizers"); setSelectedElement(null); }}
+                                className={`flex-1 py-2 px-3 text-sm font-medium rounded transition-all ${activeTab === "oxidizers"
+                                        ? "bg-[#ef4444]/20 text-[#ef4444]"
+                                        : "text-[#71717a] hover:text-white hover:bg-[#1a1a25]"
+                                    }`}
+                            >
+                                🔴 Oxid ({oxidizers.length})
+                            </button>
+                        </div>
                     </div>
 
-                    {/* Content */}
-                    {activeTab === "oxidizers" && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {filteredOxidizers.map((ox) => (
-                                <div key={ox.name} className={`card ${ox.common ? 'border-[#ef4444]/30' : ''}`}>
-                                    <div className="flex items-center gap-3 mb-3">
-                                        <span className="text-2xl">🔴</span>
-                                        <div>
-                                            <h3 className="font-bold text-white">{ox.name}</h3>
-                                            <p className="text-xs text-[#71717a]">{ox.formula}</p>
-                                        </div>
-                                        {ox.common && <span className="ml-auto text-xs bg-[#ef4444]/20 text-[#ef4444] px-2 py-1 rounded">Commun</span>}
+                    {/* Element List */}
+                    <div className="flex-1 overflow-y-auto">
+                        {loading ? (
+                            <div className="p-4 text-center text-[#71717a]">
+                                <span className="animate-spin inline-block mr-2">⏳</span>
+                                Chargement...
+                            </div>
+                        ) : error ? (
+                            <div className="p-4 text-center">
+                                <p className="text-[#ef4444] text-sm mb-2">⚠️ Erreur</p>
+                                <p className="text-[#71717a] text-xs">{error}</p>
+                                <button onClick={loadPropellants} className="btn-secondary mt-3 text-xs">
+                                    🔄 Réessayer
+                                </button>
+                            </div>
+                        ) : filteredList.length === 0 ? (
+                            <div className="p-4 text-center text-[#71717a] text-sm">
+                                Aucun résultat
+                            </div>
+                        ) : (
+                            filteredList.map((item) => (
+                                <button
+                                    key={item.name}
+                                    onClick={() => setSelectedElement(item)}
+                                    className={`w-full text-left px-4 py-3 border-b border-[#27272a]/50 hover:bg-[#1a1a25] transition-colors ${selectedElement?.name === item.name ? "bg-[#1a1a25] border-l-2 border-l-[#00d4ff]" : ""
+                                        }`}
+                                >
+                                    <div className="flex items-center gap-2">
+                                        <span className={`w-2 h-2 rounded-full ${item.type === "fuel" ? "bg-[#3b82f6]" : "bg-[#ef4444]"}`}></span>
+                                        <span className="font-mono text-sm text-white font-bold">{item.name}</span>
                                     </div>
-                                    <p className="text-sm text-[#a1a1aa] mb-3">{ox.description}</p>
-                                    <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                                        <div className="bg-[#1a1a25] rounded p-2">
-                                            <p className="text-[#71717a]">T ébull.</p>
-                                            <p className="text-white font-mono">{ox.tBoil} K</p>
-                                        </div>
-                                        <div className="bg-[#1a1a25] rounded p-2">
-                                            <p className="text-[#71717a]">ρ</p>
-                                            <p className="text-white font-mono">{ox.density} kg/m³</p>
-                                        </div>
-                                        <div className="bg-[#1a1a25] rounded p-2">
-                                            <p className="text-[#71717a]">ΔHf</p>
-                                            <p className="text-white font-mono">{ox.enthalpy} kJ/mol</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
+                                </button>
+                            ))
+                        )}
+                    </div>
 
-                    {activeTab === "fuels" && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {filteredFuels.map((fuel) => (
-                                <div key={fuel.name} className={`card ${fuel.common ? 'border-[#3b82f6]/30' : ''}`}>
-                                    <div className="flex items-center gap-3 mb-3">
-                                        <span className="text-2xl">🔵</span>
-                                        <div>
-                                            <h3 className="font-bold text-white">{fuel.name}</h3>
-                                            <p className="text-xs text-[#71717a]">{fuel.formula}</p>
-                                        </div>
-                                        {fuel.common && <span className="ml-auto text-xs bg-[#3b82f6]/20 text-[#3b82f6] px-2 py-1 rounded">Commun</span>}
-                                    </div>
-                                    <p className="text-sm text-[#a1a1aa] mb-3">{fuel.description}</p>
-                                    <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                                        <div className="bg-[#1a1a25] rounded p-2">
-                                            <p className="text-[#71717a]">T ébull.</p>
-                                            <p className="text-white font-mono">{fuel.tBoil} K</p>
-                                        </div>
-                                        <div className="bg-[#1a1a25] rounded p-2">
-                                            <p className="text-[#71717a]">ρ</p>
-                                            <p className="text-white font-mono">{fuel.density} kg/m³</p>
-                                        </div>
-                                        <div className="bg-[#1a1a25] rounded p-2">
-                                            <p className="text-[#71717a]">ΔHf</p>
-                                            <p className="text-white font-mono">{fuel.enthalpy} kJ/mol</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
+                    {/* Stats */}
+                    <div className="p-3 border-t border-[#27272a] text-xs text-[#71717a]">
+                        {fuels.length} Fuels • {oxidizers.length} Oxidizers
+                    </div>
+                </div>
 
-                    {activeTab === "combos" && (
-                        <div className="space-y-4">
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-sm">
-                                    <thead>
-                                        <tr className="border-b border-[#27272a]">
-                                            <th className="px-4 py-3 text-left text-[#a1a1aa]">Oxydant</th>
-                                            <th className="px-4 py-3 text-left text-[#a1a1aa]">Carburant</th>
-                                            <th className="px-4 py-3 text-center text-[#a1a1aa]">Isp (s)</th>
-                                            <th className="px-4 py-3 text-center text-[#a1a1aa]">Tc (K)</th>
-                                            <th className="px-4 py-3 text-center text-[#a1a1aa]">O/F opt</th>
-                                            <th className="px-4 py-3 text-left text-[#a1a1aa]">Utilisations</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {propellantCombos.map((combo, i) => (
-                                            <tr key={i} className="border-b border-[#27272a]/50 hover:bg-[#1a1a25]">
-                                                <td className="px-4 py-3">
-                                                    <span className="text-[#ef4444] font-mono">{combo.ox}</span>
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    <span className="text-[#3b82f6] font-mono">{combo.fuel}</span>
-                                                </td>
-                                                <td className="px-4 py-3 text-center">
-                                                    <span className={`font-bold ${combo.isp >= 400 ? 'text-[#10b981]' : combo.isp >= 330 ? 'text-[#f59e0b]' : 'text-white'}`}>
-                                                        {combo.isp}
-                                                    </span>
-                                                </td>
-                                                <td className="px-4 py-3 text-center text-white font-mono">{combo.tc}</td>
-                                                <td className="px-4 py-3 text-center text-[#8b5cf6] font-mono">{combo.ofOpt}</td>
-                                                <td className="px-4 py-3 text-[#71717a] text-xs">{combo.usage}</td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
+                {/* Right Panel - Details */}
+                <div className="flex-1 overflow-y-auto p-6">
+                    {selectedElement ? (
+                        <div className="max-w-2xl mx-auto space-y-6">
+                            {/* Header */}
+                            <div className="flex items-center gap-4">
+                                <div className={`w-16 h-16 rounded-xl flex items-center justify-center text-2xl font-bold ${selectedElement.type === "oxidizer" ? "bg-[#ef4444]/20 text-[#ef4444]" : "bg-[#3b82f6]/20 text-[#3b82f6]"
+                                    }`}>
+                                    {selectedElement.type === "fuel" ? "🔵" : "🔴"}
+                                </div>
+                                <div>
+                                    <h2 className="text-2xl font-bold text-white font-mono">{selectedElement.name}</h2>
+                                    <p className="text-[#71717a] capitalize">{selectedElement.type}</p>
+                                </div>
+                            </div>
+
+                            {/* CEA Card */}
+                            <div className="card">
+                                <h3 className="card-header">📋 CEA Card</h3>
+                                <pre className="bg-[#0a0a0f] p-4 rounded-lg text-xs font-mono text-[#00d4ff] overflow-x-auto whitespace-pre-wrap">
+                                    {selectedElement.card || "No card data available"}
+                                </pre>
+                            </div>
+
+                            {/* Usage Example */}
+                            <div className="card">
+                                <h3 className="card-header">💡 Utilisation CEA</h3>
+                                <pre className="bg-[#0a0a0f] p-4 rounded-lg text-sm font-mono text-white overflow-x-auto">
+                                    {`from rocketcea.cea_obj import CEA_Obj
+
+cea = CEA_Obj(
+    ${selectedElement.type === "fuel" ? "fuelName" : "oxName"}="${selectedElement.name}",
+    ${selectedElement.type === "fuel" ? "oxName" : "fuelName"}="LOX"
+)
+
+Isp = cea.get_Isp(Pc=25.0, MR=2.5, eps=40.0)`}
+                                </pre>
+                            </div>
+
+                            {/* Common Combinations */}
+                            <div className="card bg-gradient-to-r from-[#00d4ff]/5 to-transparent border-[#00d4ff]/20">
+                                <h3 className="card-header">⚡ Combinaisons Typiques</h3>
+                                {selectedElement.type === "fuel" ? (
+                                    <div className="grid grid-cols-3 gap-2 text-sm">
+                                        <div className="bg-[#1a1a25] rounded p-2 text-center">
+                                            <p className="text-[#ef4444]">+ O2(L)</p>
+                                            <p className="text-[#71717a] text-xs">Standard</p>
+                                        </div>
+                                        <div className="bg-[#1a1a25] rounded p-2 text-center">
+                                            <p className="text-[#ef4444]">+ N2O4</p>
+                                            <p className="text-[#71717a] text-xs">Hypergolic</p>
+                                        </div>
+                                        <div className="bg-[#1a1a25] rounded p-2 text-center">
+                                            <p className="text-[#ef4444]">+ H2O2</p>
+                                            <p className="text-[#71717a] text-xs">Green</p>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="grid grid-cols-3 gap-2 text-sm">
+                                        <div className="bg-[#1a1a25] rounded p-2 text-center">
+                                            <p className="text-[#3b82f6]">+ RP-1</p>
+                                            <p className="text-[#71717a] text-xs">Kerolox</p>
+                                        </div>
+                                        <div className="bg-[#1a1a25] rounded p-2 text-center">
+                                            <p className="text-[#3b82f6]">+ CH4</p>
+                                            <p className="text-[#71717a] text-xs">Methalox</p>
+                                        </div>
+                                        <div className="bg-[#1a1a25] rounded p-2 text-center">
+                                            <p className="text-[#3b82f6]">+ H2</p>
+                                            <p className="text-[#71717a] text-xs">Hydrolox</p>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="h-full flex items-center justify-center">
+                            <div className="text-center">
+                                <span className="text-6xl mb-4 block">⚗️</span>
+                                <h3 className="text-xl font-bold text-white mb-2">Base de Données CEA</h3>
+                                <p className="text-[#71717a] mb-4">Sélectionnez un propergol pour voir ses données CEA</p>
+                                <div className="text-sm text-[#52525b]">
+                                    {fuels.length} fuels • {oxidizers.length} oxidizers
+                                </div>
                             </div>
                         </div>
                     )}
