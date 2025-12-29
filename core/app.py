@@ -25,6 +25,7 @@ from ui.tabs import summary as summary_tab
 from ui.tabs import thermal as thermal_tab
 from ui.tabs import heatmap as heatmap_tab
 from ui.tabs import cad as cad_tab
+from ui.tabs import wiki as wiki_tab
 # ... other tabs
 
 
@@ -231,8 +232,7 @@ class RocketApp:
         self.init_solver_tab()
         self.init_wiki_tab()
         
-        # Charger le contenu du wiki après l'initialisation
-        self.load_wiki_content()
+
 
         # Apply UI scaling after layout is ready
         self.apply_ui_scale(self.ui_scale)
@@ -1177,10 +1177,27 @@ class RocketApp:
             return
         
         # Collecter les variables actives
-        active_vars = {k: v for k, v in self.optim_vars.items() if v["active"].get()}
-        if not active_vars:
+        active_vars_config = {}
+        for k, v in self.optim_vars.items():
+            if v["active"].get():
+                active_vars_config[k] = {
+                    "min": v["min"].get(),
+                    "max": v["max"].get(),
+                    "step": v["step"].get()
+                }
+
+        if not active_vars_config:
             messagebox.showwarning("Attention", "Activez au moins une variable de design!")
             return
+        
+        # Collecter les paramètres (Thread-Safe retrieval)
+        optim_config = {
+            "objective": self.optim_objective.get(),
+            "algorithm": self.optim_algorithm.get(),
+            "max_iter": int(self.optim_max_iter.get()),
+            "population": int(self.optim_population.get()),
+            "vars": active_vars_config
+        }
         
         self.optim_running = True
         self.optim_stop_flag = False
@@ -1192,45 +1209,62 @@ class RocketApp:
         
         # Lancer dans un thread
         import threading
-        thread = threading.Thread(target=self._optimization_worker, args=(active_vars,), daemon=True)
+        thread = threading.Thread(target=self._optimization_worker, args=(optim_config,), daemon=True)
         thread.start()
 
-    def _optimization_worker(self, active_vars):
+    def _optimization_worker(self, config):
         """Worker thread pour l'optimisation."""
         from scipy import optimize
+        import traceback
         
-        objective = self.optim_objective.get()
-        algorithm = self.optim_algorithm.get()
-        max_iter = int(self.optim_max_iter.get())
+        objective = config["objective"]
+        algorithm = config["algorithm"]
+        max_iter = config["max_iter"]
+        pop_size = config["population"]
+        active_vars = config["vars"]
         
         # Définir les bornes
         bounds = []
         var_keys = list(active_vars.keys())
         for key in var_keys:
-            vmin = active_vars[key]["min"].get()
-            vmax = active_vars[key]["max"].get()
+            vmin = active_vars[key]["min"]
+            vmax = active_vars[key]["max"]
             bounds.append((vmin, vmax))
         
         # Historique pour convergence
         self.optim_history = []
         self.optim_results_list = []
         
+        # Estimation du nombre total d'évaluations pour la barre de progression
+        n_vars = len(var_keys)
+        if "Differential Evolution" in algorithm:
+             total_evals = (max_iter + 1) * pop_size * n_vars
+        elif "Grid Search" in algorithm:
+             total_evals = 1
+             for key in var_keys:
+                 steps = int((active_vars[key]["max"] - active_vars[key]["min"]) / active_vars[key]["step"]) + 1
+                 total_evals *= steps
+        else:
+             total_evals = max_iter * 5
+        
+        total_evals = max(total_evals, 1)
+
         def objective_function(x):
             """Fonction objectif à minimiser."""
             if self.optim_stop_flag:
-                return float('inf')
+                return 1e9
             
             # Mapper x aux variables
-            config = {}
+            config_optim = {}
             for i, key in enumerate(var_keys):
-                config[key] = x[i]
+                config_optim[key] = x[i]
             
             # Évaluer le design avec cette config
-            score, metrics = self._evaluate_design(config)
+            score, metrics = self._evaluate_design(config_optim)
             
             # Stocker le résultat
             self.optim_results_list.append({
-                "config": config.copy(),
+                "config": config_optim.copy(),
                 "metrics": metrics,
                 "score": score
             })
@@ -1239,117 +1273,63 @@ class RocketApp:
             self.optim_history.append(score)
             
             # Mise à jour UI (thread-safe)
-            progress = len(self.optim_history) / max_iter * 100
-            self.root.after(0, self._update_optim_progress, progress, score, config, metrics)
+            n_calls = len(self.optim_results_list)
+            progress = min(99, (n_calls / total_evals) * 100)
+            
+            # Update moins fréquent pour ne pas spammer l'UI
+            if n_calls % max(1, int(total_evals/100)) == 0:
+                self.root.after(0, self._update_optim_progress, progress, score, config_optim, metrics)
             
             return score
-        
+
         try:
             # Point initial
-            x0 = [(active_vars[k]["min"].get() + active_vars[k]["max"].get()) / 2 for k in var_keys]
-            n_vars = len(var_keys)
-            pop_size = int(self.optim_population.get())
-            
-            # Estimation du nombre total d'évaluations pour la barre de progression
-            if "Differential Evolution" in algorithm:
-                # (maxiter + 1) * popsize * N
-                total_evals = (max_iter + 1) * pop_size * n_vars
-            elif "Grid Search" in algorithm:
-                # Produit des pas
-                total_evals = 1
-                for key in var_keys:
-                    steps = int((active_vars[key]["max"].get() - active_vars[key]["min"].get()) / active_vars[key]["step"].get()) + 1
-                    total_evals *= steps
-            else:
-                # SLSQP, Nelder-Mead, etc. (difficile à prédire exactement, heuristique)
-                total_evals = max_iter * 5  # Heuristique
-            
-            total_evals = max(total_evals, 1) # Eviter div/0
-            
-            # Fonction wrapper pour mettre à jour la progression
-            def progress_callback(xk, convergence=None):
-                """Callback appelé par l'optimiseur à chaque itération (pas évaluation)."""
-                # Note: Scipy n'appelle ça qu'une fois par itération, pas par évaluation
-                # On utilise objective_function pour le vrai tracking
-                pass
-
-            def objective_function(x):
-                """Fonction objectif à minimiser."""
-                if self.optim_stop_flag:
-                    # Retourner une valeur haute pour forcer l'arrêt ou sortir
-                    # Scipy ne s'arrête pas immédiatement, mais on peut influencer
-                    return 1e9
-                
-                # Mapper x aux variables
-                config = {}
-                for i, key in enumerate(var_keys):
-                    config[key] = x[i]
-                
-                # Évaluer le design avec cette config
-                score, metrics = self._evaluate_design(config)
-                
-                # Stocker le résultat
-                self.optim_results_list.append({
-                    "config": config.copy(),
-                    "metrics": metrics,
-                    "score": score
-                })
-                
-                # Mettre à jour l'historique
-                self.optim_history.append(score)
-                
-                # Mise à jour UI (thread-safe)
-                # Calculer le progrès basé sur le nombre d'appels
-                n_calls = len(self.optim_results_list)
-                progress = min(99, (n_calls / total_evals) * 100)
-                
-                # Update moins fréquent pour ne pas spammer l'UI (tous les 1% ou 10 appels)
-                if n_calls % max(1, int(total_evals/100)) == 0:
-                    self.root.after(0, self._update_optim_progress, progress, score, config, metrics)
-                
-                return score
+            x0 = [(active_vars[k]["min"] + active_vars[k]["max"]) / 2 for k in var_keys]
             
             if "Grid Search" in algorithm:
-                # Grid search
+                # Grid search logic (custom implementation)
                 self._grid_search(active_vars, var_keys, objective_function)
+                
             elif "Differential Evolution" in algorithm:
-                result = optimize.differential_evolution(
-                    objective_function, bounds,
-                    maxiter=max_iter,
-                    popsize=pop_size,
-                    tol=float(self.optim_tolerance.get()),
-                    workers=1,
-                    updating='deferred',
-                    callback=progress_callback
+                optimize.differential_evolution(
+                    objective_function, 
+                    bounds, 
+                    maxiter=max_iter, 
+                    popsize=pop_size, 
+                    disp=True
+                    # callback removed as we use objective_function for tracking
                 )
-            elif "SLSQP" in algorithm or "Gradient" in algorithm:
-                result = optimize.minimize(
-                    objective_function, x0, method='SLSQP',
-                    bounds=bounds,
-                    options={'maxiter': max_iter},
-                    callback=progress_callback
-                )
+                
             elif "Nelder-Mead" in algorithm:
-                result = optimize.minimize(
-                    objective_function, x0, method='Nelder-Mead',
-                    options={'maxiter': max_iter},
-                    callback=progress_callback
+                optimize.minimize(
+                    objective_function, 
+                    x0, 
+                    method='Nelder-Mead', 
+                    bounds=bounds, 
+                    options={'maxiter': max_iter, 'disp': True}
                 )
+                
             else:
-                # Default to differential evolution
-                result = optimize.differential_evolution(
-                    objective_function, bounds,
-                    maxiter=max_iter,
-                    popsize=pop_size,
-                    callback=progress_callback
+                # SLSQP (Gradient based constraint)
+                optimize.minimize(
+                     objective_function,
+                     x0,
+                     method='SLSQP',
+                     bounds=bounds,
+                     options={'maxiter': max_iter, 'disp': True}
                 )
+                
+            # Fin normale
+            self.root.after(0, lambda: messagebox.showinfo("Succès", "Optimisation terminée!"))
             
         except Exception as e:
-            self.root.after(0, lambda: messagebox.showerror("Erreur", f"Erreur d'optimisation:\n{e}"))
-        
+            err_msg = str(e)
+            traceback.print_exc()
+            self.root.after(0, lambda: messagebox.showerror("Erreur Optimisation", f"Erreur: {err_msg}"))
+            
         finally:
-            self.root.after(0, self._finalize_optimization)
-
+            self.optim_running = False
+            self.root.after(0, self._on_optimization_finished)
     def _evaluate_design(self, config):
         """Évalue un design donné et retourne le score et les métriques avec modèle thermique amélioré."""
         # Utiliser les valeurs de base du calcul actuel
@@ -3777,461 +3757,8 @@ class RocketApp:
             messagebox.showerror("Erreur", f"Script introuvable: {script_path}")
 
     def init_wiki_tab(self):
-        # Barre de couleur en haut
-        tk.Frame(self.tab_wiki, height=4, bg="#9966ff").pack(fill=tk.X)
-        
-        # Frame principal
-        main_frame = ctk.CTkFrame(self.tab_wiki, fg_color=self.bg_main)
-        main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
-        
-        # Titre
-        title_frame = ctk.CTkFrame(self.tab_wiki, fg_color="transparent")
-        title_frame.pack(fill=tk.X, padx=10, pady=(5,0))
-        
-        ctk.CTkLabel(
-            title_frame,
-            text="Wiki - Documentation complète et guide utilisateur.",
-            font=(UI_FONT, 16, "bold"),
-            text_color=self.accent
-        ).pack(side=tk.LEFT)
-        ctk.CTkLabel(title_frame, text="📖 Wiki & Documentation",
-                     font=(UI_FONT, 16, "bold"), text_color="#9966ff").pack(side=tk.LEFT)
-        
-        # Barre d'outils
-        toolbar = ctk.CTkFrame(self.tab_wiki, fg_color="transparent")
-        toolbar.pack(fill=tk.X, padx=10, pady=5)
-        
-        # Variable pour la recherche
-        self.wiki_search_var = tk.StringVar()
-        ctk.CTkLabel(toolbar, text="Recherche:").pack(side=tk.LEFT, padx=(0, 5))
-        search_entry = ctk.CTkEntry(toolbar, textvariable=self.wiki_search_var, width=200)
-        search_entry.pack(side=tk.LEFT, padx=(0, 5))
-        search_entry.bind("<Return>", lambda e: self.wiki_search())
-        ctk.CTkButton(toolbar, command=self.wiki_search).pack(side=tk.LEFT, padx=5)
-        ctk.CTkButton(toolbar, text="Suivant", command=self.wiki_search_next).pack(side=tk.LEFT)
-        
-        # Widget Text Standard (pas de HTML)
-        # Création d'un PanedWindow pour diviser l'espace
-        paned_window = ctk.CTkFrame(self.tab_wiki, fg_color="transparent")
-        paned_window.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
-        
-        # Frame pour le sommaire (gauche)
-        self.toc_frame = ctk.CTkFrame(paned_window, width=250)
-        self.toc_frame.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 5))
-        
-        # Frame pour le contenu (droite)
-        content_frame = ctk.CTkFrame(paned_window, fg_color="transparent")
-        content_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        
-        self.wiki_text = tk.Text(content_frame, bg=self.bg_surface, fg=self.text_primary,
-                                 font=(UI_FONT, 11), wrap=tk.WORD,
-                                 insertbackground=self.accent, padx=20, pady=15,
-                                 highlightthickness=0, bd=0,
-                                 relief=tk.FLAT,  # Style plat moderne
-                                 selectbackground=self.accent,
-                                 selectforeground=self.bg_main)
-        self.wiki_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        
-        # Scrollbar pour le texte principal
-        scrollbar = ctk.CTkScrollbar(content_frame, command=self.wiki_text.yview)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        self.wiki_text.config(yscrollcommand=scrollbar.set)
-        
-        # === CONFIGURATION DES STYLES TEXTE ===
-        # Titres (Tags)
-        self.wiki_text.tag_configure("h1", font=(UI_FONT, 20, "bold"), foreground="#ff79c6", spacing1=20, spacing3=15)
-        self.wiki_text.tag_configure("h2", font=(UI_FONT, 15, "bold"), foreground="#ffb86c", spacing1=18, spacing3=8)
-        self.wiki_text.tag_configure("h3", font=(UI_FONT, 13, "bold"), foreground="#8be9fd", spacing1=12, spacing3=5)
-        self.wiki_text.tag_configure("h4", font=(UI_FONT, 12, "bold"), foreground="#bd93f9", spacing1=8, spacing3=3)
-        
-        # Listes
-        self.wiki_text.tag_configure("bullet", font=(UI_FONT, 11), foreground=self.text_primary, lmargin1=30, lmargin2=50, spacing1=2)
-        self.wiki_text.tag_configure("numbered_list", font=(UI_FONT, 11), foreground=self.text_primary, lmargin1=30, lmargin2=50, spacing1=2)
-        
-        # Code et Tableaux (Monospace)
-        self.wiki_text.tag_configure("code", font=(MONOSPACE_FONT, 10), background=self.bg_surface, foreground="#50fa7b", lmargin1=40, lmargin2=40, spacing1=1)
-        self.wiki_text.tag_configure("table_header", font=(MONOSPACE_FONT, 10, "bold"), foreground="#8be9fd", background=self.bg_surface)
-        self.wiki_text.tag_configure("table_row", font=(MONOSPACE_FONT, 10), foreground=self.text_primary, background=self.bg_surface)
-        self.wiki_text.tag_configure("formula", font=(MONOSPACE_FONT, 11, "bold"), foreground="#bd93f9", background=self.bg_surface, lmargin1=40, lmargin2=40, spacing1=3, spacing3=3)
-        
-        # Mises en évidence
-        self.wiki_text.tag_configure("important", foreground="#ff5555", font=(UI_FONT, 11, "bold"), background=self.bg_surface, lmargin1=20, lmargin2=40, spacing1=3, spacing3=3)
-        self.wiki_text.tag_configure("warning", foreground="#ffb347", font=(UI_FONT, 11, "bold"), background=self.bg_surface, lmargin1=20, lmargin2=40, spacing1=3, spacing3=3)
-        self.wiki_text.tag_configure("success", foreground="#50fa7b", font=(UI_FONT, 11, "bold"), lmargin1=20, lmargin2=40, spacing1=3, spacing3=3)
-        self.wiki_text.tag_configure("quote", font=(UI_FONT, 11, "italic"), foreground="#9fb4d3", lmargin1=50, lmargin2=50, spacing1=5, spacing3=5)
-        self.wiki_text.tag_configure("highlight", background="#3d3d00", foreground="#ffff00")
-        self.wiki_text.tag_configure("center", justify='center')
-        self.wiki_text.tag_configure("normal", font=(UI_FONT, 11), foreground=self.text_primary, spacing1=2)
-        
-        # Variable pour la recherche
-        self.wiki_search_pos = "1.0"
-        
-        # Cache pour les images et positions du sommaire
-        self.wiki_images = []
-        self.section_positions = {}
-    
-    def render_latex(self, formula, fontsize=12):
-        """Renders LaTeX formula to a tk.PhotoImage using Matplotlib"""
-        try:
-            # Create a small figure with transparent background
-            fig = Figure(figsize=(5, 0.8), dpi=100)
-            fig.patch.set_facecolor(self.bg_surface)
-            
-            # Matplotlib requires $ for math mode or unescaped string
-            if not formula.startswith('$'):
-                formula = f"${formula}$"
-            
-            # Add text centered
-            fig.text(0.5, 0.5, formula, fontsize=fontsize, 
-                     color=self.text_primary, 
-                     ha='center', va='center')
-            
-            # Save to buffer
-            buf = io.BytesIO()
-            fig.savefig(buf, format='png', facecolor=self.bg_surface, edgecolor='none', bbox_inches='tight', pad_inches=0.1)
-            buf.seek(0)
-            
-            img = tk.PhotoImage(data=buf.getvalue())
-            buf.close()
-            return img
-        except Exception as e:
-            print(f"LaTeX Error: {e}")
-            return None
-
-    def load_wiki_content(self):
-        # Cette méthode est maintenant appelée par init_wiki_tab
-        if not hasattr(self, 'wiki_text'):
-            return # Ne rien faire si l'onglet n'est pas initialisé
-
-        """Charge le contenu du wiki depuis un fichier externe"""
-        # Charger le contenu depuis le fichier externe - préférer .md si disponible
-        import os
-        wiki_files = [
-            ('wiki.md', 'markdown'),
-            ('wiki.txt', 'text')
-        ]
-        
-        content = None
-        wiki_format = 'text'
-        
-        for filename, format_type in wiki_files:
-            wiki_file = os.path.join(os.path.dirname(__file__), filename)
-            if os.path.exists(wiki_file):
-                try:
-                    with open(wiki_file, 'r', encoding='utf-8-sig') as f:
-                        content = f.read()
-                    wiki_format = format_type
-                    break
-                except Exception as e:
-                    content = f"Erreur lors du chargement de {filename}: {str(e)}"
-                    break
-        
-        if content is None:
-            content = "Erreur: Aucun fichier wiki trouvé (wiki.md ou wiki.txt).\n\nPlacez un fichier wiki.md ou wiki.txt dans le même répertoire que ce script."
-            wiki_format = 'text'
-        
-        self.wiki_text.config(state=tk.NORMAL)
-        self.wiki_text.delete(1.0, tk.END)
-        
-        # Vider l'ancien sommaire
-        for widget in self.toc_frame.winfo_children():
-            widget.destroy()
-        
-        # Appliquer le formatage approprié
-        if wiki_format == 'markdown':
-            self._load_markdown_wiki(content)
-        else:
-            self._load_text_wiki(content)
-        
-        self.wiki_text.config(state=tk.DISABLED)
-    
-    def _load_markdown_wiki(self, content):
-        """Parseur Markdown personnalisé pour Tkinter - Avec alignement de tableaux automatique"""
-        lines = content.split('\n')
-        i = 0
-        in_code_block = False
-        
-        while i < len(lines):
-            line = lines[i].rstrip()
-            
-            # 1. Gestion des blocs de code
-            if line.strip().startswith('```'):
-                in_code_block = not in_code_block
-                i += 1
-                continue
-            
-            if in_code_block:
-                self.wiki_text.insert(tk.END, line + '\n', "code")
-                i += 1
-                continue
-            
-            # 1.5. LaTeX Equations (Math Mode $$...$$)
-            if line.strip().startswith('$$') and line.strip().endswith('$$'):
-                formula = line.strip()[2:-2].strip()
-                if formula:
-                    img = self.render_latex(formula, fontsize=14)
-                    if img:
-                        self.wiki_images.append(img)
-                        self.wiki_text.insert(tk.END, '\n') # Marge avant
-                        
-                        # Insérer l'image sur sa propre ligne
-                        idx_start = self.wiki_text.index("insert")
-                        self.wiki_text.image_create(tk.END, image=img)
-                        self.wiki_text.insert(tk.END, '\n')
-                        
-                        # Centrer la ligne de l'image
-                        idx_end = self.wiki_text.index("insert")
-                        self.wiki_text.tag_add("center", idx_start, idx_end)
-                        
-                        self.wiki_text.insert(tk.END, '\n') # Marge après
-                    else:
-                        self.wiki_text.insert(tk.END, line + '\n', "code")
-                i += 1
-                continue
-
-            # 2. Gestion des Tableaux (Détection et Formatage)
-            if line.strip().startswith('|'):
-                # Collecter toutes les lignes du tableau
-                table_lines = []
-                while i < len(lines) and lines[i].strip().startswith('|'):
-                    table_lines.append(lines[i].strip())
-                    i += 1
-                
-                # Traiter le tableau si valide
-                if len(table_lines) >= 2:
-                    self._insert_formatted_table(table_lines)
-                else:
-                    # Ligne isolée, traiter comme texte normal
-                    self.wiki_text.insert(tk.END, table_lines[0] + '\n', "normal")
-                continue
-            
-            # 3. Headers
-            # Doit commencer par # suivi d'un espace, et ne pas être dans un bloc de code
-            if line.startswith('#') and not in_code_block:
-                # Vérifier qu'il y a un espace après les # (ex: "## Titre" et pas "#Commentaire")
-                if not re.match(r'^#+\s', line):
-                    self.wiki_text.insert(tk.END, line + '\n', "normal")
-                    i += 1
-                    continue
-
-                level = len(line) - len(line.lstrip('#'))
-                text = line.lstrip('#').strip()
-                tag = f"h{min(level, 4)}"
-                
-                # Capture position
-                start_index = self.wiki_text.index("end-1c")
-                
-                self.wiki_text.insert(tk.END, text + '\n', tag)
-                
-                # Ajouter au sommaire
-                indent = "  " * (level - 1)
-                
-                # Créer un bouton cliquable pour le sommaire
-                btn = ctk.CTkButton(self.toc_frame, text=f"{indent}{text}",
-                                    anchor="w", fg_color="transparent",
-                                    command=lambda pos=start_index: self.wiki_goto_section(pos))
-                btn.pack(fill=tk.X, pady=1)
-                
-                i += 1
-                continue
-            
-            # 4. Listes
-            if re.match(r'^\s*[\*\-\+]\s+', line):
-                # Remplacer le marqueur par un point bullet propre
-                clean_line = re.sub(r'^\s*[\*\-\+]\s+', '• ', line)
-                self.wiki_text.insert(tk.END, clean_line + '\n', "bullet")
-                i += 1
-                continue
-            
-            if re.match(r'^\s*\d+\.\s+', line):
-                self.wiki_text.insert(tk.END, line + '\n', "numbered_list")
-                i += 1
-                continue
-            
-            # 5. Blockquotes / Info / Alertes
-            if line.startswith('>'):
-                content_text = line.lstrip('>').strip()
-                if "⚠️" in content_text or "Attention" in content_text:
-                    self.wiki_text.insert(tk.END, content_text + '\n', "warning")
-                elif "💡" in content_text or "Note" in content_text:
-                    self.wiki_text.insert(tk.END, content_text + '\n', "quote")
-                else:
-                    self.wiki_text.insert(tk.END, content_text + '\n', "quote")
-                i += 1
-                continue
-            
-            # 6. Texte Normal
-            if line.strip():
-                self.wiki_text.insert(tk.END, line + '\n', "normal")
-            else:
-                self.wiki_text.insert(tk.END, '\n', "normal")
-            
-            i += 1
-
-    def _insert_formatted_table(self, table_lines):
-        """Formate et aligne un tableau Markdown pour affichage en monospace (Style Box)"""
-        # Parser les cellules
-        rows = []
-        for line in table_lines:
-            # Enlever les | de début et fin et split
-            # On suppose format | col1 | col2 |
-            cells = [c.strip() for c in line.strip('|').split('|')]
-            rows.append(cells)
-        
-        if not rows:
-            return
-
-        # Calculer la largeur max par colonne
-        num_cols = max(len(row) for row in rows)
-        col_widths = [0] * num_cols
-        
-        for row in rows:
-            for idx, cell in enumerate(row):
-                if idx < num_cols:
-                    # Ignorer la ligne de séparation pour le calcul de largeur (---)
-                    if set(cell) <= {'-', ':', ' '}: 
-                        continue
-                    col_widths[idx] = max(col_widths[idx], len(cell))
-        
-        # Ligne horizontale complète
-        def get_separator(char='─', junction='┼'):
-            parts = [char * (w + 2) for w in col_widths]
-            return junction.join(parts)
-            
-        top_border = "┌" + get_separator('─', '┬') + "┐"
-        mid_border = "├" + get_separator('─', '┼') + "┤"
-        bot_border = "└" + get_separator('─', '┴') + "┘"
-        
-        self.wiki_text.insert(tk.END, top_border + "\n", "code")
-        
-        # Construire les lignes formatées
-        for r_idx, row in enumerate(rows):
-            # Est-ce la ligne de séparation markdown (---|---) ?
-            is_separator = all(set(c) <= {'-', ':', ' '} for c in row) and len(row) > 0
-            
-            if is_separator:
-                self.wiki_text.insert(tk.END, mid_border + "\n", "code")
-                continue
-            
-            # Formater les cellules avec padding
-            formatted_cells = []
-            for c_idx in range(num_cols):
-                if c_idx < len(row):
-                    cell = row[c_idx]
-                else:
-                    cell = "" # Cellule vide si manque de colonnes
-                
-                width = col_widths[c_idx]
-                formatted_cells.append(f" {cell:<{width}} ") # Alignement gauche
-            
-            line_str = "│".join(formatted_cells)
-            full_line = "│" + line_str + "│"
-            
-            # Premier rang est le header
-            tag = "table_header" if r_idx == 0 else "table_row"
-            self.wiki_text.insert(tk.END, full_line + "\n", tag)
-            
-        self.wiki_text.insert(tk.END, bot_border + "\n", "code")
-
-    def _load_text_wiki(self, content):
-        """Charge et formate le contenu texte legacy du wiki"""
-        lines = content.split('\n')
-        for line in lines:
-            line = line.rstrip()
-            if line.startswith('🔥') or '════' in line:
-                clean = line.replace('════', '').strip()
-                if clean: self.wiki_text.insert(tk.END, clean + '\n', "h1")
-            elif re.match(r'^\s*\d+\.\s+[A-ZÀ-ÖØ-Þ]', line) or line.strip().startswith("RÉFÉRENCES"):
-                self.wiki_text.insert(tk.END, line + '\n', "h2")
-            elif re.match(r'^\s*\d+\.\d+', line):
-                self.wiki_text.insert(tk.END, line + '\n', "h3")
-            elif line.strip().startswith('───'):
-                # Ignorer ou traiter comme séparateur
-                pass 
-            elif line.strip().startswith(('⚠️', '💀', '🔥', '✅', '❌')):
-                self.wiki_text.insert(tk.END, line + '\n', "important")
-            elif '│' in line or '┌' in line: # Tableaux ASCII legacy
-                self.wiki_text.insert(tk.END, line + '\n', "code")
-            else:
-                self.wiki_text.insert(tk.END, line + '\n', "normal")
-
-    def open_wiki_at(self, search_text):
-        """Ouvre l'onglet Wiki et scrolle vers le texte spécifié"""
-        self.tabs.set("📖 Wiki")
-        
-        # Nettoyer les anciens highlights
-        self.wiki_text.tag_remove("highlight", "1.0", tk.END)
-        
-        # Chercher le texte (insensible à la casse)
-        pos = self.wiki_text.search(search_text, "1.0", stopindex=tk.END, nocase=True)
-        
-        if pos:
-            # Scroller vers la position
-            self.wiki_text.see(pos)
-            
-            # Mettre en évidence la ligne entière
-            line_end = f"{pos} lineend"
-            self.wiki_text.tag_add("highlight", pos, line_end)
-            
-            # Effet visuel temporaire (flash)
-            def flash(count):
-                if count % 2 == 0:
-                    self.wiki_text.tag_config("highlight", background=self.accent, text_color=self.bg_main)
-                else:
-                    self.wiki_text.tag_config("highlight", background="#3d3d00", text_color="#ffff00")
-                if count > 0:
-                    self.root.after(150, lambda: flash(count - 1))
-            
-            flash(6)
-        else:
-            print(f"Section wiki non trouvée: {search_text}")
-
-    def wiki_search(self):
-        """Recherche dans le wiki"""
-        search_term = self.wiki_search_var.get()
-        if not search_term:
-            return
-        
-        # Supprimer les highlights précédents
-        self.wiki_text.tag_remove("highlight", "1.0", tk.END)
-        
-        # Chercher depuis le début
-        self.wiki_search_pos = "1.0"
-        self.wiki_search_next()
-    
-    def wiki_search_next(self):
-        """Trouve l'occurrence suivante"""
-        search_term = self.wiki_search_var.get()
-        if not search_term:
-            return
-        
-        # Chercher
-        pos = self.wiki_text.search(search_term, self.wiki_search_pos, nocase=True, stopindex=tk.END)
-        
-        if pos:
-            # Calculer la fin
-            end_pos = f"{pos}+{len(search_term)}c"
-            
-            # Highlight
-            self.wiki_text.tag_add("highlight", pos, end_pos)
-            
-            # Scroll vers la position
-            self.wiki_text.see(pos)
-            
-            # Préparer pour la prochaine recherche
-            self.wiki_search_pos = end_pos
-        else:
-            # Revenir au début
-            self.wiki_search_pos = "1.0"
-            messagebox.showinfo("Recherche", f"Fin du document atteinte pour '{search_term}'")
-
-    def wiki_goto_section(self, pos):
-        """Fait défiler le texte vers une position donnée et la met en surbrillance."""
-        self.wiki_text.see(pos)
-        self.wiki_text.tag_remove("highlight", "1.0", tk.END)
-        line_end = f"{pos} lineend"
-        self.wiki_text.tag_add("highlight", pos, line_end)
-
+        """Initialise l'onglet Wiki (Délégué)"""
+        wiki_tab.init(self)
     def load_database(self):
         """Charge tous les propergols depuis RocketCEA"""
         from rocketcea.blends import fuelCards, oxCards, getFuelRefTempDegK, getOxRefTempDegK, getFloatTokenFromCards
@@ -4658,63 +4185,67 @@ class RocketApp:
             pe_psi = pe_des * 14.5038
             pamb_psi = pamb * 14.5038
             
-            # --- CEA LOGIC WITH FALLBACK ---
+            # --- CEA LOGIC WITH ROBUST FALLBACK ---
+            use_fallback = True
+            
             if HAS_ROCKETCEA:
                 # Init CEA
                 try:
                     ispObj = CEA_Obj(oxName=ox, fuelName=fuel)
-                except Exception as e:
-                    raise ValueError(f"Ergols inconnus: {ox}/{fuel}\n{e}")
-                
-                # Calcul de eps
-                try:
-                    eps = ispObj.get_eps_at_PcOvPe(Pc=pc_psi, MR=mr, PcOvPe=pc_psi/pe_psi)
-                except:
-                    eps = 2.0  # Fallback
-                
-                # Performances
-                cstar_mps = self.get_cea_value_safe(ispObj, pc_psi, mr, pe_psi, eps, pamb_psi, "C* (m/s)", debug=True)
-                if cstar_mps <= 1:
-                    raise ValueError("C* nul. Vérifiez les ergols ou la pression.")
-                
-                isp_amb = self.get_cea_value_safe(ispObj, pc_psi, mr, pe_psi, eps, pamb_psi, "ISP Ambiante (s)")
-                isp_vac = self.get_cea_value_safe(ispObj, pc_psi, mr, pe_psi, eps, pamb_psi, "ISP Vide (s)")
-                tc_k = self.get_cea_value_safe(ispObj, pc_psi, mr, pe_psi, eps, pamb_psi, "Température Chambre (K)")
-                tt_k = self.get_cea_value_safe(ispObj, pc_psi, mr, pe_psi, eps, pamb_psi, "Température Col (K)")
-                te_k = self.get_cea_value_safe(ispObj, pc_psi, mr, pe_psi, eps, pamb_psi, "Température Sortie (K)")
-                
-                # Propriétés de transport au col (pour Bartz)
-                try:
-                    transp = ispObj.get_Throat_Transport(Pc=pc_psi, MR=mr, eps=eps)
-                    # transp = [Cp, Mu, K, Pr]
-                    Cp_imp = transp[0]
-                    Mu_poise = transp[1] / 1000.0
-                    Pr = transp[3]
-                except:
-                    Cp_imp = 0.5
-                    Mu_poise = 0.001
-                    Pr = 0.7
                     
-                # Conversion SI
-                Mu_si = Mu_poise * 0.1  # Pa.s
-                Cp_si = Cp_imp * 4186.8  # J/kg-K
-                
-                # --- Resultats standard ---
-                molwt = 24.0 # Default if not found
-                gamma = 1.2
-                try:
-                     # Try to get gamma/MW
-                     res_trans = ispObj.get_Chamber_MolWt_gamma(Pc=pc_psi, MR=mr, eps=eps)
-                     molwt = res_trans[0]
-                     gamma = res_trans[1]
-                except:
-                     pass
+                    # Calcul de eps
+                    try:
+                        eps = ispObj.get_eps_at_PcOvPe(Pc=pc_psi, MR=mr, PcOvPe=pc_psi/pe_psi)
+                    except:
+                        eps = 2.0
+                    
+                    # Performances
+                    cstar_mps = self.get_cea_value_safe(ispObj, pc_psi, mr, pe_psi, eps, pamb_psi, "C* (m/s)", debug=True)
+                    
+                    if cstar_mps > 1:
+                        # Success case
+                        isp_amb = self.get_cea_value_safe(ispObj, pc_psi, mr, pe_psi, eps, pamb_psi, "ISP Ambiante (s)")
+                        isp_vac = self.get_cea_value_safe(ispObj, pc_psi, mr, pe_psi, eps, pamb_psi, "ISP Vide (s)")
+                        tc_k = self.get_cea_value_safe(ispObj, pc_psi, mr, pe_psi, eps, pamb_psi, "Température Chambre (K)")
+                        tt_k = self.get_cea_value_safe(ispObj, pc_psi, mr, pe_psi, eps, pamb_psi, "Température Col (K)")
+                        te_k = self.get_cea_value_safe(ispObj, pc_psi, mr, pe_psi, eps, pamb_psi, "Température Sortie (K)")
+                        
+                        # Propriétés de transport
+                        try:
+                            transp = ispObj.get_Throat_Transport(Pc=pc_psi, MR=mr, eps=eps)
+                            Cp_imp = transp[0]
+                            Mu_poise = transp[1] / 1000.0
+                            Pr = transp[3]
+                        except:
+                            Cp_imp = 0.5
+                            Mu_poise = 0.001
+                            Pr = 0.7
+                        
+                        Mu_si = Mu_poise * 0.1
+                        Cp_si = Cp_imp * 4186.8
+                        
+                        molwt = 24.0
+                        gamma = 1.2
+                        try:
+                             res_trans = ispObj.get_Chamber_MolWt_gamma(Pc=pc_psi, MR=mr, eps=eps)
+                             molwt = res_trans[0]
+                             gamma = res_trans[1]
+                        except:
+                             pass
+                             
+                        use_fallback = False # Valid run
+                    else:
+                        print("⚠ RocketCEA a retourné C*=0, passage au fallback.")
+                        
+                except Exception as e:
+                    print(f"⚠ Erreur RocketCEA: {e}, passage au fallback.")
+                    # use_fallback stays True
 
-            else:
+            if use_fallback:
                 # --- FALLBACK MODE (Bridge or Gaz Parfait) ---
                 bridge_success = False
                 
-                # Try Bridge
+                # ... Rest of fallback logic ...
                 if os.path.exists("cea_bridge.py"):
                     try:
                         import subprocess
