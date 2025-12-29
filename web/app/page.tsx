@@ -137,11 +137,11 @@ export default function Home() {
     const sigmaYield = mat.sigma_y || 280;
     const fos = sigmaYield / sigmaVM;
 
-    // Outer shell thickness estimation (jacket)
+    // Outer shell thickness estimation (jacket) - using motor material as requested
     const pCoolant = config.coolant_pressure * 1e5;
-    const rOuter = (results.r_chamber || 0.05) + e + 0.005; // radius + liner + channel gap
-    const sigmaYieldOuter = 290e6; // 316L
-    const factorOfSafetyOuter = 1.25;
+    const rOuter = (results.r_chamber || 0.05) + e + 0.005;
+    const sigmaYieldOuter = (mat.sigma_y || 290) * 1e6;
+    const factorOfSafetyOuter = config.jacket_fos || 1.25;
     const tOuterShell = (pCoolant * rOuter) / (sigmaYieldOuter / factorOfSafetyOuter) * 1000;
 
     return { sigmaHoop, sigmaThermal, sigmaVM, fos, tOuterShell };
@@ -347,6 +347,7 @@ export default function Home() {
                         showFlames={false}
                         showChannels={true}
                         wallColor={materials?.[config.material_name]?.color || "#cc7733"}
+                        outerShellColor={materials?.[config.material_name]?.color || "#71717a"}
                         wallThickness={config.wall_thickness}
                         outerShellThickness={stressData.tOuterShell}
                       />
@@ -658,16 +659,40 @@ export default function Home() {
                     <div className="card">
                       <h3 className="card-header">📦 Estimation Outer Shell</h3>
                       <div className="bg-gradient-to-r from-[#10b981]/20 to-transparent border border-[#10b981]/30 rounded-lg p-4">
-                        <p className="text-white mb-2">Pour contenir la pression coolant de <strong>{config.coolant_pressure} bar</strong>:</p>
-                        <div className="flex items-center gap-4">
-                          <div>
-                            <p className="text-xs text-[#71717a]">Épaisseur outer shell (acier)</p>
-                            <p className="text-3xl font-bold text-[#10b981]">{stressData.tOuterShell.toFixed(2)} mm</p>
+                        <p className="text-white mb-4">Pour contenir la pression coolant de <strong>{config.coolant_pressure} bar</strong>:</p>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <div className="flex items-center gap-4">
+                            <div>
+                              <p className="text-xs text-[#71717a] mb-1">Épaisseur estimée</p>
+                              <p className="text-4xl font-bold text-[#10b981]">{stressData.tOuterShell.toFixed(2)} mm</p>
+                            </div>
                           </div>
-                          <div className="text-xs text-[#a1a1aa]">
-                            <p>Matériau: Acier inox 316L</p>
-                            <p>σ yield: 290 MPa</p>
-                            <p>Facteur de sécurité: 1.25</p>
+
+                          <div className="space-y-3 bg-[#0a0a0f]/50 p-3 rounded-lg border border-[#27272a]">
+                            <div className="grid grid-cols-2 gap-4">
+                              <div>
+                                <p className="text-[10px] uppercase text-[#a1a1aa] font-bold mb-1">Matériau</p>
+                                <p className="text-sm font-semibold text-[#00d4ff] truncate">{config.material_name}</p>
+                              </div>
+                              <div>
+                                <p className="text-[10px] uppercase text-[#a1a1aa] font-bold mb-1">FoS Cible</p>
+                                <input
+                                  type="number"
+                                  step="0.05"
+                                  value={config.jacket_fos}
+                                  onChange={(e) => updateConfig("jacket_fos", parseFloat(e.target.value) || 1.25)}
+                                  className="input-field text-xs py-0.5 w-full h-6"
+                                />
+                              </div>
+                            </div>
+
+                            <div className="pt-2 border-t border-[#27272a]">
+                              <div className="flex justify-between items-center text-xs">
+                                <span className="text-[#71717a]">σ yield:</span>
+                                <span className="text-white font-mono">{materials?.[config.material_name]?.sigma_y || 280} MPa</span>
+                              </div>
+                            </div>
                           </div>
                         </div>
                       </div>

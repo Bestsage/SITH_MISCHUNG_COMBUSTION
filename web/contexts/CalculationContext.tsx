@@ -30,7 +30,6 @@ export interface MotorConfig {
     custom_tboil: number;
     custom_tcrit: number;
     custom_hvap: number;
-    jacket_material_name: string;
     jacket_fos: number;
 }
 
@@ -171,7 +170,6 @@ const defaultConfig: MotorConfig = {
     custom_tboil: 350.0,
     custom_tcrit: 700.0,
     custom_hvap: 400.0,
-    jacket_material_name: "Acier Inox 316L",
     jacket_fos: 1.25,
 };
 
