@@ -10,9 +10,22 @@ interface MotorMeshProps {
     showChannels?: boolean;
     nChannels?: number;
     rotate?: boolean;
+    wallColor?: string;
+    outerShellColor?: string;
+    wallThickness?: number; // in mm
+    outerShellThickness?: number; // in mm
 }
 
-function MotorMesh({ profile, showChannels = false, nChannels = 48, rotate = true }: MotorMeshProps) {
+function MotorMesh({
+    profile,
+    showChannels = false,
+    nChannels = 48,
+    rotate = true,
+    wallColor = "#cc7733",
+    outerShellColor = "#71717a",
+    wallThickness = 2,
+    outerShellThickness = 0
+}: MotorMeshProps) {
     const meshRef = useRef<THREE.Mesh>(null);
     const groupRef = useRef<THREE.Group>(null);
 
@@ -22,39 +35,24 @@ function MotorMesh({ profile, showChannels = false, nChannels = 48, rotate = tru
         }
     });
 
-    // Nozzle profile matching Rust backend (main.rs lines 280-301)
-    // This generates the same geometry as the backend for consistency
+    // ... (getDefaultRadius remains same)
     const getDefaultRadius = (t: number) => {
-        // Typical values matching Rust backend defaults
-        const rThroat = 0.020;    // 20mm throat radius
-        const contractionRatio = 3.5;  // Ac/At
-        const expansionRatio = 8.0;    // Ae/At
-
-        const rChamber = rThroat * Math.sqrt(contractionRatio);  // ~37.4mm
-        const rExit = rThroat * Math.sqrt(expansionRatio);        // ~56.6mm
-
-        // Section boundaries matching Rust backend logic
-        // Chamber cylindrical: 0 to chamberEnd
-        // Convergent (cosine blend): chamberEnd to throatStart
-        // Throat: throatStart to throatEnd
-        // Divergent (80% parabolic bell): throatEnd to 1.0
+        const rThroat = 0.020;
+        const contractionRatio = 3.5;
+        const expansionRatio = 8.0;
+        const rChamber = rThroat * Math.sqrt(contractionRatio);
+        const rExit = rThroat * Math.sqrt(expansionRatio);
         const chamberEnd = 0.55;
         const throatStart = 0.60;
         const throatEnd = 0.62;
 
-        if (t < chamberEnd) {
-            // Cylindrical chamber section
-            return rChamber;
-        } else if (t < throatStart) {
-            // Convergent section with cosine-blend transition (like Rust backend)
+        if (t < chamberEnd) return rChamber;
+        else if (t < throatStart) {
             const s = (t - chamberEnd) / (throatStart - chamberEnd);
             const blend = (1.0 - Math.cos(s * Math.PI)) / 2.0;
             return rChamber - (rChamber - rThroat) * blend;
-        } else if (t < throatEnd) {
-            // Throat section (minimum radius)
-            return rThroat;
-        } else {
-            // Divergent section (80% parabolic bell - same as Rust backend)
+        } else if (t < throatEnd) return rThroat;
+        else {
             const s = (t - throatEnd) / (1.0 - throatEnd);
             return rThroat + (rExit - rThroat) * Math.pow(2.0 * s - s * s, 0.85);
         }
@@ -62,90 +60,102 @@ function MotorMesh({ profile, showChannels = false, nChannels = 48, rotate = tru
 
     const geometry = useMemo(() => {
         if (!profile || !profile.x || !profile.r) {
-            // Default geometry if no profile
             const points: THREE.Vector2[] = [];
             for (let i = 0; i <= 50; i++) {
                 const t = i / 50;
-                const x = t * 0.35;  // 350mm total length
+                const x = t * 0.35;
                 const r = getDefaultRadius(t);
-                points.push(new THREE.Vector2(r, x - 0.175));  // Center the mesh
+                points.push(new THREE.Vector2(r, x - 0.175));
             }
             return new THREE.LatheGeometry(points, 64);
         }
-
-        // Create lathe geometry from profile
         const points = profile.x.map((x, i) =>
             new THREE.Vector2(profile.r[i], x - profile.x[profile.x.length - 1] / 2)
         );
         return new THREE.LatheGeometry(points, 64);
     }, [profile]);
 
-    // Generate coolant channel positions
+    // Outer Shell Geometry (Jacket)
+    const outerGeometry = useMemo(() => {
+        const t_total = (wallThickness + (showChannels ? 6 : 0) + outerShellThickness) / 1000;
+        if (!profile || !profile.x || !profile.r) {
+            const points: THREE.Vector2[] = [];
+            for (let i = 0; i <= 50; i++) {
+                const t = i / 50;
+                const x = t * 0.35;
+                const r = getDefaultRadius(t) + t_total;
+                points.push(new THREE.Vector2(r, x - 0.175));
+            }
+            return new THREE.LatheGeometry(points, 64);
+        }
+        const points = profile.x.map((x, i) =>
+            new THREE.Vector2(profile.r[i] + t_total, x - profile.x[profile.x.length - 1] / 2)
+        );
+        return new THREE.LatheGeometry(points, 64);
+    }, [profile, wallThickness, outerShellThickness, showChannels]);
+
+    // ... (channelPositions remains mostly same, but uses wallThickness)
     const channelPositions = useMemo(() => {
         if (!showChannels) return [];
-
         const positions: Array<{ x: number, y: number, z: number }> = [];
         const lengthSteps = 25;
-
         for (let c = 0; c < nChannels; c++) {
             const angle = (c / nChannels) * Math.PI * 2;
-
             for (let i = 0; i <= lengthSteps; i++) {
                 const t = i / lengthSteps;
                 const xPos = t * 0.35 - 0.175;
-
-                // Get radius from profile or default
                 let nozzleRadius: number;
                 if (profile && profile.x && profile.r) {
-                    // Interpolate from profile
                     const idx = Math.floor(t * (profile.x.length - 1));
                     nozzleRadius = profile.r[Math.min(idx, profile.r.length - 1)];
                 } else {
                     nozzleRadius = getDefaultRadius(t);
                 }
-
-                const outerRadius = nozzleRadius + 0.006; // 6mm outside the wall
-
+                const outerRadius = nozzleRadius + (wallThickness / 1000) + 0.003;
                 positions.push({
                     x: Math.cos(angle) * outerRadius,
-                    y: xPos, // Y is the length axis in lathe geometry
+                    y: xPos,
                     z: Math.sin(angle) * outerRadius
                 });
             }
         }
         return positions;
-    }, [showChannels, nChannels, profile]);
+    }, [showChannels, nChannels, profile, wallThickness]);
 
     return (
         <group ref={groupRef}>
-            {/* Outer shell */}
+            {/* Inner Liner */}
             <mesh ref={meshRef} geometry={geometry}>
                 <meshStandardMaterial
-                    color="#cc7733"
+                    color={wallColor}
                     metalness={0.8}
                     roughness={0.2}
                     side={THREE.DoubleSide}
                 />
             </mesh>
 
-            {/* Inner surface (darker) */}
-            <mesh geometry={geometry} scale={[0.95, 1, 0.95]}>
-                <meshStandardMaterial
-                    color="#442200"
-                    metalness={0.3}
-                    roughness={0.8}
-                    side={THREE.BackSide}
-                />
-            </mesh>
+            {/* If we have an outer shell, render it with some transparency to see channels */}
+            {outerShellThickness > 0 && (
+                <mesh geometry={outerGeometry}>
+                    <meshStandardMaterial
+                        color={outerShellColor}
+                        metalness={0.9}
+                        roughness={0.1}
+                        transparent
+                        opacity={0.4}
+                        side={THREE.DoubleSide}
+                    />
+                </mesh>
+            )}
 
-            {/* Coolant Channels - Cyan tubes */}
+            {/* Coolant Channels */}
             {showChannels && channelPositions.map((pos, i) => (
                 <mesh key={i} position={[pos.x, pos.y, pos.z]}>
-                    <sphereGeometry args={[0.003, 6, 6]} />
+                    <sphereGeometry args={[0.002, 6, 6]} />
                     <meshStandardMaterial
                         color="#00d4ff"
                         emissive="#00d4ff"
-                        emissiveIntensity={0.3}
+                        emissiveIntensity={0.5}
                         metalness={0.8}
                         roughness={0.2}
                     />
