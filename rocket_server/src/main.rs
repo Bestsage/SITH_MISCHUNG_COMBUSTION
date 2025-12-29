@@ -51,7 +51,7 @@ async fn root() -> &'static str {
 
 async fn get_materials() -> Json<serde_json::Value> {
     Json(serde_json::json!({
-        "materials": materials::get_all_materials()
+        "materials": materials::get_materials()
     }))
 }
 
@@ -63,42 +63,160 @@ async fn calculate_cea(Json(payload): Json<CEARequest>) -> Result<Json<CEARespon
 }
 
 async fn run_solver(Json(payload): Json<SolverRequest>) -> Result<Json<serde_json::Value>, StatusCode> {
-    // This will call the Python-based solver since rocket_core uses PyO3
-    // We need to make an HTTP call to a Python service that wraps rocket_core
+    // Extract parameters from payload
+    let geom = &payload.geometry;
+    let cond = &payload.conditions;
     
-    // For now, return structured mock data that matches expected format
+    // Geometry parameters
+    let r_throat = geom.r_throat;  // m
+    let l_total = geom.l_chamber + geom.l_nozzle;  // m
+    let n_channels = geom.n_channels as usize;
+    let w_channel = geom.channel_width;  // m
+    let h_channel = geom.channel_depth;  // m
+    let e_wall = geom.wall_thickness;  // m
+    
+    // Conditions
+    let p_inlet = cond.p_inlet;  // Pa
+    let t_inlet = cond.t_inlet;  // K
+    let m_dot_total = cond.m_dot;  // kg/s coolant
+    let pc = cond.pc;  // Pa chamber pressure
+    let k_wall = cond.k_wall;  // W/mK wall conductivity
+    
+    // Coolant properties (approximate for RP-1/kerosene)
+    let rho_cool = 800.0;  // kg/m³
+    let cp_cool = 2100.0;  // J/kgK
+    let mu_cool = 0.001;  // Pa.s
+    let k_cool = 0.12;  // W/mK
+    let pr_cool = cp_cool * mu_cool / k_cool;
+    
+    // Channel hydraulic diameter
+    let a_channel = w_channel * h_channel;
+    let p_wet = 2.0 * (w_channel + h_channel);
+    let d_h = 4.0 * a_channel / p_wet;
+    
+    // Velocity per channel
+    let m_dot_channel = m_dot_total / n_channels as f64;
+    let v_cool = m_dot_channel / (rho_cool * a_channel);
+    
+    // Reynolds number
+    let re = rho_cool * v_cool * d_h / mu_cool;
+    
+    // Friction factor (Haaland approximation)
+    let roughness = 1e-6;  // m (smooth)
+    let f = if re > 2300.0 {
+        let a = -1.8 * ((6.9 / re) + (roughness / d_h / 3.7).powf(1.11)).ln() / 10.0_f64.ln();
+        (1.0 / a).powi(2)
+    } else {
+        64.0 / re
+    };
+    
+    // Gnielinski Nusselt number
+    let nu = if re > 2300.0 {
+        ((f / 8.0) * (re - 1000.0) * pr_cool) / 
+        (1.0 + 12.7 * (f / 8.0).sqrt() * (pr_cool.powf(2.0/3.0) - 1.0))
+    } else {
+        3.66  // Laminar
+    };
+    
+    // Coolant-side heat transfer coefficient
+    let h_cool = nu * k_cool / d_h;
+    
+    // Bartz correlation for gas-side heat transfer (simplified)
+    // hg = 0.026/Dt^0.2 * (mu^0.2 * Cp / Pr^0.6) * (Pc/cstar)^0.8 * (At/A)^0.9 * sigma
+    let d_throat = 2.0 * r_throat;
+    let gamma = 1.2;  // Typical for combustion products
+    let t_chamber = 3500.0;  // K (from CEA or assumed)
+    let c_star = 1700.0;  // m/s (typical)
+    
+    // Gas properties at chamber conditions (approximate)
+    let mu_gas: f64 = 8e-5;  // Pa.s
+    let cp_gas: f64 = 2000.0;  // J/kgK
+    let pr_gas: f64 = 0.72;
+    
+    let bartz_base = 0.026_f64 / d_throat.powf(0.2) * 
+                     (mu_gas.powf(0.2) * cp_gas / pr_gas.powf(0.6)) *
+                     (pc / c_star).powf(0.8);
+    
+    // Discretize along the channel
     let n_points = 50;
-    let mut x = Vec::new();
-    let mut t_wall = Vec::new();
-    let mut t_coolant = Vec::new();
-    let mut p_coolant = Vec::new();
+    let dx = l_total / n_points as f64;
+    
+    let mut x_arr = Vec::with_capacity(n_points);
+    let mut t_wall_arr = Vec::with_capacity(n_points);
+    let mut t_coolant_arr = Vec::with_capacity(n_points);
+    let mut p_coolant_arr = Vec::with_capacity(n_points);
+    let mut q_flux_arr = Vec::with_capacity(n_points);
+    
+    let mut t_cool = t_inlet;
+    let mut p_cool = p_inlet;
     
     for i in 0..n_points {
-        let pos = (i as f64 / n_points as f64) * 0.35; // 0 to 0.35m
-        x.push(pos);
+        let x = i as f64 * dx;
+        x_arr.push(x);
         
-        // Mock temperature profile (higher at throat)
-        let throat_factor = if pos < 0.15 {
-            1.0 + (0.15 - pos) / 0.15 * 0.5
+        // Local area ratio (simplified: throat at l_chamber position)
+        let throat_pos = geom.l_chamber;
+        let area_ratio = if x < throat_pos {
+            // Convergent: linear from 3.0 to 1.0
+            3.0 - 2.0 * x / throat_pos
         } else {
-            1.0 + (pos - 0.15) / 0.20 * 0.3
+            // Divergent: linear from 1.0 to expansion ratio
+            1.0 + 39.0 * (x - throat_pos) / geom.l_nozzle
         };
+        let area_ratio = area_ratio.max(1.0);
         
-        t_wall.push(800.0 * throat_factor);
-        t_coolant.push(300.0 + 100.0 * throat_factor);
-        p_coolant.push(60e5 - (i as f64 / n_points as f64) * 5e5);
+        // Local gas-side heat transfer coefficient
+        let h_gas = bartz_base * (1.0 / area_ratio).powf(0.9);
+        
+        // Adiabatic wall temperature (recovery factor ~0.9)
+        let local_gamma_factor = 1.0 + 0.5 * (gamma - 1.0);
+        let t_aw = t_chamber / local_gamma_factor;  // Simplified
+        
+        // Solve 1D thermal resistance network
+        // q = hg*(Taw - Twh) = k/e*(Twh - Twc) = hc*(Twc - Tcool)
+        let r_gas = 1.0 / h_gas;
+        let r_wall = e_wall / k_wall;
+        let r_cool = 1.0 / h_cool;
+        let r_total = r_gas + r_wall + r_cool;
+        
+        let q_flux = (t_aw - t_cool) / r_total;
+        let t_wall_hot = t_aw - q_flux * r_gas;
+        
+        q_flux_arr.push(q_flux / 1e6);  // MW/m²
+        t_wall_arr.push(t_wall_hot);
+        t_coolant_arr.push(t_cool);
+        p_coolant_arr.push(p_cool);
+        
+        // Update coolant temperature along channel
+        // Perimeter cooled per unit length (assume full circumference)
+        let r_local = r_throat * area_ratio.sqrt();
+        let perimeter = 2.0 * std::f64::consts::PI * r_local;
+        let q_absorbed = q_flux * perimeter * dx;
+        t_cool += q_absorbed / (m_dot_total * cp_cool);
+        
+        // Pressure drop (Darcy-Weisbach)
+        let dp = f * (dx / d_h) * (rho_cool * v_cool.powi(2) / 2.0);
+        p_cool -= dp;
     }
+    
+    let max_t_wall = t_wall_arr.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+    let max_q_flux = q_flux_arr.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
     
     Ok(Json(serde_json::json!({
         "status": "success",
         "data": {
-            "x": x,
-            "t_wall": t_wall,
-            "t_coolant": t_coolant,
-            "p_coolant": p_coolant,
-            "t_out": t_coolant.last().unwrap_or(&350.0),
-            "p_out": p_coolant.last().unwrap_or(&55e5),
-            "max_t_wall": t_wall.iter().cloned().fold(f64::NEG_INFINITY, f64::max)
+            "x": x_arr,
+            "t_wall": t_wall_arr,
+            "t_coolant": t_coolant_arr,
+            "p_coolant": p_coolant_arr,
+            "q_flux": q_flux_arr,
+            "t_out": t_cool,
+            "p_out": p_cool,
+            "max_t_wall": max_t_wall,
+            "max_q_flux": max_q_flux,
+            "reynolds": re,
+            "h_coolant": h_cool,
+            "delta_p": (p_inlet - p_cool) / 1e5
         }
     })))
 }

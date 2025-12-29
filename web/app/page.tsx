@@ -1,10 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import AppLayout from "@/components/AppLayout";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
-interface MotorDefinition {
+interface MotorConfig {
   name: string;
   oxidizer: string;
   fuel: string;
@@ -14,23 +13,12 @@ interface MotorDefinition {
   lstar: number;
   contraction_ratio: number;
   pe: number;
-  pamb: number;
   theta_n: number;
   theta_e: number;
   material_name: string;
   wall_thickness: number;
   wall_k: number;
   twall_max: number;
-  coolant_name: string;
-  coolant_mdot: string;
-  coolant_pressure: number;
-  coolant_tin: number;
-  coolant_tout_max: number;
-  coolant_margin: number;
-  custom_cp: number;
-  custom_tboil: number;
-  custom_tcrit: number;
-  custom_hvap: number;
 }
 
 export default function Home() {
@@ -38,7 +26,7 @@ export default function Home() {
   const [results, setResults] = useState<any>(null);
   const [loading, setLoading] = useState(false);
 
-  const [motor, setMotor] = useState<MotorDefinition>({
+  const [config, setConfig] = useState<MotorConfig>({
     name: "Moteur_Propane",
     oxidizer: "O2",
     fuel: "C3H8",
@@ -48,24 +36,17 @@ export default function Home() {
     lstar: 1.0,
     contraction_ratio: 3.5,
     pe: 1.013,
-    pamb: 1.013,
     theta_n: 25.0,
     theta_e: 8.0,
     material_name: "Cuivre-Zirconium (CuZr)",
     wall_thickness: 2.0,
     wall_k: 340.0,
     twall_max: 1000.0,
-    coolant_name: "Auto",
-    coolant_mdot: "Auto",
-    coolant_pressure: 15.0,
-    coolant_tin: 293.0,
-    coolant_tout_max: 350.0,
-    coolant_margin: 20.0,
-    custom_cp: 2500.0,
-    custom_tboil: 350.0,
-    custom_tcrit: 500.0,
-    custom_hvap: 400.0
   });
+
+  useEffect(() => {
+    loadMaterials();
+  }, []);
 
   const loadMaterials = async () => {
     try {
@@ -73,7 +54,7 @@ export default function Home() {
       const data = await res.json();
       setMaterials(data.materials);
     } catch (e) {
-      console.error("Failed to load materials:", e);
+      console.error("Materials load failed:", e);
     }
   };
 
@@ -83,298 +64,332 @@ export default function Home() {
       const res = await fetch("http://localhost:8000/api/calculate/full", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(motor)
+        body: JSON.stringify(config)
       });
       const data = await res.json();
       setResults(data);
     } catch (e) {
       console.error("Calculation failed:", e);
-      alert("Erreur - Vérifiez que les services sont démarrés");
     } finally {
       setLoading(false);
     }
   };
 
-  const updateMotor = (key: keyof MotorDefinition, value: any) => {
-    setMotor(prev => ({ ...prev, [key]: value }));
+  const updateConfig = (key: keyof MotorConfig, value: any) => {
+    setConfig(prev => ({ ...prev, [key]: value }));
   };
 
   return (
     <AppLayout>
-      <div className="max-w-[2000px] mx-auto p-6">
+      <div className="p-8">
         {/* Header */}
-        <div className="mb-6">
-          <h1 className="text-4xl font-bold text-white mb-2">ROCKET DESIGN STUDIO</h1>
-          <p className="text-slate-400">Configuration complète du moteur-fusée</p>
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-white mb-2">Rocket Design Studio</h1>
+          <p className="text-[#71717a]">Configuration et analyse complète du moteur-fusée</p>
         </div>
 
-        <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
-          {/* LEFT SIDEBAR - INPUTS */}
-          <div className="xl:col-span-1 space-y-4">
-            <div className="bg-slate-900 border border-slate-700 p-4 rounded-xl">
-              <h2 className="text-lg font-bold text-white mb-4">⚙️ Paramètres</h2>
-
-              {/* Quick Actions */}
-              <div className="space-y-2 mb-4">
-                <button onClick={loadMaterials} className="w-full bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-bold">
-                  📦 Charger Matériaux
-                </button>
-                <button onClick={calculateFull} disabled={loading} className="w-full bg-green-600 hover:bg-green-500 disabled:opacity-50 text-white px-4 py-3 rounded-lg font-bold">
-                  {loading ? "⏳ Calcul..." : "🔥 CALCULER TOUT"}
-                </button>
-              </div>
-
-              {/* Identification */}
-              <div className="mb-4">
-                <label className="block text-xs text-slate-400 mb-1">Nom du Moteur</label>
-                <input type="text" value={motor.name} onChange={(e) => updateMotor("name", e.target.value)}
-                  className="w-full bg-slate-800 text-white px-3 py-2 rounded-lg border border-slate-700 text-sm" />
-              </div>
-
-              {/* Propellants */}
-              <div className="mb-4">
-                <h3 className="text-sm font-bold text-cyan-400 mb-2">Propergols (CEA)</h3>
-                <div className="space-y-2">
-                  <div>
-                    <label className="block text-xs text-slate-400 mb-1">Oxydant</label>
-                    <input type="text" value={motor.oxidizer} onChange={(e) => updateMotor("oxidizer", e.target.value)}
-                      className="w-full bg-slate-800 text-white px-3 py-2 rounded-lg border border-slate-700 text-sm" />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-slate-400 mb-1">Carburant</label>
-                    <input type="text" value={motor.fuel} onChange={(e) => updateMotor("fuel", e.target.value)}
-                      className="w-full bg-slate-800 text-white px-3 py-2 rounded-lg border border-slate-700 text-sm" />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-slate-400 mb-1">Ratio O/F</label>
-                    <input type="number" step="0.1" value={motor.of_ratio} onChange={(e) => updateMotor("of_ratio", parseFloat(e.target.value))}
-                      className="w-full bg-slate-800 text-white px-3 py-2 rounded-lg border border-slate-700 text-sm" />
-                  </div>
-                </div>
-              </div>
-
-              {/* Chamber */}
-              <div className="mb-4">
-                <h3 className="text-sm font-bold text-orange-400 mb-2">Chambre</h3>
-                <div className="space-y-2">
-                  <div>
-                    <label className="block text-xs text-slate-400 mb-1">Pc (bar)</label>
-                    <input type="number" value={motor.pc} onChange={(e) => updateMotor("pc", parseFloat(e.target.value))}
-                      className="w-full bg-slate-800 text-white px-3 py-2 rounded-lg border border-slate-700 text-sm" />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-slate-400 mb-1">Débit (kg/s)</label>
-                    <input type="number" step="0.1" value={motor.mdot} onChange={(e) => updateMotor("mdot", parseFloat(e.target.value))}
-                      className="w-full bg-slate-800 text-white px-3 py-2 rounded-lg border border-slate-700 text-sm" />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-slate-400 mb-1">L* (m)</label>
-                    <input type="number" step="0.1" value={motor.lstar} onChange={(e) => updateMotor("lstar", parseFloat(e.target.value))}
-                      className="w-full bg-slate-800 text-white px-3 py-2 rounded-lg border border-slate-700 text-sm" />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-slate-400 mb-1">Contraction Ratio</label>
-                    <input type="number" step="0.1" value={motor.contraction_ratio} onChange={(e) => updateMotor("contraction_ratio", parseFloat(e.target.value))}
-                      className="w-full bg-slate-800 text-white px-3 py-2 rounded-lg border border-slate-700 text-sm" />
-                  </div>
-                </div>
-              </div>
-
-              {/* Nozzle */}
-              <div className="mb-4">
-                <h3 className="text-sm font-bold text-purple-400 mb-2">Tuyère</h3>
-                <div className="space-y-2">
-                  <div>
-                    <label className="block text-xs text-slate-400 mb-1">Pe (bar)</label>
-                    <input type="number" step="0.01" value={motor.pe} onChange={(e) => updateMotor("pe", parseFloat(e.target.value))}
-                      className="w-full bg-slate-800 text-white px-3 py-2 rounded-lg border border-slate-700 text-sm" />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-slate-400 mb-1">Angle entrée (°)</label>
-                    <input type="number" value={motor.theta_n} onChange={(e) => updateMotor("theta_n", parseFloat(e.target.value))}
-                      className="w-full bg-slate-800 text-white px-3 py-2 rounded-lg border border-slate-700 text-sm" />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-slate-400 mb-1">Angle sortie (°)</label>
-                    <input type="number" value={motor.theta_e} onChange={(e) => updateMotor("theta_e", parseFloat(e.target.value))}
-                      className="w-full bg-slate-800 text-white px-3 py-2 rounded-lg border border-slate-700 text-sm" />
-                  </div>
-                </div>
-              </div>
-
-              {/* Material */}
-              <div className="mb-4">
-                <h3 className="text-sm font-bold text-pink-400 mb-2">Matériau</h3>
-                {materials && (
-                  <select value={motor.material_name} onChange={(e) => {
-                    const mat = materials[e.target.value];
-                    updateMotor("material_name", e.target.value);
-                    if (mat) {
-                      updateMotor("wall_k", mat.k);
-                      updateMotor("twall_max", mat.T_max);
-                    }
-                  }}
-                    className="w-full bg-slate-800 text-white px-3 py-2 rounded-lg border border-slate-700 text-sm mb-2">
-                    {Object.keys(materials).map(name => (
-                      <option key={name} value={name}>{name}</option>
-                    ))}
-                  </select>
+        <div className="grid grid-cols-12 gap-6">
+          {/* Left Panel - Configuration */}
+          <div className="col-span-12 lg:col-span-4 xl:col-span-3 space-y-6">
+            {/* Quick Actions */}
+            <div className="card">
+              <button
+                onClick={calculateFull}
+                disabled={loading}
+                className="btn-primary w-full flex items-center justify-center gap-2"
+              >
+                {loading ? (
+                  <>
+                    <span className="animate-spin">⏳</span>
+                    Calcul en cours...
+                  </>
+                ) : (
+                  <>
+                    <span>🔥</span>
+                    CALCULER TOUT
+                  </>
                 )}
-                <div className="space-y-2">
-                  <div>
-                    <label className="block text-xs text-slate-400 mb-1">Épaisseur (mm)</label>
-                    <input type="number" step="0.1" value={motor.wall_thickness} onChange={(e) => updateMotor("wall_thickness", parseFloat(e.target.value))}
-                      className="w-full bg-slate-800 text-white px-3 py-2 rounded-lg border border-slate-700 text-sm" />
+              </button>
+            </div>
+
+            {/* Motor Name */}
+            <div className="card">
+              <h3 className="card-header">
+                <span>🏷️</span> Identification
+              </h3>
+              <div className="form-group">
+                <label className="input-label">Nom du moteur</label>
+                <input
+                  type="text"
+                  value={config.name}
+                  onChange={(e) => updateConfig("name", e.target.value)}
+                  className="input-field"
+                />
+              </div>
+            </div>
+
+            {/* Propellants */}
+            <div className="card">
+              <h3 className="card-header">
+                <span>⚗️</span> Propergols
+              </h3>
+              <div className="space-y-4">
+                <div className="form-group">
+                  <label className="input-label">Oxydant</label>
+                  <input
+                    type="text"
+                    value={config.oxidizer}
+                    onChange={(e) => updateConfig("oxidizer", e.target.value)}
+                    className="input-field"
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="input-label">Carburant</label>
+                  <input
+                    type="text"
+                    value={config.fuel}
+                    onChange={(e) => updateConfig("fuel", e.target.value)}
+                    className="input-field"
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="input-label">Ratio O/F</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={config.of_ratio}
+                    onChange={(e) => updateConfig("of_ratio", parseFloat(e.target.value))}
+                    className="input-field"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Chamber */}
+            <div className="card">
+              <h3 className="card-header">
+                <span>🔴</span> Chambre
+              </h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="form-group">
+                  <label className="input-label">Pc (bar)</label>
+                  <input
+                    type="number"
+                    value={config.pc}
+                    onChange={(e) => updateConfig("pc", parseFloat(e.target.value))}
+                    className="input-field"
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="input-label">Débit (kg/s)</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={config.mdot}
+                    onChange={(e) => updateConfig("mdot", parseFloat(e.target.value))}
+                    className="input-field"
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="input-label">L* (m)</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={config.lstar}
+                    onChange={(e) => updateConfig("lstar", parseFloat(e.target.value))}
+                    className="input-field"
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="input-label">Contraction (Ac/At)</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={config.contraction_ratio}
+                    onChange={(e) => updateConfig("contraction_ratio", parseFloat(e.target.value))}
+                    className="input-field"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Material */}
+            <div className="card">
+              <h3 className="card-header">
+                <span>🧱</span> Matériau
+              </h3>
+              <div className="space-y-4">
+                {materials && (
+                  <div className="form-group">
+                    <label className="input-label">Sélection</label>
+                    <select
+                      value={config.material_name}
+                      onChange={(e) => {
+                        const mat = materials[e.target.value];
+                        updateConfig("material_name", e.target.value);
+                        if (mat) {
+                          updateConfig("wall_k", mat.k);
+                          updateConfig("twall_max", mat.T_max);
+                        }
+                      }}
+                      className="input-field"
+                    >
+                      {Object.keys(materials).map(name => (
+                        <option key={name} value={name}>{name}</option>
+                      ))}
+                    </select>
                   </div>
-                  <div>
-                    <label className="block text-xs text-slate-400 mb-1">k (W/m-K)</label>
-                    <input type="number" value={motor.wall_k} onChange={(e) => updateMotor("wall_k", parseFloat(e.target.value))}
-                      className="w-full bg-slate-800 text-white px-3 py-2 rounded-lg border border-slate-700 text-sm" />
+                )}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="form-group">
+                    <label className="input-label">Épaisseur (mm)</label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={config.wall_thickness}
+                      onChange={(e) => updateConfig("wall_thickness", parseFloat(e.target.value))}
+                      className="input-field"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="input-label">k (W/m·K)</label>
+                    <input
+                      type="number"
+                      value={config.wall_k}
+                      onChange={(e) => updateConfig("wall_k", parseFloat(e.target.value))}
+                      className="input-field"
+                    />
                   </div>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* MAIN CONTENT - SUMMARY */}
-          <div className="xl:col-span-3">
+          {/* Right Panel - Results */}
+          <div className="col-span-12 lg:col-span-8 xl:col-span-9">
             {results ? (
-              <div className="bg-slate-900 border border-slate-700 p-6 rounded-xl">
-                <h2 className="text-2xl font-bold text-white mb-6">📊 RÉSUMÉ - {motor.name}</h2>
-
-                {/* Performance Grid */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                  <div className="bg-gradient-to-br from-blue-900/30 to-blue-800/20 border border-blue-700/50 p-4 rounded-xl">
-                    <div className="text-xs text-blue-400 mb-1">Isp (vide)</div>
-                    <div className="text-3xl font-bold text-white">{results.isp_vac?.toFixed(1)}</div>
-                    <div className="text-xs text-slate-400">secondes</div>
+              <div className="space-y-6">
+                {/* Performance Cards */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="stat-card glow-cyan">
+                    <div className="absolute top-0 right-0 w-20 h-20 bg-[#00d4ff]/5 rounded-full -translate-y-1/2 translate-x-1/2"></div>
+                    <p className="text-xs text-[#00d4ff] font-medium uppercase tracking-wider mb-1">Isp (vide)</p>
+                    <p className="stat-value">{results.isp_vac?.toFixed(1)}<span className="stat-unit">s</span></p>
                   </div>
-                  <div className="bg-gradient-to-br from-green-900/30 to-green-800/20 border border-green-700/50 p-4 rounded-xl">
-                    <div className="text-xs text-green-400 mb-1">Poussée (vide)</div>
-                    <div className="text-3xl font-bold text-white">{(results.thrust_vac / 1000)?.toFixed(2)}</div>
-                    <div className="text-xs text-slate-400">kN</div>
+                  <div className="stat-card glow-purple">
+                    <div className="absolute top-0 right-0 w-20 h-20 bg-[#8b5cf6]/5 rounded-full -translate-y-1/2 translate-x-1/2"></div>
+                    <p className="text-xs text-[#8b5cf6] font-medium uppercase tracking-wider mb-1">Poussée</p>
+                    <p className="stat-value">{(results.thrust_vac / 1000)?.toFixed(2)}<span className="stat-unit">kN</span></p>
                   </div>
-                  <div className="bg-gradient-to-br from-orange-900/30 to-orange-800/20 border border-orange-700/50 p-4 rounded-xl">
-                    <div className="text-xs text-orange-400 mb-1">c*</div>
-                    <div className="text-3xl font-bold text-white">{results.c_star?.toFixed(0)}</div>
-                    <div className="text-xs text-slate-400">m/s</div>
+                  <div className="stat-card">
+                    <p className="text-xs text-[#f59e0b] font-medium uppercase tracking-wider mb-1">c*</p>
+                    <p className="stat-value">{results.c_star?.toFixed(0)}<span className="stat-unit">m/s</span></p>
                   </div>
-                  <div className="bg-gradient-to-br from-purple-900/30 to-purple-800/20 border border-purple-700/50 p-4 rounded-xl">
-                    <div className="text-xs text-purple-400 mb-1">T chambre</div>
-                    <div className="text-3xl font-bold text-white">{results.t_chamber?.toFixed(0)}</div>
-                    <div className="text-xs text-slate-400">K</div>
+                  <div className="stat-card">
+                    <p className="text-xs text-[#ec4899] font-medium uppercase tracking-wider mb-1">T chambre</p>
+                    <p className="stat-value">{results.t_chamber?.toFixed(0)}<span className="stat-unit">K</span></p>
                   </div>
                 </div>
 
-                {/* Geometry Section */}
-                <div className="mb-6">
-                  <h3 className="text-xl font-bold text-cyan-400 mb-4">📐 Géométrie</h3>
-                  <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
-                    <div className="bg-slate-800 p-3 rounded-lg">
-                      <div className="text-xs text-slate-400">R col</div>
-                      <div className="text-lg font-bold text-white">{(results.r_throat * 1000)?.toFixed(1)}</div>
-                      <div className="text-xs text-slate-500">mm</div>
-                    </div>
-                    <div className="bg-slate-800 p-3 rounded-lg">
-                      <div className="text-xs text-slate-400">R chambre</div>
-                      <div className="text-lg font-bold text-white">{(results.r_chamber * 1000)?.toFixed(1)}</div>
-                      <div className="text-xs text-slate-500">mm</div>
-                    </div>
-                    <div className="bg-slate-800 p-3 rounded-lg">
-                      <div className="text-xs text-slate-400">R sortie</div>
-                      <div className="text-lg font-bold text-white">{(results.r_exit * 1000)?.toFixed(1)}</div>
-                      <div className="text-xs text-slate-500">mm</div>
-                    </div>
-                    <div className="bg-slate-800 p-3 rounded-lg">
-                      <div className="text-xs text-slate-400">L chambre</div>
-                      <div className="text-lg font-bold text-white">{(results.l_chamber * 1000)?.toFixed(0)}</div>
-                      <div className="text-xs text-slate-500">mm</div>
-                    </div>
-                    <div className="bg-slate-800 p-3 rounded-lg">
-                      <div className="text-xs text-slate-400">L tuyère</div>
-                      <div className="text-lg font-bold text-white">{(results.l_nozzle * 1000)?.toFixed(0)}</div>
-                      <div className="text-xs text-slate-500">mm</div>
-                    </div>
-                    <div className="bg-slate-800 p-3 rounded-lg">
-                      <div className="text-xs text-slate-400">ε</div>
-                      <div className="text-lg font-bold text-white">{results.expansion_ratio?.toFixed(1)}</div>
-                      <div className="text-xs text-slate-500">-</div>
-                    </div>
+                {/* Geometry */}
+                <div className="card">
+                  <h3 className="card-header">
+                    <span>📐</span> Géométrie
+                  </h3>
+                  <div className="grid grid-cols-3 md:grid-cols-6 gap-4">
+                    {[
+                      { label: "R col", value: (results.r_throat * 1000)?.toFixed(1), unit: "mm" },
+                      { label: "R chambre", value: (results.r_chamber * 1000)?.toFixed(1), unit: "mm" },
+                      { label: "R sortie", value: (results.r_exit * 1000)?.toFixed(1), unit: "mm" },
+                      { label: "L chambre", value: (results.l_chamber * 1000)?.toFixed(0), unit: "mm" },
+                      { label: "L tuyère", value: (results.l_nozzle * 1000)?.toFixed(0), unit: "mm" },
+                      { label: "ε", value: results.expansion_ratio?.toFixed(1), unit: "" },
+                    ].map((item, i) => (
+                      <div key={i} className="bg-[#1a1a25] rounded-lg p-4 text-center">
+                        <p className="text-xs text-[#71717a] mb-1">{item.label}</p>
+                        <p className="text-xl font-bold text-white">{item.value}</p>
+                        <p className="text-xs text-[#a1a1aa]">{item.unit}</p>
+                      </div>
+                    ))}
                   </div>
                 </div>
 
-                {/* Thermal Section */}
-                <div className="mb-6">
-                  <h3 className="text-xl font-bold text-orange-400 mb-4">🔥 Thermique</h3>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    <div className="bg-slate-800 p-3 rounded-lg">
-                      <div className="text-xs text-slate-400">Flux max</div>
-                      <div className="text-lg font-bold text-orange-400">{results.max_heat_flux?.toFixed(2)}</div>
-                      <div className="text-xs text-slate-500">MW/m²</div>
-                    </div>
-                    <div className="bg-slate-800 p-3 rounded-lg">
-                      <div className="text-xs text-slate-400">T paroi max</div>
-                      <div className="text-lg font-bold text-white">{results.max_wall_temp?.toFixed(0)}</div>
-                      <div className="text-xs text-slate-500">K</div>
-                    </div>
-                    <div className="bg-slate-800 p-3 rounded-lg">
-                      <div className="text-xs text-slate-400">T coolant out</div>
-                      <div className="text-lg font-bold text-white">{results.coolant_temp_out?.toFixed(0)}</div>
-                      <div className="text-xs text-slate-500">K</div>
-                    </div>
-                    <div className="bg-slate-800 p-3 rounded-lg">
-                      <div className="text-xs text-slate-400">ΔP coolant</div>
-                      <div className="text-lg font-bold text-white">{results.coolant_pressure_drop?.toFixed(1)}</div>
-                      <div className="text-xs text-slate-500">bar</div>
-                    </div>
+                {/* Thermal */}
+                <div className="card">
+                  <h3 className="card-header">
+                    <span>🌡️</span> Thermique
+                  </h3>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                    {[
+                      { label: "Flux max", value: results.max_heat_flux?.toFixed(2), unit: "MW/m²", color: "text-[#f59e0b]" },
+                      { label: "T paroi max", value: results.max_wall_temp?.toFixed(0), unit: "K", color: "text-[#ef4444]" },
+                      { label: "T coolant out", value: results.coolant_temp_out?.toFixed(0), unit: "K", color: "text-[#00d4ff]" },
+                      { label: "ΔP coolant", value: results.coolant_pressure_drop?.toFixed(1), unit: "bar", color: "text-white" },
+                    ].map((item, i) => (
+                      <div key={i} className="bg-[#1a1a25] rounded-lg p-4">
+                        <p className="text-xs text-[#71717a] mb-1">{item.label}</p>
+                        <p className={`text-2xl font-bold ${item.color}`}>{item.value}</p>
+                        <p className="text-xs text-[#a1a1aa]">{item.unit}</p>
+                      </div>
+                    ))}
                   </div>
-                  <div className={`mt-3 p-3 rounded-lg ${results.cooling_status === "OK" ? "bg-green-900/30 border border-green-700" :
-                      results.cooling_status === "WARNING" ? "bg-yellow-900/30 border border-yellow-700" :
-                        "bg-red-900/30 border border-red-700"
+                  <div className={`rounded-lg p-4 flex items-center gap-3 ${results.cooling_status === "OK" ? "bg-[#10b981]/10 border border-[#10b981]/30" :
+                      results.cooling_status === "WARNING" ? "bg-[#f59e0b]/10 border border-[#f59e0b]/30" :
+                        "bg-[#ef4444]/10 border border-[#ef4444]/30"
                     }`}>
-                    <div className="font-bold">
-                      {results.cooling_status === "OK" && "✅ Refroidissement OK"}
-                      {results.cooling_status === "WARNING" && "⚠️ Refroidissement Limite"}
-                      {results.cooling_status === "CRITICAL" && "❌ Refroidissement Critique"}
+                    <span className="text-2xl">
+                      {results.cooling_status === "OK" ? "✅" : results.cooling_status === "WARNING" ? "⚠️" : "❌"}
+                    </span>
+                    <div>
+                      <p className={`font-semibold ${results.cooling_status === "OK" ? "text-[#10b981]" :
+                          results.cooling_status === "WARNING" ? "text-[#f59e0b]" :
+                            "text-[#ef4444]"
+                        }`}>
+                        Refroidissement {results.cooling_status === "OK" ? "OK" : results.cooling_status === "WARNING" ? "Limite" : "Critique"}
+                      </p>
+                      <p className="text-sm text-[#71717a]">
+                        Marge thermique : {((config.twall_max - results.max_wall_temp) / config.twall_max * 100).toFixed(0)}%
+                      </p>
                     </div>
                   </div>
                 </div>
 
                 {/* CEA Details */}
-                <div>
-                  <h3 className="text-xl font-bold text-purple-400 mb-4">🔬 Détails CEA</h3>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    <div className="bg-slate-800 p-3 rounded-lg">
-                      <div className="text-xs text-slate-400">γ</div>
-                      <div className="text-lg font-bold text-white">{results.gamma?.toFixed(3)}</div>
-                    </div>
-                    <div className="bg-slate-800 p-3 rounded-lg">
-                      <div className="text-xs text-slate-400">MW</div>
-                      <div className="text-lg font-bold text-white">{results.mw?.toFixed(2)}</div>
-                      <div className="text-xs text-slate-500">g/mol</div>
-                    </div>
-                    <div className="bg-slate-800 p-3 rounded-lg">
-                      <div className="text-xs text-slate-400">CF (vide)</div>
-                      <div className="text-lg font-bold text-white">{results.cf_vac?.toFixed(3)}</div>
-                    </div>
-                    <div className="bg-slate-800 p-3 rounded-lg">
-                      <div className="text-xs text-slate-400">Isp (SL)</div>
-                      <div className="text-lg font-bold text-white">{results.isp_sl?.toFixed(1)}</div>
-                      <div className="text-xs text-slate-500">s</div>
-                    </div>
+                <div className="card">
+                  <h3 className="card-header">
+                    <span>🔬</span> Détails CEA
+                  </h3>
+                  <div className="grid grid-cols-4 gap-4">
+                    {[
+                      { label: "γ", value: results.gamma?.toFixed(3) },
+                      { label: "MW", value: results.mw?.toFixed(2), unit: "g/mol" },
+                      { label: "CF (vide)", value: results.cf_vac?.toFixed(3) },
+                      { label: "Isp (SL)", value: results.isp_sl?.toFixed(1), unit: "s" },
+                    ].map((item, i) => (
+                      <div key={i} className="bg-[#1a1a25] rounded-lg p-4 text-center">
+                        <p className="text-xs text-[#71717a] mb-1">{item.label}</p>
+                        <p className="text-xl font-bold text-white">{item.value}</p>
+                        {item.unit && <p className="text-xs text-[#a1a1aa]">{item.unit}</p>}
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>
             ) : (
-              <div className="bg-slate-900 border border-slate-700 p-12 rounded-xl text-center">
-                <div className="text-6xl mb-4">🚀</div>
-                <h2 className="text-2xl font-bold text-white mb-2">Prêt à calculer</h2>
-                <p className="text-slate-400 mb-6">Configurez les paramètres et cliquez sur "CALCULER TOUT"</p>
-                <div className="text-sm text-slate-500">
-                  <div>✓ Calculs CEA complets</div>
-                  <div>✓ Génération géométrie</div>
-                  <div>✓ Analyse thermique</div>
-                  <div>✓ Calculs de performance</div>
+              /* Empty State */
+              <div className="card h-full flex flex-col items-center justify-center text-center py-20">
+                <div className="w-24 h-24 rounded-full bg-gradient-to-br from-[#00d4ff]/20 to-[#8b5cf6]/20 flex items-center justify-center mb-6">
+                  <span className="text-5xl">🚀</span>
+                </div>
+                <h2 className="text-2xl font-bold text-white mb-2">Prêt à concevoir</h2>
+                <p className="text-[#71717a] mb-8 max-w-md">
+                  Configurez les paramètres du moteur dans le panneau de gauche, puis cliquez sur "Calculer Tout" pour lancer l'analyse complète.
+                </p>
+                <div className="flex flex-wrap gap-3 justify-center text-sm text-[#a1a1aa]">
+                  <span className="badge badge-success">✓ Calculs CEA</span>
+                  <span className="badge badge-success">✓ Génération géométrie</span>
+                  <span className="badge badge-success">✓ Analyse thermique</span>
+                  <span className="badge badge-success">✓ Performance</span>
                 </div>
               </div>
             )}
