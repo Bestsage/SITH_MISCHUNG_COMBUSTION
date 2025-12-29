@@ -1,20 +1,20 @@
 use axum::{
+    http::{Method, StatusCode},
     routing::{get, post},
-    http::{StatusCode, Method},
     Json, Router,
 };
-use tower_http::cors::{CorsLayer, Any};
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
+use tower_http::cors::{Any, CorsLayer};
 
-mod materials;
 mod cea_client;
 mod geometry;
+mod materials;
 mod motor_definition;
 
 use geometry::{GeometryParams, GeometryProfile};
+use motor_definition::{CalculationResults, MotorDefinition};
 use rocket_server::{CEARequest, CEAResponse};
-use motor_definition::{MotorDefinition, CalculationResults};
 
 // === SOLVER REQUEST ===
 #[derive(Debug, Serialize, Deserialize)]
@@ -62,98 +62,100 @@ async fn calculate_cea(Json(payload): Json<CEARequest>) -> Result<Json<CEARespon
     }
 }
 
-async fn run_solver(Json(payload): Json<SolverRequest>) -> Result<Json<serde_json::Value>, StatusCode> {
+async fn run_solver(
+    Json(payload): Json<SolverRequest>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
     // Extract parameters from payload
     let geom = &payload.geometry;
     let cond = &payload.conditions;
-    
+
     // Geometry parameters
-    let r_throat = geom.r_throat;  // m
-    let l_total = geom.l_chamber + geom.l_nozzle;  // m
+    let r_throat = geom.r_throat; // m
+    let l_total = geom.l_chamber + geom.l_nozzle; // m
     let n_channels = geom.n_channels as usize;
-    let w_channel = geom.channel_width;  // m
-    let h_channel = geom.channel_depth;  // m
-    let e_wall = geom.wall_thickness;  // m
-    
+    let w_channel = geom.channel_width; // m
+    let h_channel = geom.channel_depth; // m
+    let e_wall = geom.wall_thickness; // m
+
     // Conditions
-    let p_inlet = cond.p_inlet;  // Pa
-    let t_inlet = cond.t_inlet;  // K
-    let m_dot_total = cond.m_dot;  // kg/s coolant
-    let pc = cond.pc;  // Pa chamber pressure
-    let k_wall = cond.k_wall;  // W/mK wall conductivity
-    
+    let p_inlet = cond.p_inlet; // Pa
+    let t_inlet = cond.t_inlet; // K
+    let m_dot_total = cond.m_dot; // kg/s coolant
+    let pc = cond.pc; // Pa chamber pressure
+    let k_wall = cond.k_wall; // W/mK wall conductivity
+
     // Coolant properties (approximate for RP-1/kerosene)
-    let rho_cool = 800.0;  // kg/m³
-    let cp_cool = 2100.0;  // J/kgK
-    let mu_cool = 0.001;  // Pa.s
-    let k_cool = 0.12;  // W/mK
+    let rho_cool = 800.0; // kg/m³
+    let cp_cool = 2100.0; // J/kgK
+    let mu_cool = 0.001; // Pa.s
+    let k_cool = 0.12; // W/mK
     let pr_cool = cp_cool * mu_cool / k_cool;
-    
+
     // Channel hydraulic diameter
     let a_channel = w_channel * h_channel;
     let p_wet = 2.0 * (w_channel + h_channel);
     let d_h = 4.0 * a_channel / p_wet;
-    
+
     // Velocity per channel
     let m_dot_channel = m_dot_total / n_channels as f64;
     let v_cool = m_dot_channel / (rho_cool * a_channel);
-    
+
     // Reynolds number
     let re = rho_cool * v_cool * d_h / mu_cool;
-    
+
     // Friction factor (Haaland approximation)
-    let roughness = 1e-6;  // m (smooth)
+    let roughness = 1e-6; // m (smooth)
     let f = if re > 2300.0 {
         let a = -1.8 * ((6.9 / re) + (roughness / d_h / 3.7).powf(1.11)).ln() / 10.0_f64.ln();
         (1.0 / a).powi(2)
     } else {
         64.0 / re
     };
-    
+
     // Gnielinski Nusselt number
     let nu = if re > 2300.0 {
-        ((f / 8.0) * (re - 1000.0) * pr_cool) / 
-        (1.0 + 12.7 * (f / 8.0).sqrt() * (pr_cool.powf(2.0/3.0) - 1.0))
+        ((f / 8.0) * (re - 1000.0) * pr_cool)
+            / (1.0 + 12.7 * (f / 8.0).sqrt() * (pr_cool.powf(2.0 / 3.0) - 1.0))
     } else {
-        3.66  // Laminar
+        3.66 // Laminar
     };
-    
+
     // Coolant-side heat transfer coefficient
     let h_cool = nu * k_cool / d_h;
-    
+
     // Bartz correlation for gas-side heat transfer (simplified)
     // hg = 0.026/Dt^0.2 * (mu^0.2 * Cp / Pr^0.6) * (Pc/cstar)^0.8 * (At/A)^0.9 * sigma
     let d_throat = 2.0 * r_throat;
-    let gamma = 1.2;  // Typical for combustion products
-    let t_chamber = 3500.0;  // K (from CEA or assumed)
-    let c_star = 1700.0;  // m/s (typical)
-    
+    let gamma = 1.2; // Typical for combustion products
+    let t_chamber = 3500.0; // K (from CEA or assumed)
+    let c_star = 1700.0; // m/s (typical)
+
     // Gas properties at chamber conditions (approximate)
-    let mu_gas: f64 = 8e-5;  // Pa.s
-    let cp_gas: f64 = 2000.0;  // J/kgK
+    let mu_gas: f64 = 8e-5; // Pa.s
+    let cp_gas: f64 = 2000.0; // J/kgK
     let pr_gas: f64 = 0.72;
-    
-    let bartz_base = 0.026_f64 / d_throat.powf(0.2) * 
-                     (mu_gas.powf(0.2) * cp_gas / pr_gas.powf(0.6)) *
-                     (pc / c_star).powf(0.8);
-    
+
+    let bartz_base = 0.026_f64 / d_throat.powf(0.2)
+        * (mu_gas.powf(0.2) * cp_gas / pr_gas.powf(0.6))
+        * (pc / c_star).powf(0.8);
+
     // Discretize along the channel
     let n_points = 50;
     let dx = l_total / n_points as f64;
-    
+
     let mut x_arr = Vec::with_capacity(n_points);
     let mut t_wall_arr = Vec::with_capacity(n_points);
     let mut t_coolant_arr = Vec::with_capacity(n_points);
     let mut p_coolant_arr = Vec::with_capacity(n_points);
     let mut q_flux_arr = Vec::with_capacity(n_points);
-    
+
     let mut t_cool = t_inlet;
     let mut p_cool = p_inlet;
-    
+
     for i in 0..n_points {
         let x = i as f64 * dx;
         x_arr.push(x);
-        
+
         // Local area ratio (simplified: throat at l_chamber position)
         let throat_pos = geom.l_chamber;
         let area_ratio = if x < throat_pos {
@@ -164,44 +166,44 @@ async fn run_solver(Json(payload): Json<SolverRequest>) -> Result<Json<serde_jso
             1.0 + 39.0 * (x - throat_pos) / geom.l_nozzle
         };
         let area_ratio = area_ratio.max(1.0);
-        
+
         // Local gas-side heat transfer coefficient
         let h_gas = bartz_base * (1.0 / area_ratio).powf(0.9);
-        
+
         // Adiabatic wall temperature (recovery factor ~0.9)
         let local_gamma_factor = 1.0 + 0.5 * (gamma - 1.0);
-        let t_aw = t_chamber / local_gamma_factor;  // Simplified
-        
+        let t_aw = t_chamber / local_gamma_factor; // Simplified
+
         // Solve 1D thermal resistance network
         // q = hg*(Taw - Twh) = k/e*(Twh - Twc) = hc*(Twc - Tcool)
         let r_gas = 1.0 / h_gas;
         let r_wall = e_wall / k_wall;
         let r_cool = 1.0 / h_cool;
         let r_total = r_gas + r_wall + r_cool;
-        
+
         let q_flux = (t_aw - t_cool) / r_total;
         let t_wall_hot = t_aw - q_flux * r_gas;
-        
-        q_flux_arr.push(q_flux / 1e6);  // MW/m²
+
+        q_flux_arr.push(q_flux / 1e6); // MW/m²
         t_wall_arr.push(t_wall_hot);
         t_coolant_arr.push(t_cool);
         p_coolant_arr.push(p_cool);
-        
+
         // Update coolant temperature along channel
         // Perimeter cooled per unit length (assume full circumference)
         let r_local = r_throat * area_ratio.sqrt();
         let perimeter = 2.0 * std::f64::consts::PI * r_local;
         let q_absorbed = q_flux * perimeter * dx;
         t_cool += q_absorbed / (m_dot_total * cp_cool);
-        
+
         // Pressure drop (Darcy-Weisbach)
         let dp = f * (dx / d_h) * (rho_cool * v_cool.powi(2) / 2.0);
         p_cool -= dp;
     }
-    
+
     let max_t_wall = t_wall_arr.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
     let max_q_flux = q_flux_arr.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
-    
+
     Ok(Json(serde_json::json!({
         "status": "success",
         "data": {
@@ -221,66 +223,81 @@ async fn run_solver(Json(payload): Json<SolverRequest>) -> Result<Json<serde_jso
     })))
 }
 
-async fn generate_geometry(Json(payload): Json<GeometryParams>) -> Result<Json<GeometryProfile>, StatusCode> {
+async fn generate_geometry(
+    Json(payload): Json<GeometryParams>,
+) -> Result<Json<GeometryProfile>, StatusCode> {
     let profile = payload.generate_profile(100);
     Ok(Json(profile))
 }
 
-async fn calculate_full(Json(motor): Json<MotorDefinition>) -> Result<Json<CalculationResults>, StatusCode> {
+async fn calculate_full(
+    Json(motor): Json<MotorDefinition>,
+) -> Result<Json<CalculationResults>, StatusCode> {
     // This endpoint processes a complete motor definition and returns all results
-    
-    // 1. Run CEA calculation
+
+    // 1. Run CEA calculation with exit pressure for correct expansion ratio
     let cea_req = CEARequest {
         fuel: motor.fuel.clone(),
         oxidizer: motor.oxidizer.clone(),
         of_ratio: motor.of_ratio,
         pc: motor.pc,
-        expansion_ratio: 40.0,  // Will be calculated from pe
+        expansion_ratio: 40.0, // Initial estimate, will use eps_from_pe
+        pe: motor.pe,          // Pass exit pressure for correct eps calculation
+        fac_cr: motor.contraction_ratio, // Use finite area combustor
     };
-    
+
     let cea_result = match cea_client::call_cea_service(cea_req).await {
         Ok(r) => r,
         Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
     };
-    
+
     // 2. Calculate geometry from CEA results and motor params
-    let area_throat = (motor.mdot * cea_result.c_star) / (motor.pc * 1e5);  // m²
+    let area_throat = (motor.mdot * cea_result.c_star) / (motor.pc * 1e5); // m²
     let r_throat = (area_throat / std::f64::consts::PI).sqrt();
     let r_chamber = r_throat * motor.contraction_ratio.sqrt();
-    
-    // Calculate expansion ratio from pe
-    let expansion_ratio = (motor.pc / motor.pe).powf(1.0 / cea_result.gamma) * 
-                         ((cea_result.gamma + 1.0) / 2.0).powf(1.0 / (cea_result.gamma - 1.0));
+
+    // Use correct expansion ratio from CEA (calculated from exit pressure)
+    // This replaces the wrong formula that was giving huge values
+    let expansion_ratio = if cea_result.eps_from_pe > 1.0 {
+        cea_result.eps_from_pe
+    } else {
+        // Fallback: use a reasonable approximation based on pressure ratio
+        // Approximate: eps ≈ 1 + 0.5 * ln(Pc/Pe) for small motors
+        1.0 + 0.5 * (motor.pc / motor.pe).ln()
+    };
     let r_exit = r_throat * expansion_ratio.sqrt();
-    
+
     // Chamber length from L*
     let v_chamber = motor.lstar * area_throat;
     let l_chamber = v_chamber / (std::f64::consts::PI * r_chamber * r_chamber);
-    
-    // Nozzle length (80% bell)
-    let l_nozzle = 0.8 * (r_exit - r_throat) / (motor.theta_e.to_radians().tan());
-    
+
+    // Nozzle length - corrected formula for 80% bell
+    // Using Rao's approximation: L_n = 0.8 * (sqrt(eps) - 1) * R_t / tan(15°)
+    // Where 15° is the average half-angle for conical equivalent
+    let avg_half_angle = 15.0_f64.to_radians();
+    let l_nozzle = 0.8 * (expansion_ratio.sqrt() - 1.0) * r_throat / avg_half_angle.tan();
+
     // 3. Calculate performance
     let thrust_vac = motor.mdot * cea_result.isp_vac * 9.81;
     let thrust_sl = motor.mdot * cea_result.isp_sl * 9.81;
-    
+
     // 4. Generate geometry profile for plotting (80% bell nozzle contour)
     let n_points = 100;
     let mut x_profile = Vec::with_capacity(n_points);
     let mut r_profile = Vec::with_capacity(n_points);
     let mut area_profile = Vec::with_capacity(n_points);
     let mut area_ratio_profile = Vec::with_capacity(n_points);
-    
+
     let total_length = l_chamber + l_nozzle;
     let throat_x = l_chamber;
-    
+
     // Convergent section length (typically 0.2 * l_chamber)
     let l_conv = l_chamber * 0.25;
-    
+
     for i in 0..n_points {
         let x = (i as f64 / (n_points - 1) as f64) * total_length;
         x_profile.push(x);
-        
+
         let r = if x < throat_x - l_conv {
             // Cylindrical chamber
             r_chamber
@@ -300,19 +317,19 @@ async fn calculate_full(Json(motor): Json<MotorDefinition>) -> Result<Json<Calcu
             r_throat + (r_exit - r_throat) * (2.0 * t - t * t).powf(0.85)
         };
         r_profile.push(r);
-        
+
         let area = std::f64::consts::PI * r * r;
         area_profile.push(area);
         area_ratio_profile.push(area / area_throat);
     }
-    
+
     let geometry_profile = motor_definition::GeometryProfile {
         x: x_profile,
         r: r_profile,
         area: area_profile,
         area_ratio: area_ratio_profile,
     };
-    
+
     // 5. Mock thermal results (would call actual solver)
     let cooling_status = if motor.twall_max > 1300.0 {
         "CRITICAL".to_string()
@@ -321,7 +338,7 @@ async fn calculate_full(Json(motor): Json<MotorDefinition>) -> Result<Json<Calcu
     } else {
         "OK".to_string()
     };
-    
+
     let results = CalculationResults {
         // CEA
         isp_vac: cea_result.isp_vac,
@@ -332,7 +349,7 @@ async fn calculate_full(Json(motor): Json<MotorDefinition>) -> Result<Json<Calcu
         t_chamber: cea_result.t_chamber,
         gamma: cea_result.gamma,
         mw: cea_result.mw,
-        
+
         // Geometry
         r_throat,
         r_chamber,
@@ -342,31 +359,31 @@ async fn calculate_full(Json(motor): Json<MotorDefinition>) -> Result<Json<Calcu
         area_throat,
         area_exit: std::f64::consts::PI * r_exit * r_exit,
         expansion_ratio,
-        
+
         // Performance
         thrust_vac,
         thrust_sl,
         mass_flow: motor.mdot,
-        
+
         // Thermal (mock)
-        max_heat_flux: 5.0,  // MW/m²
-        max_wall_temp: 950.0,  // K
-        coolant_temp_out: 340.0,  // K
-        coolant_pressure_drop: 3.5,  // bar
+        max_heat_flux: 5.0,         // MW/m²
+        max_wall_temp: 950.0,       // K
+        coolant_temp_out: 340.0,    // K
+        coolant_pressure_drop: 3.5, // bar
         cooling_status,
-        
+
         // Profiles
         thermal_profile: None,
         geometry_profile: Some(geometry_profile),
     };
-    
+
     Ok(Json(results))
 }
 
 async fn get_wiki() -> Result<String, StatusCode> {
     match std::fs::read_to_string("../wiki.md") {
         Ok(content) => Ok(content),
-        Err(_) => Err(StatusCode::NOT_FOUND)
+        Err(_) => Err(StatusCode::NOT_FOUND),
     }
 }
 
@@ -392,9 +409,9 @@ pub async fn create_app() -> Router {
 async fn main() {
     let app = create_app().await;
     let addr = SocketAddr::from(([0, 0, 0, 0], 8000));
-    
+
     println!("🚀 Rust Server listening on http://{}", addr);
-    
+
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();
 }

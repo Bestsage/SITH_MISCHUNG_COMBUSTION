@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
 import AppLayout from "@/components/AppLayout";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, AreaChart, Area, ComposedChart, Bar } from "recharts";
-import { useCalculation } from "@/contexts/CalculationContext";
+import { useCalculation, MotorConfig } from "@/contexts/CalculationContext";
 
 const Motor3DViewer = dynamic(() => import("@/components/Motor3DViewer"), { ssr: false });
 
@@ -53,17 +53,21 @@ export default function Home() {
     reader.onload = (e) => {
       try {
         const imported = JSON.parse(e.target?.result as string);
-        setConfig({ ...defaultConfig, ...imported });
+        // Merge imported config with current context config
+        Object.keys(imported).forEach(key => {
+          setContextConfig({ [key]: imported[key] });
+        });
       } catch { alert("Fichier JSON invalide"); }
     };
     reader.readAsText(file);
   };
 
   const exportDXF = () => {
-    if (!results?.geometry) return alert("Calculez d'abord!");
+    if (!results?.geometry_profile) return alert("Calculez d'abord!");
+    const profile = results.geometry_profile;
     let dxf = "0\nSECTION\n2\nENTITIES\n0\nPOLYLINE\n8\n0\n66\n1\n70\n0\n";
-    results.geometry.x.forEach((x: number, i: number) => {
-      dxf += `0\nVERTEX\n8\n0\n10\n${(x * 1000).toFixed(4)}\n20\n${(results.geometry.r[i] * 1000).toFixed(4)}\n30\n0\n`;
+    profile.x.forEach((x: number, i: number) => {
+      dxf += `0\nVERTEX\n8\n0\n10\n${(x * 1000).toFixed(4)}\n20\n${(profile.r[i] * 1000).toFixed(4)}\n30\n0\n`;
     });
     dxf += "0\nSEQEND\n0\nENDSEC\n0\nEOF\n";
     const blob = new Blob([dxf], { type: "application/dxf" });
@@ -294,11 +298,14 @@ export default function Home() {
                       <h3 className="card-header">📐 Profil Géométrique</h3>
                       <div className="h-64">
                         <ResponsiveContainer width="100%" height="100%">
-                          <LineChart data={results.geometry_profile?.x?.map((x: number, i: number) => ({
-                            x: (x * 1000).toFixed(1),
-                            r: (results.geometry_profile.r[i] * 1000).toFixed(2),
-                            rNeg: (-results.geometry_profile.r[i] * 1000).toFixed(2)
-                          })) || []}>
+                          <LineChart data={results?.geometry_profile ? results.geometry_profile.x.map((x: number, i: number) => {
+                            const profile = results.geometry_profile!;
+                            return {
+                              x: (x * 1000).toFixed(1),
+                              r: (profile.r[i] * 1000).toFixed(2),
+                              rNeg: (-profile.r[i] * 1000).toFixed(2)
+                            };
+                          }) : []}>
                             <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
                             <XAxis dataKey="x" stroke="#71717a" fontSize={10} />
                             <YAxis stroke="#71717a" fontSize={10} />

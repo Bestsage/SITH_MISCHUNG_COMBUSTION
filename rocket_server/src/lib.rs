@@ -13,6 +13,14 @@ pub struct CEARequest {
     pub of_ratio: f64,
     pub pc: f64, // bar
     pub expansion_ratio: f64,
+    #[serde(default = "default_pe")]
+    pub pe: f64, // bar - exit pressure for eps calculation
+    #[serde(default)]
+    pub fac_cr: f64, // Finite Area Combustor contraction ratio
+}
+
+fn default_pe() -> f64 {
+    1.013
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -23,4 +31,6 @@ pub struct CEAResponse {
     pub t_chamber: f64,
     pub gamma: f64,
     pub mw: f64,
+    #[serde(default)]
+    pub eps_from_pe: f64, // Expansion ratio from exit pressure
 }

@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useState, useCallback, ReactNode } from "react";
 
 // === TYPES ===
-interface MotorConfig {
+export interface MotorConfig {
     name: string;
     oxidizer: string;
     fuel: string;
@@ -32,7 +32,7 @@ interface MotorConfig {
     custom_hvap: number;
 }
 
-interface GeometryProfile {
+export interface GeometryProfile {
     x: number[];
     r: number[];
     area?: number[];
@@ -47,7 +47,7 @@ interface ThermalProfile {
     q_flux: number[];
 }
 
-interface CalculationResults {
+export interface CalculationResults {
     // CEA results
     isp_vac: number;
     isp_sl: number;

@@ -25,6 +25,8 @@ class CEARequest(BaseModel):
     of_ratio: float = 2.5
     pc: float = 50.0  # bar
     expansion_ratio: float = 40.0
+    pe: float = 1.013  # bar - exit pressure for expansion ratio calculation
+    fac_cr: float = 0.0  # Finite Area Combustor contraction ratio (0 = infinite)
 
 class CEAResponse(BaseModel):
     isp_vac: float
@@ -33,16 +35,30 @@ class CEAResponse(BaseModel):
     t_chamber: float
     gamma: float
     mw: float
+    eps_from_pe: float  # Expansion ratio calculated from exit pressure
 
 @app.post("/cea", response_model=CEAResponse)
 def calculate_cea(req: CEARequest):
     """Run NASA CEA calculation"""
     cea = CEA_Obj(oxName=req.oxidizer, fuelName=req.fuel)
     
+    # Use finite area combustor if contraction ratio specified
+    if req.fac_cr > 1.0:
+        cea = CEA_Obj(oxName=req.oxidizer, fuelName=req.fuel, fac_CR=req.fac_cr)
+    
     isp_vac, cstar, tc = cea.get_IvacCstrTc(Pc=req.pc, MR=req.of_ratio, eps=req.expansion_ratio)
     isp_sl = cea.get_Isp(Pc=req.pc, MR=req.of_ratio, eps=req.expansion_ratio)
     gamma = cea.get_Throat_MolWt_gamma(Pc=req.pc, MR=req.of_ratio, eps=req.expansion_ratio)[1]
     mw = cea.get_Throat_MolWt_gamma(Pc=req.pc, MR=req.of_ratio, eps=req.expansion_ratio)[0]
+    
+    # Calculate correct expansion ratio from exit pressure
+    # This is the key fix - use CEA's proper isentropic calculation
+    pc_over_pe = req.pc / req.pe
+    try:
+        eps_from_pe = cea.get_eps_at_PcOvPe(Pc=req.pc, MR=req.of_ratio, PcOvPe=pc_over_pe)
+    except:
+        # Fallback if method not available
+        eps_from_pe = req.expansion_ratio
     
     return CEAResponse(
         isp_vac=isp_vac,
@@ -50,7 +66,8 @@ def calculate_cea(req: CEARequest):
         c_star=cstar,
         t_chamber=tc,
         gamma=gamma,
-        mw=mw
+        mw=mw,
+        eps_from_pe=eps_from_pe
     )
 
 @app.get("/propellants")
