@@ -189,6 +189,10 @@ interface Motor3DViewerProps {
     showFlames?: boolean;
     showChannels?: boolean;
     nChannels?: number;
+    wallColor?: string;
+    outerShellColor?: string;
+    wallThickness?: number;
+    outerShellThickness?: number;
 }
 
 export default function Motor3DViewer({
@@ -196,7 +200,11 @@ export default function Motor3DViewer({
     height = 400,
     showFlames = false,
     showChannels = false,
-    nChannels = 48
+    nChannels = 48,
+    wallColor = "#cc7733",
+    outerShellColor = "#71717a",
+    wallThickness = 2,
+    outerShellThickness = 0
 }: Motor3DViewerProps) {
     return (
         <div style={{ height, width: "100%", background: "#0a0a10", borderRadius: 12, overflow: "hidden" }}>
@@ -209,6 +217,10 @@ export default function Motor3DViewer({
                     profile={profile}
                     showChannels={showChannels}
                     nChannels={nChannels}
+                    wallColor={wallColor}
+                    outerShellColor={outerShellColor}
+                    wallThickness={wallThickness}
+                    outerShellThickness={outerShellThickness}
                 />
 
                 {showFlames && <Flames />}
