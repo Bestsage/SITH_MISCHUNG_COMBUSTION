@@ -232,6 +232,8 @@ class RocketApp:
         self.init_solver_tab()
         self.init_wiki_tab()
         
+        print("DEBUG: Wiki init complete, skipping load_wiki_content")
+        # self.load_wiki_content() # REMOVED
 
 
         # Apply UI scaling after layout is ready
