@@ -7787,24 +7787,6 @@ Débit Oxydant   : {mdot_ox_available:.4f} kg/s
         
         self.canvas_graph.draw()
 
-    def get_cea_value_safe(self, ispObj, pc_psi, mr, pe_psi, eps_override, pamb_psi, var_name, debug=False):
-        """Helper pour récupérer une valeur CEA de manière sécurisée."""
-        try:
-            # Logique de récupération de valeur (à implémenter ou compléter selon les besoins)
-            # Pour l'instant, c'est un placeholder qui retourne 0 si non implémenté
-            # Vous devriez déplacer la logique spécifique de récupération ici
-            
-            # Exemple générique (à adapter)
-            if "ISP Vide" in var_name:
-                return ispObj.get_Isp(Pc=pc_psi, MR=mr, eps=eps_override)
-            elif "ISP Ambiante" in var_name:
-                return ispObj.estimate_Ambient_Isp(Pc=pc_psi, MR=mr, eps=eps_override, Pamb=pamb_psi)[0]
-            # ... autres cas ...
-            
-            return 0.0
-        except Exception:
-            return 0.0
-
     # ==========================================================================
     # ANALYSE THERMIQUE PARAMÉTRIQUE
     # ==========================================================================
