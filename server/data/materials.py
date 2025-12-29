@@ -1,0 +1,29 @@
+# Materials database from legacy application
+MATERIALS_DB = {
+    "Cuivre (Cu-OFHC)": {"k": 390, "T_melt": 1356, "T_max": 800, "rho": 8940, "E": 115, "nu": 0.34, "alpha": 17.0, "sigma_y": 60, "sigma_uts": 220, "color": "#b87333"},
+    "Cuivre-Chrome (CuCr)": {"k": 320, "T_melt": 1350, "T_max": 1050, "rho": 8900, "E": 118, "nu": 0.33, "alpha": 17.0, "sigma_y": 350, "sigma_uts": 420, "color": "#cd7f32"},
+    "Cuivre-Zirconium (CuZr)": {"k": 340, "T_melt": 1356, "T_max": 900, "rho": 8920, "E": 120, "nu": 0.33, "alpha": 17.0, "sigma_y": 280, "sigma_uts": 380, "color": "#d2691e"},
+    "GlidCop AL-15": {"k": 365, "T_melt": 1356, "T_max": 1200, "rho": 8900, "E": 130, "nu": 0.33, "alpha": 16.6, "sigma_y": 380, "sigma_uts": 450, "color": "#cc5500"},
+    "CuCrNb (GRCop-42)": {"k": 320, "T_melt": 1330, "T_max": 1100, "rho": 8790, "E": 115, "nu": 0.33, "alpha": 17.5, "sigma_y": 260, "sigma_uts": 430, "color": "#ff7f50"},
+    "AlSi10Mg (SLM)": {"k": 110, "T_melt": 843, "T_max": 570, "rho": 2670, "E": 70, "nu": 0.33, "alpha": 21.0, "sigma_y": 240, "sigma_uts": 350, "color": "#a9a9a9"},
+    "Aluminium 7075-T6": {"k": 130, "T_melt": 750, "T_max": 400, "rho": 2810, "E": 71, "nu": 0.33, "alpha": 23.6, "sigma_y": 503, "sigma_uts": 572, "color": "#c0c0c0"},
+    "Aluminium 6061-T6": {"k": 167, "T_melt": 855, "T_max": 450, "rho": 2700, "E": 69, "nu": 0.33, "alpha": 23.6, "sigma_y": 276, "sigma_uts": 310, "color": "#d3d3d3"},
+    "Inconel 718": {"k": 11.4, "T_melt": 1533, "T_max": 1200, "rho": 8190, "E": 200, "nu": 0.29, "alpha": 13.0, "sigma_y": 1030, "sigma_uts": 1240, "color": "#8b4513"},
+    "Inconel 625": {"k": 9.8, "T_melt": 1563, "T_max": 1250, "rho": 8440, "E": 207, "nu": 0.28, "alpha": 12.8, "sigma_y": 460, "sigma_uts": 880, "color": "#a0522d"},
+    "Monel 400": {"k": 21.8, "T_melt": 1570, "T_max": 1000, "rho": 8800, "E": 179, "nu": 0.32, "alpha": 13.9, "sigma_y": 240, "sigma_uts": 550, "color": "#808000"},
+    "Hastelloy X": {"k": 9.1, "T_melt": 1530, "T_max": 1300, "rho": 8220, "E": 205, "nu": 0.30, "alpha": 14.0, "sigma_y": 360, "sigma_uts": 750, "color": "#556b2f"},
+    "Acier Inox 316L": {"k": 16.3, "T_melt": 1673, "T_max": 1100, "rho": 8000, "E": 193, "nu": 0.30, "alpha": 16.0, "sigma_y": 290, "sigma_uts": 580, "color": "#708090"},
+    "Acier Inox 304L": {"k": 16.2, "T_melt": 1673, "T_max": 1050, "rho": 7900, "E": 193, "nu": 0.29, "alpha": 17.2, "sigma_y": 215, "sigma_uts": 505, "color": "#778899"},
+    "Acier Inox 17-4PH": {"k": 17.9, "T_melt": 1677, "T_max": 600, "rho": 7750, "E": 196, "nu": 0.27, "alpha": 10.8, "sigma_y": 1100, "sigma_uts": 1250, "color": "#696969"},
+    "Titane Ti-6Al-4V": {"k": 6.7, "T_melt": 1933, "T_max": 750, "rho": 4430, "E": 114, "nu": 0.34, "alpha": 8.6, "sigma_y": 880, "sigma_uts": 950, "color": "#4682b4"},
+    "Niobium C-103": {"k": 42, "T_melt": 2623, "T_max": 2200, "rho": 8860, "E": 90, "nu": 0.40, "alpha": 7.3, "sigma_y": 250, "sigma_uts": 380, "color": "#9370db"},
+    "Molybdène (TZM)": {"k": 126, "T_melt": 2896, "T_max": 2400, "rho": 10220, "E": 320, "nu": 0.31, "alpha": 5.3, "sigma_y": 550, "sigma_uts": 690, "color": "#b0c4de"},
+}
+
+def get_all_materials():
+    """Return all materials with their properties"""
+    return MATERIALS_DB
+
+def get_material(name: str):
+    """Get a specific material by name"""
+    return MATERIALS_DB.get(name)

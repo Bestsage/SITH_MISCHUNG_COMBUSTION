@@ -1,0 +1,22 @@
+[package]
+name = "rocket_server"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+axum = "0.7"
+tokio = { version = "1", features = ["full"] }
+tower = "0.4"
+tower-http = { version = "0.5", features = ["cors", "fs"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+reqwest = { version = "0.11", features = ["json"] }
+rocket_core = { path = "../rocket_core" }
+
+[lib]
+name = "rocket_server"
+path = "src/lib.rs"
+
+[[bin]]
+name = "rocket_server"
+path = "src/main.rs"

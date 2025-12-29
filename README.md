@@ -1,442 +1,394 @@
-# SITH MISCHUNG COMBUSTION : Dark Side Edition
-
-> **Authors:** [Bestsage](https://github.com/Bestsage) & [Sabu8c](https://github.com/Sabu8c)
-
-**SITH MISCHUNG COMBUSTION : Dark Side Edition v6.3** - A comprehensive rocket engine design and analysis tool with regenerative cooling simulation
-
-## Overview
-
-Rocket Motor Design Plotter is an advanced Python application for designing and analyzing liquid rocket engines. Built on top of **RocketCEA** and **NASA's CEA (Chemical Equilibrium with Applications)** program (https://cearun.grc.nasa.gov/), it combines accurate thermochemical calculations with detailed thermal analysis using the Bartz equation, providing engineers and enthusiasts with a powerful tool for rocket motor design optimization.
-
-### 📚 Documentation Wiki
-
-Ce projet dispose d'une **documentation wiki complète** sur l'analyse thermique des moteurs-fusées en français:
-
-- **[📖 Accéder au Wiki](wiki/Home.md)** - Guide complet avec navigation interactive
-- **11 sections** couvrant théorie, calculs, et exemples pratiques
-- **Tables des matières** interactives pour chaque page
-- **Formules de référence** et aide-mémoire
-- **Exemples de calcul** détaillés
-
-Le wiki couvre:
-- Introduction et concepts fondamentaux
-- Théorie du transfert thermique
-- Modèle de Bartz pour h_g
-- Calcul des températures de paroi
-- Design et dimensionnement des canaux
-- Exemples de calcul complets
-- Formules rapides (aide-mémoire)
-- Analyses avancées (2D/3D, CAD, optimisation)
-- Simulation transitoire
-- Références bibliographiques
-
-**Pour déployer le wiki sur GitHub:** 
-- Linux/macOS : `./deploy-wiki.sh`
-- Windows : `deploy-wiki.bat`
-- Voir [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) pour plus de détails
-
-### What is NASA CEA?
-
-NASA CEA (Chemical Equilibrium with Applications) is the industry-standard software developed by NASA Glenn Research Center for calculating chemical equilibrium compositions and properties of complex mixtures. This application leverages CEA's extensive propellant database and thermochemical models to provide accurate performance predictions for rocket engines.
-
-## Key Features
-
-### 🔥 Thermochemical Analysis (NASA CEA)
-- **NASA CEA Integration**: Direct integration with NASA's Chemical Equilibrium with Applications program
-- **RocketCEA Library**: Uses the RocketCEA Python wrapper to access CEA calculations
-- **Multi-Propellant Support**: Access to NASA's extensive database of fuels and oxidizers (500+ propellants)
-- **Performance Metrics**: ISP (specific impulse), C*, chamber temperature, throat temperature, and exit conditions
-- **Real-time Calculations**: Instant performance updates as design parameters change
-- **Equilibrium Chemistry**: Full chemical equilibrium calculations for accurate combustion modeling
-
-### 🌡️ Thermal Analysis (Bartz Method)
-- **Heat Flux Distribution**: Calculates heat flux profiles along the entire engine geometry
-- **Regenerative Cooling**: Advanced regenerative cooling analysis with customizable coolant properties
-- **Wall Temperature Modeling**: Predicts hot-side and cold-side wall temperatures with conduction effects
-- **Coolant Flow Requirements**: Determines required coolant mass flow rates with safety margins
-- **Temperature Safety Validation**: Checks coolant temperatures against boiling points with pressure corrections (Clausius-Clapeyron)
-
-### 📐 Geometry Design
-- **Bell Nozzle Design**: Automatic generation of optimized bell nozzle contours using Bézier curves
-- **Rao Method**: Implements truncated ideal contour for maximum efficiency
-- **Parametric Control**: Adjustable contraction ratio, expansion ratio, bell angles
-- **L* Optimization**: Chamber length optimization based on L-star methodology
-- **2D Visualization**: Real-time cross-section view of engine geometry
-
-### 📊 Analysis Tools
-- **Parametric Studies**: 2D and 3D plots showing performance vs. design parameters
-- **Multi-Variable Analysis**: Explore relationships between O/F ratio, chamber pressure, expansion ratio, etc.
-- **Interactive Graphs**: Matplotlib-based visualizations with zoom and export capabilities
-- **Performance Optimization**: Find optimal operating conditions for your design
-
-### 🗄️ Propellant Database Explorer
-- **Searchable Database**: Browse all available fuels, oxidizers, and coolants
-- **Detailed Properties**: View thermochemical data, densities, reference temperatures
-- **Copy-to-Design**: Instantly use any propellant in your engine design
-- **Custom Coolants**: Support for non-propellant coolants (water, glycols, thermal oils)
-
-### 💾 Export Capabilities
-- **DXF Export**: Generate CAD-compatible drawings of the chamber and the nozzle for manufacturing
-- **High-Resolution Graph Export**: Export parametric analysis graphs in multiple formats:
-  - **PNG** (300 DPI) - High-resolution raster format for documents and presentations
-  - **PDF** (Vector) - Scalable vector format for printing and publication
-  - **SVG** (Vector) - Editable vector format for web integration and further editing
-- **Design Parameter Save/Load**: Save and load complete engine design configurations as JSON files for:
-  - Design iteration and versioning
-  - Sharing designs with team members
-  - Quick loading of previous configurations
-- **Full Reports**: Comprehensive text reports with all calculated parameters
-
-## Installation
-
-### Prerequisites
-- Python 3.10 (required)
-  - **Note:** This application is tested and confirmed to work with Python 3.10
-  - **Not compatible with Python 3.14** due to dependency constraints
-- pip (Python package manager)
-
-### Required Dependencies
-
-Install all required dependencies with a single command:
-
-```bash
-pip install matplotlib numpy rocketcea
-```
-
-### Optional Dependencies
-
-For DXF export functionality:
-```bash
-pip install ezdxf
-```
-
-### Dependency Details
-
-| Package | Description | Installation |
-|---------|-------------|-------------|
-| **tkinter** | GUI framework | Included with Python (no install needed) |
-| **matplotlib** | Plotting and visualization | `pip install matplotlib` |
-| **numpy** | Numerical computations | `pip install numpy` |
-| **rocketcea** | NASA CEA wrapper for propellant calculations | `pip install rocketcea` |
-| **ezdxf** | CAD file export (optional) | `pip install ezdxf` |
-
-#### Built-in Python Modules (No Installation Required)
-The following modules are part of Python's standard library and require no installation:
-- `tkinter` - GUI framework
-- `math` - Mathematical functions
-- `json` - JSON file handling
-- `os` - Operating system interface
-- `datetime` - Date and time operations
-
-### About RocketCEA
-
-RocketCEA is a Python wrapper for NASA's CEA (Chemical Equilibrium with Applications) FORTRAN code. It provides a Python interface to the same calculations available at https://cearun.grc.nasa.gov/. When you install RocketCEA, it includes the compiled CEA code and propellant thermochemical database.
-
-**More information:**
-- RocketCEA Documentation: http://rocketcea.readthedocs.io/
-- NASA CEA Web Interface: https://cearun.grc.nasa.gov/
-- NASA CEA Official Page: https://www1.grc.nasa.gov/research-and-engineering/ceaweb/
-
-## Usage
-
-### Starting the Application
-
-Run the main application file:
-
-```bash
-python main.py
-```
-
-### Basic Workflow
-
-1. **Configure Design Parameters** (Left Panel):
-   - Enter engine name
-   - Select oxidizer and fuel (CEA names)
-   - Set chamber pressure and O/F ratio
-   - Define mass flow rate
-   - Adjust contraction and expansion ratios
-   - Configure cooling parameters
-
-2. **Save/Load Designs**:
-   - **💾 Sauvegarder Paramètres**: Save your complete design configuration as JSON with timestamp
-   - **📂 Charger Paramètres**: Load a previously saved design configuration
-   - Designs are stored with full results for future reference
-
-3. **Run Analysis**:
-   - Click "🔥 CALCULER TOUT (CEA + THERMIQUE)" button
-   - View results in multiple tabs
-
-4. **Export Results**:
-   - **💾 EXPORTER DXF**: Export engine geometry to CAD format (requires ezdxf)
-   - **📊 Exporter Graphes HD**: Export current parametric analysis graphs as PNG/PDF/SVG
-     - Files are organized in a timestamped folder
-     - High-resolution PNG (300 DPI) for quality documents
-     - Vector PDF/SVG for scalable graphics and publication
-
-5. **Explore Results**:
-   - **Visualisation 2D**: Engine geometry cross-section
-   - **Analyse Thermique**: Heat flux and temperature distributions
-   - **Analyses Paramétriques**: Performance curves and surfaces
-   - **Sortie NASA CEA**: Raw CEA output data
-   - **Base de Données**: Browse propellant properties
-
-### Example Configuration
-
-**Simple Propane/LOX Engine:**
-```
-Engine Name: Test_Motor_001
-Oxidizer: O2
-Fuel: C3H8
-Chamber Pressure: 12.0 bar
-O/F Ratio: 2.8
-Mass Flow: 0.5 kg/s
-Contraction Ratio: 3.5
-Exit Pressure: 1.013 bar
-```
-
-## Application Tabs
-
-### 1. Visualisation 2D
-Displays the engine geometry profile including:
-- Combustion chamber
-- Converging section
-- Throat
-- Diverging bell nozzle
-
-### 2. Analyse Thermique (Bartz)
-Shows thermal analysis results:
-- Heat flux distribution along engine wall
-- Gas temperature profile
-- Wall temperature (hot-side and cold-side)
-- Coolant requirements and validation
-- Critical heating locations
-
-### 3. Analyses Paramétriques
-Interactive parametric studies:
-- 2D curves: Single parameter sweeps
-- 3D surfaces: Two-parameter analysis
-- Customizable resolution and ranges
-- Performance optimization studies
-
-### 4. Sortie NASA CEA (Raw)
-Complete NASA CEA output including:
-- Species concentrations
-- Transport properties (viscosity, thermal conductivity, Prandtl number)
-- Thermodynamic properties (enthalpy, entropy, molecular weight)
-- Detailed equilibrium data
-- Same format as https://cearun.grc.nasa.gov/ output
-
-### 5. Base de Données
-Propellant database browser (NASA CEA Database):
-- Search and filter capabilities
-- Detailed property cards from NASA CEA thermochemical database
-- CEA nomenclature reference (use exact CEA names)
-- Quick copy to design parameters
-- Access to 500+ propellants from NASA's database
-
-## Design Parameter Management
-
-### Saving and Loading Designs
-
-The application supports complete design configuration save/load functionality:
-
-**Save Design** (💾 Sauvegarder Paramètres):
-- Saves all engine parameters and calculated results as a JSON file
-- Automatically timestamped to prevent overwrites
-- Includes propellant selection, pressures, cooling parameters, and geometry settings
-- Useful for design versioning and documentation
-
-**Load Design** (📂 Charger Paramètres):
-- Loads a previously saved design configuration
-- Restores all parameters exactly as they were saved
-- Automatically updates all input fields in the GUI
-- Loads associated calculation results
-
-### Exporting High-Resolution Graphs
-
-**Export Graphs** (📊 Exporter Graphes HD):
-- Export current parametric analysis plots in three formats:
-  - **PNG** (300 DPI): High-resolution raster format ideal for reports and presentations
-  - **PDF** (Vector): Scalable vector format for printing and scientific publications
-  - **SVG** (Vector): Editable vector format compatible with Inkscape, Adobe Illustrator, and web platforms
-- Files are automatically organized in a timestamped folder for each export
-- Graph title is automatically cleaned to create valid filenames
-- Perfect for including in technical reports, thesis, or presentations
-
-Example export structure:
-```
-ISP_Ambiante_vs_OF_Ratio_20251226_123456/
-├── ISP_Ambiante_vs_OF_Ratio.png    (300 DPI)
-├── ISP_Ambiante_vs_OF_Ratio.pdf    (Vector)
-└── ISP_Ambiante_vs_OF_Ratio.svg    (Vector)
-```
-
-## Design Parameters
-
-### Propellant Parameters
-- **Oxydant (CEA)**: Oxidizer name from CEA database (e.g., O2, N2O, H2O2)
-- **Carburant (CEA)**: Fuel name from CEA database (e.g., C3H8, CH4, RP-1)
-- **Ratio O/F (MR)**: Oxidizer-to-fuel mass ratio
-
-### Chamber Parameters
-- **Pression Chambre**: Chamber pressure (bar)
-- **Débit Massique**: Total propellant mass flow rate (kg/s)
-- **Contraction Ratio (Ac/At)**: Chamber area / throat area
-- **L* (L-star)**: Characteristic chamber length (m)
-
-### Nozzle Parameters
-- **Pression Sortie Design**: Design exit pressure (bar)
-- **Angle Entrée Bell**: Bell nozzle inlet angle (degrees)
-- **Angle Sortie Bell**: Bell nozzle exit angle (degrees)
-- **Pression Ambiante**: Ambient pressure for ISP calculation (bar)
-
-### Cooling Parameters
-- **Temp. Paroi Max**: Maximum allowable wall temperature (K)
-- **Épaisseur Paroi**: Wall thickness (mm)
-- **Conductivité Paroi**: Wall thermal conductivity (W/m-K)
-- **Coolant**: Coolant selection (Auto uses fuel, or specify H2O, EG, etc.)
-- **Débit Coolant**: Coolant mass flow (Auto or manual kg/s)
-- **Coolant Pression**: Coolant circuit pressure (bar)
-- **Coolant T entrée**: Coolant inlet temperature (K)
-- **Coolant T sortie max**: Maximum coolant exit temperature (K)
-- **Marge Sécurité Coolant**: Safety margin percentage (%)
-
-## Technical Details
-
-### Nozzle Contour Method
-The application uses a **Rao-type bell nozzle** design with:
-- Quadratic Bézier curve for smooth contour
-- Optimized expansion for minimum length
-- Customizable inlet and exit angles
-- Throat radius calculation based on mass flow and C*
-
-### Thermal Analysis Method
-**Bartz Equation** for convective heat transfer:
-```
-hg = 0.026 / (Dt^0.2) × (μ^0.2 × Cp) / (Pr^0.6) × (Pc / C*)^0.8
-```
-
-With local corrections for:
-- Diameter ratio effects
-- Temperature-dependent gas properties
-- Wall conduction through thickness
-- Coolant-side heat transfer
-
-### Coolant Analysis
-- Pressure-dependent boiling point (Clausius-Clapeyron)
-- Critical temperature limits
-- Heat capacity considerations
-- Mass flow requirements with safety margins
-- Validation against available fuel flow
-
-## Output Parameters
-
-### Performance
-- **ISP Sol**: Sea-level specific impulse (s)
-- **ISP Vide**: Vacuum specific impulse (s)
-- **Poussée**: Thrust force (kN)
-- **C***: Characteristic velocity (m/s)
-
-### Thermal
-- **Flux Max**: Maximum heat flux (MW/m²)
-- **Flux Moyen**: Average heat flux (MW/m²)
-- **Puissance Therm**: Total thermal power (kW)
-- **hg au Col**: Heat transfer coefficient at throat (W/m²-K)
-
-### Geometry
-- **Ø Col**: Throat diameter (mm)
-- **Ø Sortie**: Exit diameter (mm)
-- **Ø Chambre**: Chamber diameter (mm)
-- **L Chambre**: Chamber length (mm)
-- **L Bell**: Bell nozzle length (mm)
-- **ε (Epsilon)**: Expansion ratio (Ae/At)
-
-### Temperatures
-- **T Gaz Chambre**: Chamber gas temperature (K)
-- **T Gaz Col**: Throat gas temperature (K)
-- **T Paroi Hot**: Hot-side wall temperature (K)
-- **T Paroi Cold**: Cold-side wall temperature (K)
-
-## Common Propellants
-
-### Oxidizers
-- **O2 / LOX**: Liquid oxygen (most common)
-- **N2O**: Nitrous oxide (self-pressurizing)
-- **H2O2**: Hydrogen peroxide (90%+)
-- **N2O4**: Nitrogen tetroxide (hypergolic)
-
-### Fuels
-- **C3H8**: Propane (easy to handle)
-- **CH4 / LCH4_NASA**: Methane (high performance)
-- **RP-1 / RP1**: Rocket-grade kerosene (dense, storable)
-- **C2H5OH**: Ethanol (green propellant)
-- **LH2**: Liquid hydrogen (highest ISP)
-- **MMH / UDMH**: Hypergolic fuels
-
-### Coolants
-- **Auto**: Uses fuel in regenerative cooling
-- **H2O / Water**: Water cooling (external circuit)
-- **EG**: Ethylene glycol
-- **LN2**: Liquid nitrogen (cryogenic)
-
-## Troubleshooting
-
-### Common Issues
-
-**"Ergols inconnus" (Unknown propellants)**
-- Check CEA naming: Use database tab to find correct names
-- Examples: Use "O2" not "LOX", "C3H8" not "Propane"
-
-**"Refroidissement insuffisant" (Insufficient cooling)**
-- Increase coolant mass flow rate
-- Lower coolant exit temperature
-- Increase wall thickness
-- Use better conductor material (higher k)
-- Increase coolant inlet pressure
-
-**"T entrée >= T ébullition" (Inlet temp too high)**
-- Reduce coolant inlet temperature below boiling point
-- Increase coolant circuit pressure
-- Select different coolant
-
-**Zero C* or ISP**
-- Check chamber pressure > exit pressure
-- Verify O/F ratio is reasonable (typically 1.5-4.0)
-- Ensure valid propellant combination
-
-## Contributing
-
-Contributions are welcome! Areas for improvement:
-- Additional nozzle contour methods (MOC, TIC)
-- Film cooling analysis
-- Injector design tools
-- Combustion stability analysis
-- More detailed material property databases
-
-## License
-
-This project is open source. Please check for specific license terms.
-
-## Acknowledgments
-
-- **NASA Glenn Research Center**: For developing the CEA (Chemical Equilibrium with Applications) program
-- **NASA CEA Web**: https://cearun.grc.nasa.gov/ - Web interface for CEA calculations
-- **RocketCEA**: Python wrapper for NASA CEA by Charlie Taylor (https://github.com/sonofeft/RocketCEA)
-- **Bartz Equation**: Heat transfer correlation for rocket engines
-- **Rao Method**: Optimum thrust chamber contour design
-
-### CEA Data Source
-
-All thermochemical data and performance calculations are powered by NASA's CEA program. The propellant properties, equilibrium chemistry, and transport properties come directly from NASA's validated thermochemical database, ensuring accurate and reliable results for rocket engine design.
-
-## References
-
-1. **NASA CEA Website**: https://cearun.grc.nasa.gov/
-2. **CEA Documentation**: Gordon, S. and McBride, B.J., "Computer Program for Calculation of Complex Chemical Equilibrium Compositions and Applications", NASA Reference Publication 1311, 1994
-3. **RocketCEA Documentation**: http://rocketcea.readthedocs.io/
+# 🚀 Rocket Motor Design Plotter v2.0
+
+Application moderne de conception de moteurs-fusées avec architecture Rust + Next.js.
+
+## 📋 Table des Matières
+
+- [Prérequis](#prérequis)
+- [Installation](#installation)
+- [Compilation](#compilation)
+- [Lancement](#lancement)
+- [Architecture](#architecture)
+- [Utilisation](#utilisation)
+- [Dépannage](#dépannage)
 
 ---
 
-**Version**: DARK SIDE EDITION v6.3  
-**Last Updated**: 2025  
-**Author**: Bestsage & Sabuc
+## 🔧 Prérequis
+
+### Obligatoires
+
+1. **Rust** (stable, 1.70+)
+   - Télécharger: https://rustup.rs/
+   - Vérifier: `rustc --version`
+
+2. **Python 3.10+**
+   - Télécharger: https://www.python.org/downloads/
+   - Vérifier: `py -3.10 --version`
+
+3. **Node.js 18+** et **npm**
+   - Télécharger: https://nodejs.org/
+   - Vérifier: `node --version` et `npm --version`
+
+4. **Git**
+   - Télécharger: https://git-scm.com/
+   - Vérifier: `git --version`
+
+### Optionnels (pour développement)
+
+- **MSYS2** (Windows uniquement, pour compilation Fortran)
+- **Visual Studio Build Tools** (Windows)
+
+---
+
+## 📦 Installation
+
+### 1. Cloner le Repository
+
+```bash
+git clone https://github.com/votre-repo/Rocket-Motor-Design-Plotter.git
+cd Rocket-Motor-Design-Plotter
+```
+
+### 2. Installer les Dépendances Python
+
+```bash
+# Créer un environnement virtuel (recommandé)
+py -3.10 -m venv venv
+venv\Scripts\activate  # Windows
+# source venv/bin/activate  # Linux/Mac
+
+# Installer les packages
+pip install fastapi uvicorn pydantic numpy rocketcea
+```
+
+### 3. Installer les Dépendances Node.js
+
+```bash
+cd web
+npm install
+cd ..
+```
+
+### 4. Compiler le Core Rust (rocket_core)
+
+```bash
+cd rocket_core
+
+# Définir la variable d'environnement pour PyO3
+set PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1  # Windows CMD
+# export PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1  # Linux/Mac
+
+# Compiler avec maturin
+pip install maturin
+maturin develop --release
+
+cd ..
+```
+
+### 5. Compiler le Serveur Rust (rocket_server)
+
+```bash
+cd rocket_server
+cargo build --release
+cd ..
+```
+
+---
+
+## 🔨 Compilation
+
+### Compilation Complète (Tout Recompiler)
+
+```bash
+# 1. Core Rust (PyO3)
+cd rocket_core
+set PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1
+maturin develop --release
+cd ..
+
+# 2. Serveur Rust
+cd rocket_server
+cargo build --release
+cd ..
+
+# 3. Frontend Next.js
+cd web
+npm run build
+cd ..
+```
+
+### Compilation Rapide (Développement)
+
+```bash
+# Core Rust (mode debug)
+cd rocket_core
+maturin develop
+cd ..
+
+# Serveur Rust (mode debug)
+cd rocket_server
+cargo build
+cd ..
+
+# Frontend (pas de build nécessaire en dev)
+```
+
+---
+
+## 🚀 Lancement
+
+### Méthode Recommandée : 3 Terminaux
+
+#### Terminal 1 : Service CEA (Python)
+
+```bash
+# Depuis la racine du projet
+py -3.10 cea_service.py
+```
+
+**Sortie attendue:**
+```
+🔬 CEA Microservice starting on port 8001...
+INFO:     Uvicorn running on http://0.0.0.0:8001
+```
+
+#### Terminal 2 : Serveur Rust
+
+```bash
+# Depuis la racine du projet
+cd rocket_server
+cargo run --release
+```
+
+**Sortie attendue:**
+```
+🚀 Rust Server listening on http://0.0.0.0:8000
+```
+
+#### Terminal 3 : Frontend Next.js
+
+```bash
+# Depuis la racine du projet
+cd web
+npm run dev
+```
+
+**Sortie attendue:**
+```
+▲ Next.js 14.x.x
+- Local:        http://localhost:3000
+```
+
+### Accès à l'Application
+
+Ouvrez votre navigateur et allez sur:
+```
+http://localhost:3000
+```
+
+---
+
+## 🏗️ Architecture
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    FRONTEND (Next.js)                   │
+│                   http://localhost:3000                 │
+│  • React + TypeScript                                   │
+│  • TailwindCSS                                          │
+│  • Recharts (graphiques)                                │
+└────────────────────┬────────────────────────────────────┘
+                     │ HTTP REST API
+┌────────────────────▼────────────────────────────────────┐
+│              SERVEUR RUST (Axum)                        │
+│              http://localhost:8000                      │
+│  • /api/materials - Base de données matériaux          │
+│  • /api/cea/calculate - Proxy vers CEA                 │
+│  • /api/geometry/generate - Génération géométrie       │
+│  • /api/solve - Solveur thermique                      │
+│  • /api/calculate/full - Calcul complet                │
+└────────────────────┬────────────────────────────────────┘
+                     │
+        ┌────────────┴────────────┐
+        │                         │
+┌───────▼──────────┐    ┌────────▼─────────┐
+│  ROCKET_CORE     │    │  CEA SERVICE     │
+│  (Rust + PyO3)   │    │  (Python)        │
+│  • Solveur       │    │  Port 8001       │
+│  • Optimiseur    │    │  • RocketCEA     │
+│  • Math          │    │  • FastAPI       │
+└──────────────────┘    └──────────────────┘
+```
+
+### Ports Utilisés
+
+- **3000** : Frontend Next.js
+- **8000** : Serveur Rust (API principale)
+- **8001** : Service CEA Python
+
+---
+
+## 📖 Utilisation
+
+### 1. Charger les Matériaux
+
+Cliquez sur **"📦 Charger Matériaux"** pour charger la base de données de 18+ matériaux.
+
+### 2. Configurer le Moteur
+
+Remplissez les paramètres dans la sidebar gauche:
+- **Nom du moteur**
+- **Propergols** (Oxydant, Carburant, O/F ratio)
+- **Chambre** (Pc, débit, L*, contraction ratio)
+- **Tuyère** (Pe, angles)
+- **Matériau** (sélection automatique des propriétés)
+
+### 3. Calculer
+
+Cliquez sur **"🔥 CALCULER TOUT"** pour lancer:
+1. Calculs NASA CEA
+2. Génération de la géométrie
+3. Analyse thermique
+4. Calculs de performance
+
+### 4. Consulter les Résultats
+
+Le résumé affiche:
+- **Performance** : Isp, Poussée, c*, T chambre
+- **Géométrie** : Rayons, longueurs, expansion ratio
+- **Thermique** : Flux, températures, ΔP
+- **CEA** : γ, MW, CF
+
+---
+
+## 🔍 Dépannage
+
+### Erreur : "Module rocket_core not found"
+
+**Solution:**
+```bash
+cd rocket_core
+set PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1
+maturin develop --release
+```
+
+### Erreur : "CEA Service not responding"
+
+**Vérifications:**
+1. Le service CEA est-il lancé ? (`py -3.10 cea_service.py`)
+2. Port 8001 disponible ? (`netstat -an | findstr 8001`)
+3. RocketCEA installé ? (`pip show rocketcea`)
+
+### Erreur : "Rust Server failed to start"
+
+**Vérifications:**
+1. Port 8000 disponible ?
+2. Compilation réussie ? (`cargo build --release`)
+3. Dépendances à jour ? (`cargo update`)
+
+### Erreur : "Frontend build failed"
+
+**Solutions:**
+```bash
+cd web
+rm -rf node_modules package-lock.json
+npm install
+npm run dev
+```
+
+### Performance Lente
+
+**Optimisations:**
+1. Utiliser `--release` pour Rust : `cargo run --release`
+2. Compiler rocket_core en release : `maturin develop --release`
+3. Fermer les autres applications
+
+### Erreur Python "No module named 'rocketcea'"
+
+**Solution:**
+```bash
+pip install rocketcea
+# Si erreur de compilation, installer les wheels pré-compilés
+pip install --upgrade rocketcea
+```
+
+---
+
+## 🛠️ Développement
+
+### Structure du Projet
+
+```
+Rocket-Motor-Design-Plotter/
+├── rocket_core/          # Core Rust (PyO3)
+│   ├── src/
+│   │   ├── lib.rs
+│   │   ├── solver.rs
+│   │   ├── optimizer.rs
+│   │   └── math.rs
+│   └── Cargo.toml
+├── rocket_server/        # Serveur Web Rust
+│   ├── src/
+│   │   ├── main.rs
+│   │   ├── materials.rs
+│   │   ├── cea_client.rs
+│   │   ├── geometry.rs
+│   │   └── motor_definition.rs
+│   └── Cargo.toml
+├── web/                  # Frontend Next.js
+│   ├── app/
+│   │   └── page.tsx
+│   ├── components/
+│   └── package.json
+├── cea_service.py        # Micro-service CEA
+└── README.md
+```
+
+### Commandes Utiles
+
+```bash
+# Tester le serveur Rust
+curl http://localhost:8000/
+
+# Tester CEA
+curl -X POST http://localhost:8001/cea -H "Content-Type: application/json" -d '{"fuel":"RP-1","oxidizer":"LOX","of_ratio":2.5,"pc":50,"expansion_ratio":40}'
+
+# Linter Rust
+cargo clippy
+
+# Formater Rust
+cargo fmt
+
+# Tests Rust
+cargo test
+
+# Linter Frontend
+cd web && npm run lint
+```
+
+---
+
+## 📝 Notes
+
+- **Python minimal** : Seul le service CEA utilise Python (RocketCEA)
+- **Performance** : Le core Rust est ~100x plus rapide que Python
+- **Compatibilité** : Testé sur Windows 10/11, devrait fonctionner sur Linux/Mac
+
+---
+
+## 📄 Licence
+
+MIT License - Voir LICENSE pour détails
+
+---
+
+## 🤝 Contribution
+
+Les contributions sont bienvenues ! Ouvrez une issue ou un PR.
+
+---
+
+## 📧 Contact
+
+Pour questions ou support, ouvrez une issue sur GitHub.

@@ -1,0 +1,1408 @@
+       Fresh autocfg v1.5.0
+       Fresh once_cell v1.21.3
+       Fresh unicode-ident v1.0.22
+       Fresh cfg-if v1.0.4
+       Fresh heck v0.4.1
+       Fresh scopeguard v1.2.0
+       Fresh smallvec v1.15.1
+       Fresh windows-link v0.2.1
+       Fresh lock_api v0.4.14
+       Fresh find-msvc-tools v0.1.6
+       Fresh shlex v1.3.0
+       Fresh rawpointer v0.2.1
+       Fresh unindent v0.2.4
+       Fresh indoc v2.0.7
+       Fresh rustc-hash v1.1.0
+       Fresh target-lexicon v0.12.16
+       Fresh proc-macro2 v1.0.104
+       Fresh num-traits v0.2.19
+       Fresh libc v0.2.178
+       Fresh parking_lot_core v0.9.12
+       Fresh cc v1.2.51
+       Fresh portable-atomic v1.13.0
+       Fresh matrixmultiply v0.3.10
+       Fresh memoffset v0.9.1
+       Fresh quote v1.0.42
+       Fresh num-integer v0.1.46
+       Fresh num-complex v0.4.6
+       Fresh parking_lot v0.12.5
+       Fresh syn v2.0.111
+       Fresh ndarray v0.15.6
+warning: unexpected `cfg` condition name: `features`
+ --> C:\Users\samue\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ndarray-0.15.6\src\zip\ndproducer.rs:5:11
+  |
+5 | #[cfg(not(features = "std"))]
+  |           ^^^^^^^^^^^^^^^^
+  |
+  = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+  = note: `#[warn(unexpected_cfgs)]` on by default
+help: there is a config with a similar name and value
+  |
+5 - #[cfg(not(features = "std"))]
+5 + #[cfg(not(feature = "std"))]
+  |
+
+warning: unused import: `constructors::*`
+ --> C:\Users\samue\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ndarray-0.15.6\src\impl_views\mod.rs:6:9
+  |
+6 | pub use constructors::*;
+  |         ^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `conversions::*`
+ --> C:\Users\samue\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ndarray-0.15.6\src\impl_views\mod.rs:7:9
+  |
+7 | pub use conversions::*;
+  |         ^^^^^^^^^^^^^^
+
+warning: unused import: `splitting::*`
+ --> C:\Users\samue\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ndarray-0.15.6\src\impl_views\mod.rs:9:9
+  |
+9 | pub use splitting::*;
+  |         ^^^^^^^^^^^^
+
+warning: unused import: `rawpointer::PointerExt`
+ --> C:\Users\samue\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ndarray-0.15.6\src\impl_owned_array.rs:6:5
+  |
+6 | use rawpointer::PointerExt;
+  |     ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `rawpointer::PointerExt`
+  --> C:\Users\samue\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ndarray-0.15.6\src\impl_methods.rs:13:5
+   |
+13 | use rawpointer::PointerExt;
+   |     ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `rawpointer::PointerExt`
+ --> C:\Users\samue\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ndarray-0.15.6\src\data_repr.rs:9:5
+  |
+9 | use rawpointer::PointerExt;
+  |     ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `rawpointer::PointerExt`
+  --> C:\Users\samue\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ndarray-0.15.6\src\impl_constructors.rs:36:5
+   |
+36 | use rawpointer::PointerExt;
+   |     ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `rawpointer::PointerExt`
+  --> C:\Users\samue\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ndarray-0.15.6\src\data_traits.rs:11:5
+   |
+11 | use rawpointer::PointerExt;
+   |     ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `rawpointer::PointerExt`
+  --> C:\Users\samue\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ndarray-0.15.6\src\impl_views\conversions.rs:10:5
+   |
+10 | use rawpointer::PointerExt;
+   |     ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `can_split` is never used
+  --> C:\Users\samue\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ndarray-0.15.6\src\split_at.rs:10:8
+   |
+ 9 | pub(crate) trait SplitPreference : SplitAt {
+   |                  --------------- method in this trait
+10 |     fn can_split(&self) -> bool;
+   |        ^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: method `post_dec` is never used
+   --> C:\Users\samue\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ndarray-0.15.6\src\dimension\axes.rs:146:8
+    |
+144 | trait IncOps: Copy {
+    |       ------ method in this trait
+145 |     fn post_inc(&mut self) -> Self;
+146 |     fn post_dec(&mut self) -> Self;
+    |        ^^^^^^^^
+
+       Dirty rocket_core v0.1.0 (C:\Users\samue\OneDrive\Documents\Rocket-Motor-Design-Plotter\rocket_core): the file `src/cea` has changed (13411486526.082073400s, 40s after last build at 13411486486.063138600s)
+   Compiling rocket_core v0.1.0 (C:\Users\samue\OneDrive\Documents\Rocket-Motor-Design-Plotter\rocket_core)
+warning: `ndarray` (lib) generated 12 warnings
+       Fresh pyo3-build-config v0.20.3
+       Dirty pyo3-ffi v0.20.3: the dependency pyo3_build_config was rebuilt (13411486551.412003100s, 1m 4s after last build at 13411486487.725601900s)
+   Compiling pyo3-ffi v0.20.3
+       Dirty pyo3-macros-backend v0.20.3: the dependency pyo3_build_config was rebuilt (13411486551.005958700s, 1m 2s after last build at 13411486489.597166300s)
+   Compiling pyo3-macros-backend v0.20.3
+       Dirty pyo3 v0.20.3: the dependency pyo3_build_config was rebuilt (13411486551.412003100s, 1m 4s after last build at 13411486487.704610000s)
+   Compiling pyo3 v0.20.3
+     Running `set CARGO=C:\Users\samue\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin\cargo.exe&& set CARGO_CFG_FEATURE=""&& set CARGO_CFG_PANIC=unwind&& set CARGO_CFG_TARGET_ABI=""&& set CARGO_CFG_TARGET_ARCH=x86_64&& set CARGO_CFG_TARGET_ENDIAN=little&& set CARGO_CFG_TARGET_ENV=msvc&& set CARGO_CFG_TARGET_FAMILY=windows&& set CARGO_CFG_TARGET_FEATURE=cmpxchg16b,fxsr,sse,sse2,sse3&& set CARGO_CFG_TARGET_HAS_ATOMIC=128,16,32,64,8,ptr&& set CARGO_CFG_TARGET_OS=windows&& set CARGO_CFG_TARGET_POINTER_WIDTH=64&& set CARGO_CFG_TARGET_VENDOR=pc&& set CARGO_CFG_WINDOWS=""&& set CARGO_ENCODED_RUSTFLAGS=""&& set CARGO_MANIFEST_DIR=C:\Users\samue\OneDrive\Documents\Rocket-Motor-Design-Plotter\rocket_core&& set CARGO_MANIFEST_PATH=C:\Users\samue\OneDrive\Documents\Rocket-Motor-Design-Plotter\rocket_core\Cargo.toml&& set CARGO_PKG_AUTHORS=""&& set CARGO_PKG_DESCRIPTION=""&& set CARGO_PKG_HOMEPAGE=""&& set CARGO_PKG_LICENSE=""&& set CARGO_PKG_LICENSE_FILE=""&& set CARGO_PKG_NAME=rocket_core&& set CARGO_PKG_README=""&& set CARGO_PKG_REPOSITORY=""&& set CARGO_PKG_RUST_VERSION=""&& set CARGO_PKG_VERSION=0.1.0&& set CARGO_PKG_VERSION_MAJOR=0&& set CARGO_PKG_VERSION_MINOR=1&& set CARGO_PKG_VERSION_PATCH=0&& set CARGO_PKG_VERSION_PRE=""&& set DEBUG=true&& set HOST=x86_64-pc-windows-msvc&& set NUM_JOBS=16&& set OPT_LEVEL=0&& set OUT_DIR=C:\Users\samue\OneDrive\Documents\Rocket-Motor-Design-Plotter\rocket_core\target\debug\build\rocket_core-aa7a9028249d41a8\out&& set PATH="C:\Users\samue\OneDrive\Documents\Rocket-Motor-Design-Plotter\rocket_core\target\debug\deps;C:\Users\samue\OneDrive\Documents\Rocket-Motor-Design-Plotter\rocket_core\target\debug;C:\Users\samue\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\WindowsApps\Microsoft.PowerShell_7.5.4.0_x64__8wekyb3d8bbwe;C:\Python314\Scripts\;C:\Python314\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Python313\Scripts\;C:\Python313\;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files\dotnet\;C:\Program Files\Git\cmd;C:\Program Files\MATLAB\R2025b\runtime\win64;C:\Program Files\MATLAB\R2025b\bin;C:\Program Files\Docker\Docker\resources\bin;C:\ProgramData\chocolatey\bin;C:\msys64\ucrt64\bin;C:\Program Files\CMake\bin;C:\Program Files (x86)\Windows Kits\8.1\Windows Performance Toolkit\;C:\ProgramData\nvm;C:\nvm4w\nodejs;C:\Program Files\nodejs\;C:\Program Files\cursor\resources\app\bin;C:\Users\samue\.local\bin;C:\Users\samue\AppData\Local\Microsoft\WindowsApps;C:\Users\samue\AppData\Local\Programs\Microsoft VS Code\bin;C:\Users\samue\AppData\Local\Programs\Ollama;C:\Users\samue\AppData\Local\Microsoft\WinGet\Packages\zyedidia.micro_Microsoft.Winget.Source_8wekyb3d8bbwe\micro-2.0.14;C:\Users\samue\.lmstudio\bin;C:\Users\samue\.cache\lm-studio\bin;C:\ProgramData\nvm;C:\nvm4w\nodejs;C:\Users\samue\AppData\Roaming\npm;C:\Users\samue\AppData\Local\PowerToys\DSCModules\;C:\Users\samue\AppData\Local\Microsoft\WinGet\Packages\DenoLand.Deno_Microsoft.Winget.Source_8wekyb3d8bbwe;C:\Users\samue\AppData\Local\Microsoft\WinGet\Packages\yt-dlp.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-N-121583-g4348bde2d2-win64-gpl/bin;C:\Users\samue\AppData\Local\Microsoft\WinGet\Packages\yt-dlp.yt-dlp_Microsoft.Winget.Source_8wekyb3d8bbwe;C:\Users\samue\.cargo\bin;C:\msys64\mingw64\bin;C:\Users\samue\.cargo\bin;C:\msys64\mingw64\bin;C:\Users\samue\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin"&& set PROFILE=debug&& set RUSTC=C:\Users\samue\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin\rustc.exe&& set RUSTDOC=C:\Users\samue\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin\rustdoc.exe&& set TARGET=x86_64-pc-windows-msvc&& C:\Users\samue\OneDrive\Documents\Rocket-Motor-Design-Plotter\rocket_core\target\debug\build\rocket_core-14958325da8f9eee\build-script-build`
+     Running `set CARGO=C:\Users\samue\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin\cargo.exe&& set CARGO_CRATE_NAME=build_script_build&& set CARGO_MANIFEST_DIR=C:\Users\samue\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\pyo3-ffi-0.20.3&& set CARGO_MANIFEST_PATH=C:\Users\samue\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\pyo3-ffi-0.20.3\Cargo.toml&& set CARGO_PKG_AUTHORS="PyO3 Project and Contributors <https://github.com/PyO3>"&& set CARGO_PKG_DESCRIPTION="Python-API bindings for the PyO3 ecosystem"&& set CARGO_PKG_HOMEPAGE=https://github.com/pyo3/pyo3&& set CARGO_PKG_LICENSE="MIT OR Apache-2.0"&& set CARGO_PKG_LICENSE_FILE=""&& set CARGO_PKG_NAME=pyo3-ffi&& set CARGO_PKG_README=README.md&& set CARGO_PKG_REPOSITORY=https://github.com/pyo3/pyo3&& set CARGO_PKG_RUST_VERSION=""&& set CARGO_PKG_VERSION=0.20.3&& set CARGO_PKG_VERSION_MAJOR=0&& set CARGO_PKG_VERSION_MINOR=20&& set CARGO_PKG_VERSION_PATCH=3&& set CARGO_PKG_VERSION_PRE=""&& set PATH="C:\Users\samue\OneDrive\Documents\Rocket-Motor-Design-Plotter\rocket_core\target\debug\deps;C:\Program Files\WindowsApps\Microsoft.PowerShell_7.5.4.0_x64__8wekyb3d8bbwe;C:\Python314\Scripts\;C:\Python314\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Python313\Scripts\;C:\Python313\;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files\dotnet\;C:\Program Files\Git\cmd;C:\Program Files\MATLAB\R2025b\runtime\win64;C:\Program Files\MATLAB\R2025b\bin;C:\Program Files\Docker\Docker\resources\bin;C:\ProgramData\chocolatey\bin;C:\msys64\ucrt64\bin;C:\Program Files\CMake\bin;C:\Program Files (x86)\Windows Kits\8.1\Windows Performance Toolkit\;C:\ProgramData\nvm;C:\nvm4w\nodejs;C:\Program Files\nodejs\;C:\Program Files\cursor\resources\app\bin;C:\Users\samue\.local\bin;C:\Users\samue\AppData\Local\Microsoft\WindowsApps;C:\Users\samue\AppData\Local\Programs\Microsoft VS Code\bin;C:\Users\samue\AppData\Local\Programs\Ollama;C:\Users\samue\AppData\Local\Microsoft\WinGet\Packages\zyedidia.micro_Microsoft.Winget.Source_8wekyb3d8bbwe\micro-2.0.14;C:\Users\samue\.lmstudio\bin;C:\Users\samue\.cache\lm-studio\bin;C:\ProgramData\nvm;C:\nvm4w\nodejs;C:\Users\samue\AppData\Roaming\npm;C:\Users\samue\AppData\Local\PowerToys\DSCModules\;C:\Users\samue\AppData\Local\Microsoft\WinGet\Packages\DenoLand.Deno_Microsoft.Winget.Source_8wekyb3d8bbwe;C:\Users\samue\AppData\Local\Microsoft\WinGet\Packages\yt-dlp.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-N-121583-g4348bde2d2-win64-gpl/bin;C:\Users\samue\AppData\Local\Microsoft\WinGet\Packages\yt-dlp.yt-dlp_Microsoft.Winget.Source_8wekyb3d8bbwe;C:\Users\samue\.cargo\bin;C:\msys64\mingw64\bin;C:\Users\samue\.cargo\bin;C:\msys64\mingw64\bin;C:\Users\samue\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin"&& C:\Users\samue\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin\rustc.exe --crate-name build_script_build --edition=2021 C:\Users\samue\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\pyo3-ffi-0.20.3\build.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --crate-type bin --emit=dep-info,link -C embed-bitcode=no --warn=clippy::useless_transmute --warn=clippy::used_underscore_binding --warn=unused_lifetimes --allow=unused_imports --warn=clippy::unnecessary_wraps --warn=clippy::todo --warn=rust_2021_prelude_collisions --warn=rust_2018_idioms --warn=clippy::manual_ok_or --warn=clippy::manual_assert --warn=clippy::let_unit_value --warn=invalid_doc_attributes --warn=clippy::flat_map_option --warn=clippy::filter_map_next --warn=clippy::explicit_iter_loop --warn=clippy::explicit_into_iter_loop --warn=elided_lifetimes_in_paths --allow=dead_code --warn=clippy::dbg_macro --warn=clippy::checked_conversions --warn=rustdoc::broken_intra_doc_links --warn=rustdoc::bare_urls --cfg "feature=\"default\"" --cfg "feature=\"extension-module\"" --check-cfg cfg(docsrs,test) --check-cfg "cfg(feature, values(\"abi3\", \"abi3-py310\", \"abi3-py311\", \"abi3-py312\", \"abi3-py37\", \"abi3-py38\", \"abi3-py39\", \"default\", \"extension-module\", \"generate-import-lib\"))" -C metadata=2729fc4f908bbfb6 -C extra-filename=-5a7ae3ee70108dce --out-dir C:\Users\samue\OneDrive\Documents\Rocket-Motor-Design-Plotter\rocket_core\target\debug\build\pyo3-ffi-5a7ae3ee70108dce -L dependency=C:\Users\samue\OneDrive\Documents\Rocket-Motor-Design-Plotter\rocket_core\target\debug\deps --extern pyo3_build_config=C:\Users\samue\OneDrive\Documents\Rocket-Motor-Design-Plotter\rocket_core\target\debug\deps\libpyo3_build_config-d05a6355c79eb05f.rlib --cap-lints warn`
+     Running `set CARGO=C:\Users\samue\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin\cargo.exe&& set CARGO_CRATE_NAME=build_script_build&& set CARGO_MANIFEST_DIR=C:\Users\samue\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\pyo3-0.20.3&& set CARGO_MANIFEST_PATH=C:\Users\samue\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\pyo3-0.20.3\Cargo.toml&& set CARGO_PKG_AUTHORS="PyO3 Project and Contributors <https://github.com/PyO3>"&& set CARGO_PKG_DESCRIPTION="Bindings to Python interpreter"&& set CARGO_PKG_HOMEPAGE=https://github.com/pyo3/pyo3&& set CARGO_PKG_LICENSE="MIT OR Apache-2.0"&& set CARGO_PKG_LICENSE_FILE=""&& set CARGO_PKG_NAME=pyo3&& set CARGO_PKG_README=README.md&& set CARGO_PKG_REPOSITORY=https://github.com/pyo3/pyo3&& set CARGO_PKG_RUST_VERSION=1.56&& set CARGO_PKG_VERSION=0.20.3&& set CARGO_PKG_VERSION_MAJOR=0&& set CARGO_PKG_VERSION_MINOR=20&& set CARGO_PKG_VERSION_PATCH=3&& set CARGO_PKG_VERSION_PRE=""&& set PATH="C:\Users\samue\OneDrive\Documents\Rocket-Motor-Design-Plotter\rocket_core\target\debug\deps;C:\Program Files\WindowsApps\Microsoft.PowerShell_7.5.4.0_x64__8wekyb3d8bbwe;C:\Python314\Scripts\;C:\Python314\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Python313\Scripts\;C:\Python313\;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files\dotnet\;C:\Program Files\Git\cmd;C:\Program Files\MATLAB\R2025b\runtime\win64;C:\Program Files\MATLAB\R2025b\bin;C:\Program Files\Docker\Docker\resources\bin;C:\ProgramData\chocolatey\bin;C:\msys64\ucrt64\bin;C:\Program Files\CMake\bin;C:\Program Files (x86)\Windows Kits\8.1\Windows Performance Toolkit\;C:\ProgramData\nvm;C:\nvm4w\nodejs;C:\Program Files\nodejs\;C:\Program Files\cursor\resources\app\bin;C:\Users\samue\.local\bin;C:\Users\samue\AppData\Local\Microsoft\WindowsApps;C:\Users\samue\AppData\Local\Programs\Microsoft VS Code\bin;C:\Users\samue\AppData\Local\Programs\Ollama;C:\Users\samue\AppData\Local\Microsoft\WinGet\Packages\zyedidia.micro_Microsoft.Winget.Source_8wekyb3d8bbwe\micro-2.0.14;C:\Users\samue\.lmstudio\bin;C:\Users\samue\.cache\lm-studio\bin;C:\ProgramData\nvm;C:\nvm4w\nodejs;C:\Users\samue\AppData\Roaming\npm;C:\Users\samue\AppData\Local\PowerToys\DSCModules\;C:\Users\samue\AppData\Local\Microsoft\WinGet\Packages\DenoLand.Deno_Microsoft.Winget.Source_8wekyb3d8bbwe;C:\Users\samue\AppData\Local\Microsoft\WinGet\Packages\yt-dlp.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-N-121583-g4348bde2d2-win64-gpl/bin;C:\Users\samue\AppData\Local\Microsoft\WinGet\Packages\yt-dlp.yt-dlp_Microsoft.Winget.Source_8wekyb3d8bbwe;C:\Users\samue\.cargo\bin;C:\msys64\mingw64\bin;C:\Users\samue\.cargo\bin;C:\msys64\mingw64\bin;C:\Users\samue\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin"&& C:\Users\samue\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin\rustc.exe --crate-name build_script_build --edition=2021 C:\Users\samue\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\pyo3-0.20.3\build.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --crate-type bin --emit=dep-info,link -C embed-bitcode=no --warn=clippy::useless_transmute --warn=clippy::used_underscore_binding --warn=unused_lifetimes --allow=unused_imports --warn=clippy::unnecessary_wraps --warn=clippy::todo --warn=rust_2021_prelude_collisions --warn=rust_2018_idioms --warn=clippy::manual_ok_or --warn=clippy::manual_assert --warn=clippy::let_unit_value --warn=invalid_doc_attributes --warn=clippy::flat_map_option --warn=clippy::filter_map_next --warn=clippy::explicit_iter_loop --warn=clippy::explicit_into_iter_loop --warn=elided_lifetimes_in_paths --allow=dead_code --warn=clippy::dbg_macro --warn=clippy::checked_conversions --warn=rustdoc::broken_intra_doc_links --warn=rustdoc::bare_urls --cfg "feature=\"default\"" --cfg "feature=\"extension-module\"" --cfg "feature=\"indoc\"" --cfg "feature=\"macros\"" --cfg "feature=\"pyo3-macros\"" --cfg "feature=\"unindent\"" --check-cfg cfg(docsrs,test) --check-cfg "cfg(feature, values(\"abi3\", \"abi3-py310\", \"abi3-py311\", \"abi3-py312\", \"abi3-py37\", \"abi3-py38\", \"abi3-py39\", \"anyhow\", \"auto-initialize\", \"chrono\", \"default\", \"either\", \"experimental-inspect\", \"extension-module\", \"eyre\", \"full\", \"generate-import-lib\", \"hashbrown\", \"indexmap\", \"indoc\", \"inventory\", \"macros\", \"multiple-pymethods\", \"nightly\", \"num-bigint\", \"num-complex\", \"pyo3-macros\", \"rust_decimal\", \"serde\", \"smallvec\", \"unindent\"))" -C metadata=c60692151a6ccf42 -C extra-filename=-00c8065e22cbafb1 --out-dir C:\Users\samue\OneDrive\Documents\Rocket-Motor-Design-Plotter\rocket_core\target\debug\build\pyo3-00c8065e22cbafb1 -L dependency=C:\Users\samue\OneDrive\Documents\Rocket-Motor-Design-Plotter\rocket_core\target\debug\deps --extern pyo3_build_config=C:\Users\samue\OneDrive\Documents\Rocket-Motor-Design-Plotter\rocket_core\target\debug\deps\libpyo3_build_config-d05a6355c79eb05f.rlib --cap-lints warn`
+     Running `set CARGO=C:\Users\samue\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin\cargo.exe&& set CARGO_CRATE_NAME=pyo3_macros_backend&& set CARGO_MANIFEST_DIR=C:\Users\samue\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\pyo3-macros-backend-0.20.3&& set CARGO_MANIFEST_PATH=C:\Users\samue\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\pyo3-macros-backend-0.20.3\Cargo.toml&& set CARGO_PKG_AUTHORS="PyO3 Project and Contributors <https://github.com/PyO3>"&& set CARGO_PKG_DESCRIPTION="Code generation for PyO3 package"&& set CARGO_PKG_HOMEPAGE=https://github.com/pyo3/pyo3&& set CARGO_PKG_LICENSE="MIT OR Apache-2.0"&& set CARGO_PKG_LICENSE_FILE=""&& set CARGO_PKG_NAME=pyo3-macros-backend&& set CARGO_PKG_README=""&& set CARGO_PKG_REPOSITORY=https://github.com/pyo3/pyo3&& set CARGO_PKG_RUST_VERSION=""&& set CARGO_PKG_VERSION=0.20.3&& set CARGO_PKG_VERSION_MAJOR=0&& set CARGO_PKG_VERSION_MINOR=20&& set CARGO_PKG_VERSION_PATCH=3&& set CARGO_PKG_VERSION_PRE=""&& set PATH="C:\Users\samue\OneDrive\Documents\Rocket-Motor-Design-Plotter\rocket_core\target\debug\deps;C:\Program Files\WindowsApps\Microsoft.PowerShell_7.5.4.0_x64__8wekyb3d8bbwe;C:\Python314\Scripts\;C:\Python314\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Python313\Scripts\;C:\Python313\;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files\dotnet\;C:\Program Files\Git\cmd;C:\Program Files\MATLAB\R2025b\runtime\win64;C:\Program Files\MATLAB\R2025b\bin;C:\Program Files\Docker\Docker\resources\bin;C:\ProgramData\chocolatey\bin;C:\msys64\ucrt64\bin;C:\Program Files\CMake\bin;C:\Program Files (x86)\Windows Kits\8.1\Windows Performance Toolkit\;C:\ProgramData\nvm;C:\nvm4w\nodejs;C:\Program Files\nodejs\;C:\Program Files\cursor\resources\app\bin;C:\Users\samue\.local\bin;C:\Users\samue\AppData\Local\Microsoft\WindowsApps;C:\Users\samue\AppData\Local\Programs\Microsoft VS Code\bin;C:\Users\samue\AppData\Local\Programs\Ollama;C:\Users\samue\AppData\Local\Microsoft\WinGet\Packages\zyedidia.micro_Microsoft.Winget.Source_8wekyb3d8bbwe\micro-2.0.14;C:\Users\samue\.lmstudio\bin;C:\Users\samue\.cache\lm-studio\bin;C:\ProgramData\nvm;C:\nvm4w\nodejs;C:\Users\samue\AppData\Roaming\npm;C:\Users\samue\AppData\Local\PowerToys\DSCModules\;C:\Users\samue\AppData\Local\Microsoft\WinGet\Packages\DenoLand.Deno_Microsoft.Winget.Source_8wekyb3d8bbwe;C:\Users\samue\AppData\Local\Microsoft\WinGet\Packages\yt-dlp.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-N-121583-g4348bde2d2-win64-gpl/bin;C:\Users\samue\AppData\Local\Microsoft\WinGet\Packages\yt-dlp.yt-dlp_Microsoft.Winget.Source_8wekyb3d8bbwe;C:\Users\samue\.cargo\bin;C:\msys64\mingw64\bin;C:\Users\samue\.cargo\bin;C:\msys64\mingw64\bin;C:\Users\samue\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin"&& C:\Users\samue\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin\rustc.exe --crate-name pyo3_macros_backend --edition=2021 C:\Users\samue\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\pyo3-macros-backend-0.20.3\src\lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --crate-type lib --emit=dep-info,metadata,link -C embed-bitcode=no --warn=clippy::useless_transmute --warn=clippy::used_underscore_binding --warn=unused_lifetimes --allow=unused_imports --warn=clippy::unnecessary_wraps --warn=clippy::todo --warn=rust_2021_prelude_collisions --warn=rust_2018_idioms --warn=clippy::manual_ok_or --warn=clippy::manual_assert --warn=clippy::let_unit_value --warn=invalid_doc_attributes --warn=clippy::flat_map_option --warn=clippy::filter_map_next --warn=clippy::explicit_iter_loop --warn=clippy::explicit_into_iter_loop --warn=elided_lifetimes_in_paths --allow=dead_code --warn=clippy::dbg_macro --warn=clippy::checked_conversions --warn=rustdoc::broken_intra_doc_links --warn=rustdoc::bare_urls --check-cfg cfg(docsrs,test) --check-cfg "cfg(feature, values())" -C metadata=ea98964348f410fe -C extra-filename=-d3e6925eed5fb4a1 --out-dir C:\Users\samue\OneDrive\Documents\Rocket-Motor-Design-Plotter\rocket_core\target\debug\deps -L dependency=C:\Users\samue\OneDrive\Documents\Rocket-Motor-Design-Plotter\rocket_core\target\debug\deps --extern heck=C:\Users\samue\OneDrive\Documents\Rocket-Motor-Design-Plotter\rocket_core\target\debug\deps\libheck-6ac472ff0056d7cb.rmeta --extern proc_macro2=C:\Users\samue\OneDrive\Documents\Rocket-Motor-Design-Plotter\rocket_core\target\debug\deps\libproc_macro2-b800b2f75d233022.rmeta --extern pyo3_build_config=C:\Users\samue\OneDrive\Documents\Rocket-Motor-Design-Plotter\rocket_core\target\debug\deps\libpyo3_build_config-d05a6355c79eb05f.rmeta --extern quote=C:\Users\samue\OneDrive\Documents\Rocket-Motor-Design-Plotter\rocket_core\target\debug\deps\libquote-e6aaaaaf7461f3b1.rmeta --extern syn=C:\Users\samue\OneDrive\Documents\Rocket-Motor-Design-Plotter\rocket_core\target\debug\deps\libsyn-1a8547356275e494.rmeta --cap-lints warn`
+[rocket_core 0.1.0] OUT_DIR = Some(C:\Users\samue\OneDrive\Documents\Rocket-Motor-Design-Plotter\rocket_core\target\debug\build\rocket_core-aa7a9028249d41a8\out)
+[rocket_core 0.1.0] OPT_LEVEL = Some(0)
+[rocket_core 0.1.0] cargo:rerun-if-env-changed=CC_ENABLE_DEBUG_OUTPUT
+[rocket_core 0.1.0] cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+[rocket_core 0.1.0] CRATE_CC_NO_DEFAULTS = None
+[rocket_core 0.1.0] TARGET = Some(x86_64-pc-windows-msvc)
+[rocket_core 0.1.0] DEBUG = Some(true)
+[rocket_core 0.1.0] CARGO_CFG_TARGET_FEATURE = Some(cmpxchg16b,fxsr,sse,sse2,sse3)
+[rocket_core 0.1.0] HOST = Some(x86_64-pc-windows-msvc)
+[rocket_core 0.1.0] cargo:rerun-if-env-changed=CFLAGS
+[rocket_core 0.1.0] CFLAGS = None
+[rocket_core 0.1.0] cargo:rerun-if-env-changed=HOST_CFLAGS
+[rocket_core 0.1.0] HOST_CFLAGS = None
+[rocket_core 0.1.0] cargo:rerun-if-env-changed=CFLAGS_x86_64_pc_windows_msvc
+[rocket_core 0.1.0] CFLAGS_x86_64_pc_windows_msvc = None
+[rocket_core 0.1.0] cargo:rerun-if-env-changed=CFLAGS_x86_64-pc-windows-msvc
+[rocket_core 0.1.0] CFLAGS_x86_64-pc-windows-msvc = None
+[rocket_core 0.1.0] CARGO_ENCODED_RUSTFLAGS = Some()
+[rocket_core 0.1.0] cargo:warning=f951.exe: Warning: Nonconforming tab character in column 1 of line 59 [-Wtabs]
+[rocket_core 0.1.0] cargo:warning=f951.exe: Warning: Nonconforming tab character in column 1 of line 62 [-Wtabs]
+[rocket_core 0.1.0] cargo:warning=f951.exe: Warning: Nonconforming tab character in column 1 of line 67 [-Wtabs]
+[rocket_core 0.1.0] cargo:warning=f951.exe: Warning: Nonconforming tab character in column 1 of line 68 [-Wtabs]
+[rocket_core 0.1.0] cargo:warning=f951.exe: Warning: Nonconforming tab character in column 1 of line 70 [-Wtabs]
+[rocket_core 0.1.0] cargo:warning=f951.exe: Warning: Nonconforming tab character in column 3 of line 73 [-Wtabs]
+[rocket_core 0.1.0] cargo:warning=f951.exe: Warning: Nonconforming tab character in column 1 of line 79 [-Wtabs]
+[rocket_core 0.1.0] cargo:warning=f951.exe: Warning: Nonconforming tab character in column 1 of line 80 [-Wtabs]
+[rocket_core 0.1.0] cargo:warning=f951.exe: Warning: Nonconforming tab character in column 3 of line 83 [-Wtabs]
+[rocket_core 0.1.0] cargo:warning=f951.exe: Warning: Nonconforming tab character in column 3 of line 89 [-Wtabs]
+[rocket_core 0.1.0] cargo:warning=src/cea\b1b2b3.f:124:72:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=  124 |         READ (IOTHM) sub,nint,date,(el(j),b(j),j=1,5),ifaz,t1,t2,mw,eform
+[rocket_core 0.1.0] cargo:warning=      |                                                                        1
+[rocket_core 0.1.0] cargo:warning=Warning: Line truncated at (1) [-Wline-truncation]
+[rocket_core 0.1.0] cargo:warning=src/cea\b1b2b3.f:174:72:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=  174 |         READ (IOTHM) sub,nint,date,(el(j),b(j),j=1,5),ifaz,t1,t2,mw,eform
+[rocket_core 0.1.0] cargo:warning=      |                                                                        1
+[rocket_core 0.1.0] cargo:warning=Warning: Line truncated at (1) [-Wline-truncation]
+[rocket_core 0.1.0] cargo:warning=src/cea\b1b2b3.f:193:3:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=  193 | 500   CLOSE (IOTHM)
+[rocket_core 0.1.0] cargo:warning=      |   1
+[rocket_core 0.1.0] cargo:warning=Warning: Label 500 at (1) defined but not used [-Wunused-label]
+[rocket_core 0.1.0] cargo:warning=src/cea\b1b2b3.f:107:3:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=  107 | 110   REWIND IOTHM
+[rocket_core 0.1.0] cargo:warning=      |   1
+[rocket_core 0.1.0] cargo:warning=Warning: Label 110 at (1) defined but not used [-Wunused-label]
+[rocket_core 0.1.0] cargo:warning=src/cea\b1b2b3.f:103:3:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=  103 | 100   IF (Nrid .EQ. 0)  goto 210
+[rocket_core 0.1.0] cargo:warning=      |   1
+[rocket_core 0.1.0] cargo:warning=Warning: Label 100 at (1) defined but not used [-Wunused-label]
+[rocket_core 0.1.0] cargo:warning=src/cea\b1b2b3.f:138:17:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=  138 |             if ( b(k).EQ.0. ) GOTO 140
+[rocket_core 0.1.0] cargo:warning=      |                 1
+[rocket_core 0.1.0] cargo:warning=Warning: Equality comparison for REAL(8) at (1) [-Wcompare-reals]
+[rocket_core 0.1.0] cargo:warning=src/cea\b1b2b3.f:183:17:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=  183 |             if ( b(k).EQ.0. ) GOTO 350
+[rocket_core 0.1.0] cargo:warning=      |                 1
+[rocket_core 0.1.0] cargo:warning=Warning: Equality comparison for REAL(8) at (1) [-Wcompare-reals]
+[rocket_core 0.1.0] cargo:warning=src/cea\cap.f:89:33:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=   89 |       LOGICAL hasind,refel,TOUT,mfig,eng
+[rocket_core 0.1.0] cargo:warning=      |                                 1~~~
+[rocket_core 0.1.0] cargo:warning=Error: Symbol 'mfig' at (1) already has basic type of LOGICAL
+[rocket_core 0.1.0] cargo:warning=src/cea\cap.f:112:72:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=  112 | 10    T(I)=0.
+[rocket_core 0.1.0] cargo:warning=      |                                                                        1
+[rocket_core 0.1.0] cargo:warning=Warning: Fortran 2018 deleted feature: DO termination statement which is not END DO or CONTINUE with label 10 at (1)
+[rocket_core 0.1.0] cargo:warning=src/cea\cap.f:119:72:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=  119 | 16      TOUT(I)=.FALSE.
+[rocket_core 0.1.0] cargo:warning=      |                                                                        1
+[rocket_core 0.1.0] cargo:warning=Warning: Fortran 2018 deleted feature: DO termination statement which is not END DO or CONTINUE with label 16 at (1)
+[rocket_core 0.1.0] cargo:warning=src/cea\cap.f:233:72:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=  233 |       DO 90 J=1,8
+[rocket_core 0.1.0] cargo:warning=      |                                                                        1
+[rocket_core 0.1.0] cargo:warning=Warning: Fortran 2018 deleted feature: Shared DO termination label 90 at (1)
+[rocket_core 0.1.0] cargo:warning=src/cea\cap.f:327:72:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=  327 | 300   t(i)=t(i-ix)
+[rocket_core 0.1.0] cargo:warning=      |                                                                        1
+[rocket_core 0.1.0] cargo:warning=Warning: Fortran 2018 deleted feature: DO termination statement which is not END DO or CONTINUE with label 300 at (1)
+[rocket_core 0.1.0] cargo:warning=src/cea\cap.f:349:72:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=  349 | 324       t(j)=t(j+1)
+[rocket_core 0.1.0] cargo:warning=      |                                                                        1
+[rocket_core 0.1.0] cargo:warning=Warning: Fortran 2018 deleted feature: DO termination statement which is not END DO or CONTINUE with label 324 at (1)
+[rocket_core 0.1.0] cargo:warning=src/cea\cap.f:510:72:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=  510 | 10    ALK(I)=0.D0
+[rocket_core 0.1.0] cargo:warning=      |                                                                        1
+[rocket_core 0.1.0] cargo:warning=Warning: Fortran 2018 deleted feature: DO termination statement which is not END DO or CONTINUE with label 10 at (1)
+[rocket_core 0.1.0] cargo:warning=src/cea\cap.f:806:72:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=  806 | 81        FORMAT(///'        Assigned H(T)/R at',f7.2,' Rankine =',F12.3,
+[rocket_core 0.1.0] cargo:warning=      |                                                                        1
+[rocket_core 0.1.0] cargo:warning=Warning: Line truncated at (1) [-Wline-truncation]
+[rocket_core 0.1.0] cargo:warning=src/cea\cap.f:807:95:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=  807 |      1      ' Rankine')
+[rocket_core 0.1.0] cargo:warning=      |                                                                                               1
+[rocket_core 0.1.0] cargo:warning=Warning: Legacy Extension: Missing comma in FORMAT string at (1)
+[rocket_core 0.1.0] cargo:warning=src/cea\cap.f:822:72:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=  822 | 66      VFM (i) = 'F13.7,'
+[rocket_core 0.1.0] cargo:warning=      |                                                                        1
+[rocket_core 0.1.0] cargo:warning=Warning: Fortran 2018 deleted feature: DO termination statement which is not END DO or CONTINUE with label 66 at (1)
+[rocket_core 0.1.0] cargo:warning=src/cea\cap.f:337:3:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=  337 | 322   TT=T(IT)
+[rocket_core 0.1.0] cargo:warning=      |   1
+[rocket_core 0.1.0] cargo:warning=Warning: Label 322 at (1) defined but not used [-Wunused-label]
+[rocket_core 0.1.0] cargo:warning=src/cea\cap.f:111:1:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=  111 | 5     CONTINUE
+[rocket_core 0.1.0] cargo:warning=      | 1
+[rocket_core 0.1.0] cargo:warning=Warning: Label 5 at (1) defined but not used [-Wunused-label]
+[rocket_core 0.1.0] cargo:warning=src/cea\cap.f:119:16:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=  119 | 16      TOUT(I)=.FALSE.
+[rocket_core 0.1.0] cargo:warning=      |                1
+[rocket_core 0.1.0] cargo:warning=Error: Cannot convert LOGICAL(4) to REAL(4) at (1)
+[rocket_core 0.1.0] cargo:warning=src/cea\cap.f:123:10:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=  123 |       eng=.false.
+[rocket_core 0.1.0] cargo:warning=      |          1
+[rocket_core 0.1.0] cargo:warning=Error: Cannot convert LOGICAL(4) to REAL(4) at (1)
+[rocket_core 0.1.0] cargo:warning=src/cea\cap.f:137:17:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=  137 |         tout(2) =.TRUE.
+[rocket_core 0.1.0] cargo:warning=      |                 1
+[rocket_core 0.1.0] cargo:warning=Error: Cannot convert LOGICAL(4) to REAL(4) at (1)
+[rocket_core 0.1.0] cargo:warning=src/cea\cap.f:139:17:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=  139 |         TOUT(3) =.TRUE.
+[rocket_core 0.1.0] cargo:warning=      |                 1
+[rocket_core 0.1.0] cargo:warning=Error: Cannot convert LOGICAL(4) to REAL(4) at (1)
+[rocket_core 0.1.0] cargo:warning=src/cea\cap.f:141:17:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=  141 |         TOUT(1) =.TRUE.
+[rocket_core 0.1.0] cargo:warning=      |                 1
+[rocket_core 0.1.0] cargo:warning=Error: Cannot convert LOGICAL(4) to REAL(4) at (1)
+[rocket_core 0.1.0] cargo:warning=src/cea\cap.f:148:12:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=  148 |         eng=.TRUE.
+[rocket_core 0.1.0] cargo:warning=      |            1
+[rocket_core 0.1.0] cargo:warning=Error: Cannot convert LOGICAL(4) to REAL(4) at (1)
+[rocket_core 0.1.0] cargo:warning=src/cea\cap.f:160:32:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=  160 |       if (.not.tout(2).and..not.tout(3)) then
+[rocket_core 0.1.0] cargo:warning=      |                                1
+[rocket_core 0.1.0] cargo:warning=Error: Operand of .not. operator at (1) is REAL(4)
+[rocket_core 0.1.0] cargo:warning=src/cea\cap.f:160:15:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=  160 |       if (.not.tout(2).and..not.tout(3)) then
+[rocket_core 0.1.0] cargo:warning=      |               1
+[rocket_core 0.1.0] cargo:warning=Error: Operand of .not. operator at (1) is REAL(4)
+[rocket_core 0.1.0] cargo:warning=src/cea\cap.f:161:17:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=  161 |         if (.not.tout(1)) then
+[rocket_core 0.1.0] cargo:warning=      |                 1
+[rocket_core 0.1.0] cargo:warning=Error: Operand of .not. operator at (1) is REAL(4)
+[rocket_core 0.1.0] cargo:warning=src/cea\cap.f:162:20:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=  162 |           tout(2) = .true.
+[rocket_core 0.1.0] cargo:warning=      |                    1
+[rocket_core 0.1.0] cargo:warning=Error: Cannot convert LOGICAL(4) to REAL(4) at (1)
+[rocket_core 0.1.0] cargo:warning=src/cea\cap.f:167:12:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=  167 |         if (eng) WRITE (6,26)
+[rocket_core 0.1.0] cargo:warning=      |            1
+[rocket_core 0.1.0] cargo:warning=Error: IF clause at (1) requires a scalar LOGICAL expression
+[rocket_core 0.1.0] cargo:warning=src/cea\cap.f:171:10:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=  171 |       if (eng) then
+[rocket_core 0.1.0] cargo:warning=      |          1
+[rocket_core 0.1.0] cargo:warning=Error: IF clause at (1) requires a scalar LOGICAL expression
+[rocket_core 0.1.0] cargo:warning=src/cea\cap.f:172:18:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=  172 |         tout(2) = .true.
+[rocket_core 0.1.0] cargo:warning=      |                  1
+[rocket_core 0.1.0] cargo:warning=Error: Cannot convert LOGICAL(4) to REAL(4) at (1)
+[rocket_core 0.1.0] cargo:warning=src/cea\cap.f:176:18:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=  176 |         tout(3) = .false.
+[rocket_core 0.1.0] cargo:warning=      |                  1
+[rocket_core 0.1.0] cargo:warning=Error: Cannot convert LOGICAL(4) to REAL(4) at (1)
+[rocket_core 0.1.0] cargo:warning=src/cea\cap.f:177:18:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=  177 |         tout(2) = .true.
+[rocket_core 0.1.0] cargo:warning=      |                  1
+[rocket_core 0.1.0] cargo:warning=Error: Cannot convert LOGICAL(4) to REAL(4) at (1)
+[rocket_core 0.1.0] cargo:warning=src/cea\cap.f:190:10:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=  190 |       if (tin(i1).eq.0.)go to 35
+[rocket_core 0.1.0] cargo:warning=      |          1
+[rocket_core 0.1.0] cargo:warning=Warning: Equality comparison for REAL(8) at (1) [-Wcompare-reals]
+[rocket_core 0.1.0] cargo:warning=src/cea\cap.f:253:10:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=  253 |       if (sel(i).ne.sl(i)) go to 120
+[rocket_core 0.1.0] cargo:warning=      |          1
+[rocket_core 0.1.0] cargo:warning=Warning: Inequality comparison for REAL(4) at (1) [-Wcompare-reals]
+[rocket_core 0.1.0] cargo:warning=src/cea\cap.f:293:10:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=  293 |       if (sel(i).eq.0.) go to 95
+[rocket_core 0.1.0] cargo:warning=      |          1
+[rocket_core 0.1.0] cargo:warning=Warning: Equality comparison for REAL(4) at (1) [-Wcompare-reals]
+[rocket_core 0.1.0] cargo:warning=src/cea\cap.f:320:9:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=  320 |       if(tt.eq.t(i))ix=1
+[rocket_core 0.1.0] cargo:warning=      |         1
+[rocket_core 0.1.0] cargo:warning=Warning: Equality comparison for REAL(8) at (1) [-Wcompare-reals]
+[rocket_core 0.1.0] cargo:warning=src/cea\cap.f:332:15:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=  332 |       hasind = .false.
+[rocket_core 0.1.0] cargo:warning=      |               1
+[rocket_core 0.1.0] cargo:warning=Error: Cannot convert LOGICAL(4) to REAL(4) at (1)
+[rocket_core 0.1.0] cargo:warning=src/cea\cap.f:355:12:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=  355 |         IF (TT.EQ.Tcoef(2,L)) THEN
+[rocket_core 0.1.0] cargo:warning=      |            1
+[rocket_core 0.1.0] cargo:warning=Warning: Equality comparison for REAL(8) at (1) [-Wcompare-reals]
+[rocket_core 0.1.0] cargo:warning=src/cea\cap.f:357:14:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=  357 |           IF (TT.NE.T(it-1)) GOTO 340
+[rocket_core 0.1.0] cargo:warning=      |              1
+[rocket_core 0.1.0] cargo:warning=Warning: Inequality comparison for REAL(8) at (1) [-Wcompare-reals]
+[rocket_core 0.1.0] cargo:warning=src/cea\cap.f:368:10:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=  368 |       IF (EXL.NE.0.) TEX=TEX*TT**EXL
+[rocket_core 0.1.0] cargo:warning=      |          1
+[rocket_core 0.1.0] cargo:warning=Warning: Inequality comparison for REAL(8) at (1) [-Wcompare-reals]
+[rocket_core 0.1.0] cargo:warning=src/cea\cap.f:369:10:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=  369 |       IF (EXL.EQ.-1.) HHRT(IT)=HHRT(IT)+COEF(J,L)*DLOG(TT)/TT
+[rocket_core 0.1.0] cargo:warning=      |          1
+[rocket_core 0.1.0] cargo:warning=Warning: Equality comparison for REAL(8) at (1) [-Wcompare-reals]
+[rocket_core 0.1.0] cargo:warning=src/cea\cap.f:370:10:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=  370 |       IF (EXL.NE.-1.) HHRT(IT)=HHRT(IT)+TEX/(EXL+1.D0)
+[rocket_core 0.1.0] cargo:warning=      |          1
+[rocket_core 0.1.0] cargo:warning=Warning: Inequality comparison for REAL(8) at (1) [-Wcompare-reals]
+[rocket_core 0.1.0] cargo:warning=src/cea\cap.f:372:10:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=  372 |       IF (EXL.EQ.0.) SR(IT)=SR(IT)+COEF(J,L)*DLOG(TT)
+[rocket_core 0.1.0] cargo:warning=      |          1
+[rocket_core 0.1.0] cargo:warning=Warning: Equality comparison for REAL(8) at (1) [-Wcompare-reals]
+[rocket_core 0.1.0] cargo:warning=src/cea\cap.f:373:10:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=  373 |       IF (EXL.NE.0.) SR(IT)=SR(IT)+TEX/EXL
+[rocket_core 0.1.0] cargo:warning=      |          1
+[rocket_core 0.1.0] cargo:warning=Warning: Inequality comparison for REAL(8) at (1) [-Wcompare-reals]
+[rocket_core 0.1.0] cargo:warning=src/cea\cap.f:389:12:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=  389 | 360   refel=.false.
+[rocket_core 0.1.0] cargo:warning=      |            1
+[rocket_core 0.1.0] cargo:warning=Error: Cannot convert LOGICAL(4) to REAL(4) at (1)
+[rocket_core 0.1.0] cargo:warning=src/cea\cap.f:397:24:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=  397 |       if(nkind.gt.1 .or. htform.ne.0.) go to 400
+[rocket_core 0.1.0] cargo:warning=      |                        1
+[rocket_core 0.1.0] cargo:warning=Warning: Inequality comparison for REAL(8) at (1) [-Wcompare-reals]
+[rocket_core 0.1.0] cargo:warning=src/cea\cap.f:398:8:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=  398 |       n=sel(1)+.001
+[rocket_core 0.1.0] cargo:warning=      |        1
+[rocket_core 0.1.0] cargo:warning=Warning: Possible change of value in conversion from REAL(4) to INTEGER(4) at (1) [-Wconversion]
+[rocket_core 0.1.0] cargo:warning=src/cea\cap.f:402:12:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=  402 |       refel=.true.
+[rocket_core 0.1.0] cargo:warning=      |            1
+[rocket_core 0.1.0] cargo:warning=Error: Cannot convert LOGICAL(4) to REAL(4) at (1)
+[rocket_core 0.1.0] cargo:warning=src/cea\cap.f:411:18:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=  411 | 405   if(refel.or.htform.ne.0.d0) go to 430
+[rocket_core 0.1.0] cargo:warning=      |                  1
+[rocket_core 0.1.0] cargo:warning=Warning: Inequality comparison for REAL(8) at (1) [-Wcompare-reals]
+[rocket_core 0.1.0] cargo:warning=src/cea\cap.f:411:18:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=  411 | 405   if(refel.or.htform.ne.0.d0) go to 430
+[rocket_core 0.1.0] cargo:warning=      |                  1
+[rocket_core 0.1.0] cargo:warning=Error: Operands of logical operator '.or.' at (1) are REAL(4)/LOGICAL(4)
+[rocket_core 0.1.0] cargo:warning=src/cea\cap.f:421:10:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=  421 |       if (htform.ne.0. .or. refel) then
+[rocket_core 0.1.0] cargo:warning=      |          1
+[rocket_core 0.1.0] cargo:warning=Warning: Inequality comparison for REAL(8) at (1) [-Wcompare-reals]
+[rocket_core 0.1.0] cargo:warning=src/cea\cap.f:421:27:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=  421 |       if (htform.ne.0. .or. refel) then
+[rocket_core 0.1.0] cargo:warning=      |                           1
+[rocket_core 0.1.0] cargo:warning=Error: Operands of logical operator '.or.' at (1) are LOGICAL(4)/REAL(4)
+[rocket_core 0.1.0] cargo:warning=src/cea\cap.f:422:18:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=  422 |            hasind=.true.
+[rocket_core 0.1.0] cargo:warning=      |                  1
+[rocket_core 0.1.0] cargo:warning=Error: Cannot convert LOGICAL(4) to REAL(4) at (1)
+[rocket_core 0.1.0] cargo:warning=src/cea\cap.f:423:14:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=  423 |            if(enth29.eq.0.) asindt=298.15d0
+[rocket_core 0.1.0] cargo:warning=      |              1
+[rocket_core 0.1.0] cargo:warning=Warning: Equality comparison for REAL(8) at (1) [-Wcompare-reals]
+[rocket_core 0.1.0] cargo:warning=src/cea\cap.f:425:18:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=  425 |            hasind=.false.
+[rocket_core 0.1.0] cargo:warning=      |                  1
+[rocket_core 0.1.0] cargo:warning=Error: Cannot convert LOGICAL(4) to REAL(4) at (1)
+[rocket_core 0.1.0] cargo:warning=src/cea\cap.f:427:18:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=  427 |       IF (mfig.or.tout(1)) CALL TABLES
+[rocket_core 0.1.0] cargo:warning=      |                  1
+[rocket_core 0.1.0] cargo:warning=Error: Operands of logical operator '.or.' at (1) are LOGICAL(4)/REAL(4)
+[rocket_core 0.1.0] cargo:warning=src/cea\cap.f:809:14:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=  809 |           if (asindt .eq. 0.) then
+[rocket_core 0.1.0] cargo:warning=      |              1
+[rocket_core 0.1.0] cargo:warning=Warning: Equality comparison for REAL(8) at (1) [-Wcompare-reals]
+[rocket_core 0.1.0] cargo:warning=src/cea\cap.f:856:16:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=  856 |             if (asindt .eq. 0.) then
+[rocket_core 0.1.0] cargo:warning=      |                1
+[rocket_core 0.1.0] cargo:warning=Warning: Equality comparison for REAL(8) at (1) [-Wcompare-reals]
+[rocket_core 0.1.0] cargo:warning=src/cea\cap.f:878:14:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=  878 |           if (asindt .eq. 0.) then
+[rocket_core 0.1.0] cargo:warning=      |              1
+[rocket_core 0.1.0] cargo:warning=Warning: Equality comparison for REAL(8) at (1) [-Wcompare-reals]
+[rocket_core 0.1.0] cargo:warning=src/cea\cap.f:914:13:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=  914 |          IF (asindt.ne.0.) then
+[rocket_core 0.1.0] cargo:warning=      |             1
+[rocket_core 0.1.0] cargo:warning=Warning: Inequality comparison for REAL(8) at (1) [-Wcompare-reals]
+[rocket_core 0.1.0] cargo:warning=src/cea\cap.f:577:10:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=  577 |       IF (EXL.NE.0.) TEX=TEX*TT**EXL
+[rocket_core 0.1.0] cargo:warning=      |          1
+[rocket_core 0.1.0] cargo:warning=Warning: Inequality comparison for REAL(8) at (1) [-Wcompare-reals]
+[rocket_core 0.1.0] cargo:warning=src/cea\cap.f:578:10:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=  578 |       IF (EXL.EQ.-1.) HH=HH+COEF(J,L)*DLOG(TT)/TT
+[rocket_core 0.1.0] cargo:warning=      |          1
+[rocket_core 0.1.0] cargo:warning=Warning: Equality comparison for REAL(8) at (1) [-Wcompare-reals]
+[rocket_core 0.1.0] cargo:warning=src/cea\cap.f:579:10:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=  579 |       IF (EXL.NE.-1.) HH=HH+TEX/(EXL+1.D0)
+[rocket_core 0.1.0] cargo:warning=      |          1
+[rocket_core 0.1.0] cargo:warning=Warning: Inequality comparison for REAL(8) at (1) [-Wcompare-reals]
+[rocket_core 0.1.0] cargo:warning=src/cea\cap.f:580:10:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=  580 |       IF (EXL.EQ.0.) S=S+COEF(J,L)*DLOG(TT)
+[rocket_core 0.1.0] cargo:warning=      |          1
+[rocket_core 0.1.0] cargo:warning=Warning: Equality comparison for REAL(8) at (1) [-Wcompare-reals]
+[rocket_core 0.1.0] cargo:warning=src/cea\cap.f:581:10:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=  581 |       IF (EXL.NE.0.) S=S+TEX/EXL
+[rocket_core 0.1.0] cargo:warning=      |          1
+[rocket_core 0.1.0] cargo:warning=Warning: Inequality comparison for REAL(8) at (1) [-Wcompare-reals]
+[rocket_core 0.1.0] cargo:warning=src/cea\cap.f:600:16:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=  600 |          PT(IK)=Tcoef(1,L)*tconv
+[rocket_core 0.1.0] cargo:warning=      |                1
+[rocket_core 0.1.0] cargo:warning=Warning: Possible change of value in conversion from REAL(8) to REAL(4) at (1) [-Wconversion]
+[rocket_core 0.1.0] cargo:warning=src/cea\cap.f:613:21:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=  613 |       IF (hasind.and.asindt.eq.0.)DH0= DH0 + term*hconv
+[rocket_core 0.1.0] cargo:warning=      |                     1
+[rocket_core 0.1.0] cargo:warning=Warning: Equality comparison for REAL(8) at (1) [-Wcompare-reals]
+[rocket_core 0.1.0] cargo:warning=src/cea\cap.f:648:25:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=  648 |       IF (.NOT.hasind.or.asindt.ne.0.0) GO TO 290
+[rocket_core 0.1.0] cargo:warning=      |                         1
+[rocket_core 0.1.0] cargo:warning=Warning: Inequality comparison for REAL(8) at (1) [-Wcompare-reals]
+[rocket_core 0.1.0] cargo:warning=src/cea\cap.f:671:10:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=  671 |       IT= TI + 1.d-7
+[rocket_core 0.1.0] cargo:warning=      |          1
+[rocket_core 0.1.0] cargo:warning=Warning: Possible change of value in conversion from REAL(8) to INTEGER(4) at (1) [-Wconversion]
+[rocket_core 0.1.0] cargo:warning=src/cea\cap.f:730:10:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=  730 | 400   IF (DMOD(T(I),500.D0).NE.0.0) GO TO 420
+[rocket_core 0.1.0] cargo:warning=      |          1
+[rocket_core 0.1.0] cargo:warning=Warning: Inequality comparison for REAL(8) at (1) [-Wcompare-reals]
+[rocket_core 0.1.0] cargo:warning=src/cea\cap.f:731:31:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=  731 |       IF (T(I).GT.10000.D0.AND.DMOD(T(I),2500.D0).NE.0.) GO TO 420
+[rocket_core 0.1.0] cargo:warning=      |                               1
+[rocket_core 0.1.0] cargo:warning=Warning: Inequality comparison for REAL(8) at (1) [-Wcompare-reals]
+[rocket_core 0.1.0] cargo:warning=src/cea\cap.f:110:15:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=  106 |       DO 10 I=1,500
+[rocket_core 0.1.0] cargo:warning=      |                                                                        2
+[rocket_core 0.1.0] cargo:warning=......
+[rocket_core 0.1.0] cargo:warning=  110 |         output(i)=blank
+[rocket_core 0.1.0] cargo:warning=      |               1
+[rocket_core 0.1.0] cargo:warning=Warning: Array reference at (1) out of bounds (500 > 8) in loop beginning at (2)
+[rocket_core 0.1.0] cargo:warning=src/cea\cap.f:192:19:
+[rocket_core 0.1.0] cargo:warning=
+[rocket_core 0.1.0] cargo:warning=  185 |       do 35 i=1,500,2
+[rocket_core 0.1.0] cargo:warning=      |                                                                        2
+[rocket_core 0.1.0] cargo:warning=......
+[rocket_core 0.1.0] cargo:warning=  192 |       if(tt.lt.tin(i+2)-.0001d0)then
+[rocket_core 0.1.0] cargo:warning=      |                   1
+[rocket_core 0.1.0] cargo:warning=Warning: Array reference at (1) out of bounds (501 > 500) in loop beginning at (2) [-Wdo-subscript]
+     Running `set CARGO=C:\Users\samue\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin\cargo.exe&& set CARGO_CFG_FEATURE=default,extension-module&& set CARGO_CFG_PANIC=unwind&& set CARGO_CFG_TARGET_ABI=""&& set CARGO_CFG_TARGET_ARCH=x86_64&& set CARGO_CFG_TARGET_ENDIAN=little&& set CARGO_CFG_TARGET_ENV=msvc&& set CARGO_CFG_TARGET_FAMILY=windows&& set CARGO_CFG_TARGET_FEATURE=cmpxchg16b,fxsr,sse,sse2,sse3&& set CARGO_CFG_TARGET_HAS_ATOMIC=128,16,32,64,8,ptr&& set CARGO_CFG_TARGET_OS=windows&& set CARGO_CFG_TARGET_POINTER_WIDTH=64&& set CARGO_CFG_TARGET_VENDOR=pc&& set CARGO_CFG_WINDOWS=""&& set CARGO_ENCODED_RUSTFLAGS=""&& set CARGO_FEATURE_DEFAULT=1&& set CARGO_FEATURE_EXTENSION_MODULE=1&& set CARGO_MANIFEST_DIR=C:\Users\samue\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\pyo3-ffi-0.20.3&& set CARGO_MANIFEST_LINKS=python&& set CARGO_MANIFEST_PATH=C:\Users\samue\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\pyo3-ffi-0.20.3\Cargo.toml&& set CARGO_PKG_AUTHORS="PyO3 Project and Contributors <https://github.com/PyO3>"&& set CARGO_PKG_DESCRIPTION="Python-API bindings for the PyO3 ecosystem"&& set CARGO_PKG_HOMEPAGE=https://github.com/pyo3/pyo3&& set CARGO_PKG_LICENSE="MIT OR Apache-2.0"&& set CARGO_PKG_LICENSE_FILE=""&& set CARGO_PKG_NAME=pyo3-ffi&& set CARGO_PKG_README=README.md&& set CARGO_PKG_REPOSITORY=https://github.com/pyo3/pyo3&& set CARGO_PKG_RUST_VERSION=""&& set CARGO_PKG_VERSION=0.20.3&& set CARGO_PKG_VERSION_MAJOR=0&& set CARGO_PKG_VERSION_MINOR=20&& set CARGO_PKG_VERSION_PATCH=3&& set CARGO_PKG_VERSION_PRE=""&& set DEBUG=true&& set HOST=x86_64-pc-windows-msvc&& set NUM_JOBS=16&& set OPT_LEVEL=0&& set OUT_DIR=C:\Users\samue\OneDrive\Documents\Rocket-Motor-Design-Plotter\rocket_core\target\debug\build\pyo3-ffi-83eca6bd2356db9e\out&& set PATH="C:\Users\samue\OneDrive\Documents\Rocket-Motor-Design-Plotter\rocket_core\target\debug\deps;C:\Users\samue\OneDrive\Documents\Rocket-Motor-Design-Plotter\rocket_core\target\debug;C:\Users\samue\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\WindowsApps\Microsoft.PowerShell_7.5.4.0_x64__8wekyb3d8bbwe;C:\Python314\Scripts\;C:\Python314\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Python313\Scripts\;C:\Python313\;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files\dotnet\;C:\Program Files\Git\cmd;C:\Program Files\MATLAB\R2025b\runtime\win64;C:\Program Files\MATLAB\R2025b\bin;C:\Program Files\Docker\Docker\resources\bin;C:\ProgramData\chocolatey\bin;C:\msys64\ucrt64\bin;C:\Program Files\CMake\bin;C:\Program Files (x86)\Windows Kits\8.1\Windows Performance Toolkit\;C:\ProgramData\nvm;C:\nvm4w\nodejs;C:\Program Files\nodejs\;C:\Program Files\cursor\resources\app\bin;C:\Users\samue\.local\bin;C:\Users\samue\AppData\Local\Microsoft\WindowsApps;C:\Users\samue\AppData\Local\Programs\Microsoft VS Code\bin;C:\Users\samue\AppData\Local\Programs\Ollama;C:\Users\samue\AppData\Local\Microsoft\WinGet\Packages\zyedidia.micro_Microsoft.Winget.Source_8wekyb3d8bbwe\micro-2.0.14;C:\Users\samue\.lmstudio\bin;C:\Users\samue\.cache\lm-studio\bin;C:\ProgramData\nvm;C:\nvm4w\nodejs;C:\Users\samue\AppData\Roaming\npm;C:\Users\samue\AppData\Local\PowerToys\DSCModules\;C:\Users\samue\AppData\Local\Microsoft\WinGet\Packages\DenoLand.Deno_Microsoft.Winget.Source_8wekyb3d8bbwe;C:\Users\samue\AppData\Local\Microsoft\WinGet\Packages\yt-dlp.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-N-121583-g4348bde2d2-win64-gpl/bin;C:\Users\samue\AppData\Local\Microsoft\WinGet\Packages\yt-dlp.yt-dlp_Microsoft.Winget.Source_8wekyb3d8bbwe;C:\Users\samue\.cargo\bin;C:\msys64\mingw64\bin;C:\Users\samue\.cargo\bin;C:\msys64\mingw64\bin;C:\Users\samue\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin"&& set PROFILE=debug&& set RUSTC=C:\Users\samue\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin\rustc.exe&& set RUSTDOC=C:\Users\samue\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin\rustdoc.exe&& set TARGET=x86_64-pc-windows-msvc&& C:\Users\samue\OneDrive\Documents\Rocket-Motor-Design-Plotter\rocket_core\target\debug\build\pyo3-ffi-5a7ae3ee70108dce\build-script-build`
+[rocket_core 0.1.0] 
+[rocket_core 0.1.0] 
+[rocket_core 0.1.0] error occurred in cc-rs: command did not execute successfully (status code exit code: 1): "gfortran" "-O0" "-ffunction-sections" "-fdata-sections" "-g" "-fno-omit-frame-pointer" "-m64" "-Wall" "-Wextra" "-o" "C:\\Users\\samue\\OneDrive\\Documents\\Rocket-Motor-Design-Plotter\\rocket_core\\target\\debug\\build\\rocket_core-aa7a9028249d41a8\\out\\2e636c99e60e448f-cap.o" "-c" "src/cea\\cap.f"
+[rocket_core 0.1.0] 
+[rocket_core 0.1.0] 
+warning: rocket_core@0.1.0: f951.exe: Warning: Nonconforming tab character in column 1 of line 59 [-Wtabs]
+warning: rocket_core@0.1.0: f951.exe: Warning: Nonconforming tab character in column 1 of line 62 [-Wtabs]
+warning: rocket_core@0.1.0: f951.exe: Warning: Nonconforming tab character in column 1 of line 67 [-Wtabs]
+warning: rocket_core@0.1.0: f951.exe: Warning: Nonconforming tab character in column 1 of line 68 [-Wtabs]
+warning: rocket_core@0.1.0: f951.exe: Warning: Nonconforming tab character in column 1 of line 70 [-Wtabs]
+warning: rocket_core@0.1.0: f951.exe: Warning: Nonconforming tab character in column 3 of line 73 [-Wtabs]
+warning: rocket_core@0.1.0: f951.exe: Warning: Nonconforming tab character in column 1 of line 79 [-Wtabs]
+warning: rocket_core@0.1.0: f951.exe: Warning: Nonconforming tab character in column 1 of line 80 [-Wtabs]
+warning: rocket_core@0.1.0: f951.exe: Warning: Nonconforming tab character in column 3 of line 83 [-Wtabs]
+warning: rocket_core@0.1.0: f951.exe: Warning: Nonconforming tab character in column 3 of line 89 [-Wtabs]
+warning: rocket_core@0.1.0: src/cea\b1b2b3.f:124:72:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:   124 |         READ (IOTHM) sub,nint,date,(el(j),b(j),j=1,5),ifaz,t1,t2,mw,eform
+warning: rocket_core@0.1.0:       |                                                                        1
+warning: rocket_core@0.1.0: Warning: Line truncated at (1) [-Wline-truncation]
+warning: rocket_core@0.1.0: src/cea\b1b2b3.f:174:72:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:   174 |         READ (IOTHM) sub,nint,date,(el(j),b(j),j=1,5),ifaz,t1,t2,mw,eform
+warning: rocket_core@0.1.0:       |                                                                        1
+warning: rocket_core@0.1.0: Warning: Line truncated at (1) [-Wline-truncation]
+warning: rocket_core@0.1.0: src/cea\b1b2b3.f:193:3:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:   193 | 500   CLOSE (IOTHM)
+warning: rocket_core@0.1.0:       |   1
+warning: rocket_core@0.1.0: Warning: Label 500 at (1) defined but not used [-Wunused-label]
+warning: rocket_core@0.1.0: src/cea\b1b2b3.f:107:3:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:   107 | 110   REWIND IOTHM
+warning: rocket_core@0.1.0:       |   1
+warning: rocket_core@0.1.0: Warning: Label 110 at (1) defined but not used [-Wunused-label]
+warning: rocket_core@0.1.0: src/cea\b1b2b3.f:103:3:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:   103 | 100   IF (Nrid .EQ. 0)  goto 210
+warning: rocket_core@0.1.0:       |   1
+warning: rocket_core@0.1.0: Warning: Label 100 at (1) defined but not used [-Wunused-label]
+warning: rocket_core@0.1.0: src/cea\b1b2b3.f:138:17:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:   138 |             if ( b(k).EQ.0. ) GOTO 140
+warning: rocket_core@0.1.0:       |                 1
+warning: rocket_core@0.1.0: Warning: Equality comparison for REAL(8) at (1) [-Wcompare-reals]
+warning: rocket_core@0.1.0: src/cea\b1b2b3.f:183:17:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:   183 |             if ( b(k).EQ.0. ) GOTO 350
+warning: rocket_core@0.1.0:       |                 1
+warning: rocket_core@0.1.0: Warning: Equality comparison for REAL(8) at (1) [-Wcompare-reals]
+warning: rocket_core@0.1.0: src/cea\cap.f:89:33:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:    89 |       LOGICAL hasind,refel,TOUT,mfig,eng
+warning: rocket_core@0.1.0:       |                                 1~~~
+warning: rocket_core@0.1.0: Error: Symbol 'mfig' at (1) already has basic type of LOGICAL
+warning: rocket_core@0.1.0: src/cea\cap.f:112:72:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:   112 | 10    T(I)=0.
+warning: rocket_core@0.1.0:       |                                                                        1
+warning: rocket_core@0.1.0: Warning: Fortran 2018 deleted feature: DO termination statement which is not END DO or CONTINUE with label 10 at (1)
+warning: rocket_core@0.1.0: src/cea\cap.f:119:72:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:   119 | 16      TOUT(I)=.FALSE.
+warning: rocket_core@0.1.0:       |                                                                        1
+warning: rocket_core@0.1.0: Warning: Fortran 2018 deleted feature: DO termination statement which is not END DO or CONTINUE with label 16 at (1)
+warning: rocket_core@0.1.0: src/cea\cap.f:233:72:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:   233 |       DO 90 J=1,8
+warning: rocket_core@0.1.0:       |                                                                        1
+warning: rocket_core@0.1.0: Warning: Fortran 2018 deleted feature: Shared DO termination label 90 at (1)
+warning: rocket_core@0.1.0: src/cea\cap.f:327:72:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:   327 | 300   t(i)=t(i-ix)
+warning: rocket_core@0.1.0:       |                                                                        1
+warning: rocket_core@0.1.0: Warning: Fortran 2018 deleted feature: DO termination statement which is not END DO or CONTINUE with label 300 at (1)
+warning: rocket_core@0.1.0: src/cea\cap.f:349:72:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:   349 | 324       t(j)=t(j+1)
+warning: rocket_core@0.1.0:       |                                                                        1
+warning: rocket_core@0.1.0: Warning: Fortran 2018 deleted feature: DO termination statement which is not END DO or CONTINUE with label 324 at (1)
+warning: rocket_core@0.1.0: src/cea\cap.f:510:72:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:   510 | 10    ALK(I)=0.D0
+warning: rocket_core@0.1.0:       |                                                                        1
+warning: rocket_core@0.1.0: Warning: Fortran 2018 deleted feature: DO termination statement which is not END DO or CONTINUE with label 10 at (1)
+warning: rocket_core@0.1.0: src/cea\cap.f:806:72:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:   806 | 81        FORMAT(///'        Assigned H(T)/R at',f7.2,' Rankine =',F12.3,
+warning: rocket_core@0.1.0:       |                                                                        1
+warning: rocket_core@0.1.0: Warning: Line truncated at (1) [-Wline-truncation]
+warning: rocket_core@0.1.0: src/cea\cap.f:807:95:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:   807 |      1      ' Rankine')
+warning: rocket_core@0.1.0:       |                                                                                               1
+warning: rocket_core@0.1.0: Warning: Legacy Extension: Missing comma in FORMAT string at (1)
+warning: rocket_core@0.1.0: src/cea\cap.f:822:72:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:   822 | 66      VFM (i) = 'F13.7,'
+warning: rocket_core@0.1.0:       |                                                                        1
+warning: rocket_core@0.1.0: Warning: Fortran 2018 deleted feature: DO termination statement which is not END DO or CONTINUE with label 66 at (1)
+warning: rocket_core@0.1.0: src/cea\cap.f:337:3:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:   337 | 322   TT=T(IT)
+warning: rocket_core@0.1.0:       |   1
+warning: rocket_core@0.1.0: Warning: Label 322 at (1) defined but not used [-Wunused-label]
+warning: rocket_core@0.1.0: src/cea\cap.f:111:1:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:   111 | 5     CONTINUE
+warning: rocket_core@0.1.0:       | 1
+warning: rocket_core@0.1.0: Warning: Label 5 at (1) defined but not used [-Wunused-label]
+warning: rocket_core@0.1.0: src/cea\cap.f:119:16:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:   119 | 16      TOUT(I)=.FALSE.
+warning: rocket_core@0.1.0:       |                1
+warning: rocket_core@0.1.0: Error: Cannot convert LOGICAL(4) to REAL(4) at (1)
+warning: rocket_core@0.1.0: src/cea\cap.f:123:10:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:   123 |       eng=.false.
+warning: rocket_core@0.1.0:       |          1
+warning: rocket_core@0.1.0: Error: Cannot convert LOGICAL(4) to REAL(4) at (1)
+warning: rocket_core@0.1.0: src/cea\cap.f:137:17:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:   137 |         tout(2) =.TRUE.
+warning: rocket_core@0.1.0:       |                 1
+warning: rocket_core@0.1.0: Error: Cannot convert LOGICAL(4) to REAL(4) at (1)
+warning: rocket_core@0.1.0: src/cea\cap.f:139:17:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:   139 |         TOUT(3) =.TRUE.
+warning: rocket_core@0.1.0:       |                 1
+warning: rocket_core@0.1.0: Error: Cannot convert LOGICAL(4) to REAL(4) at (1)
+warning: rocket_core@0.1.0: src/cea\cap.f:141:17:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:   141 |         TOUT(1) =.TRUE.
+warning: rocket_core@0.1.0:       |                 1
+warning: rocket_core@0.1.0: Error: Cannot convert LOGICAL(4) to REAL(4) at (1)
+warning: rocket_core@0.1.0: src/cea\cap.f:148:12:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:   148 |         eng=.TRUE.
+warning: rocket_core@0.1.0:       |            1
+warning: rocket_core@0.1.0: Error: Cannot convert LOGICAL(4) to REAL(4) at (1)
+warning: rocket_core@0.1.0: src/cea\cap.f:160:32:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:   160 |       if (.not.tout(2).and..not.tout(3)) then
+warning: rocket_core@0.1.0:       |                                1
+warning: rocket_core@0.1.0: Error: Operand of .not. operator at (1) is REAL(4)
+warning: rocket_core@0.1.0: src/cea\cap.f:160:15:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:   160 |       if (.not.tout(2).and..not.tout(3)) then
+warning: rocket_core@0.1.0:       |               1
+warning: rocket_core@0.1.0: Error: Operand of .not. operator at (1) is REAL(4)
+warning: rocket_core@0.1.0: src/cea\cap.f:161:17:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:   161 |         if (.not.tout(1)) then
+warning: rocket_core@0.1.0:       |                 1
+warning: rocket_core@0.1.0: Error: Operand of .not. operator at (1) is REAL(4)
+warning: rocket_core@0.1.0: src/cea\cap.f:162:20:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:   162 |           tout(2) = .true.
+warning: rocket_core@0.1.0:       |                    1
+warning: rocket_core@0.1.0: Error: Cannot convert LOGICAL(4) to REAL(4) at (1)
+warning: rocket_core@0.1.0: src/cea\cap.f:167:12:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:   167 |         if (eng) WRITE (6,26)
+warning: rocket_core@0.1.0:       |            1
+warning: rocket_core@0.1.0: Error: IF clause at (1) requires a scalar LOGICAL expression
+warning: rocket_core@0.1.0: src/cea\cap.f:171:10:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:   171 |       if (eng) then
+warning: rocket_core@0.1.0:       |          1
+warning: rocket_core@0.1.0: Error: IF clause at (1) requires a scalar LOGICAL expression
+warning: rocket_core@0.1.0: src/cea\cap.f:172:18:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:   172 |         tout(2) = .true.
+warning: rocket_core@0.1.0:       |                  1
+warning: rocket_core@0.1.0: Error: Cannot convert LOGICAL(4) to REAL(4) at (1)
+warning: rocket_core@0.1.0: src/cea\cap.f:176:18:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:   176 |         tout(3) = .false.
+warning: rocket_core@0.1.0:       |                  1
+warning: rocket_core@0.1.0: Error: Cannot convert LOGICAL(4) to REAL(4) at (1)
+warning: rocket_core@0.1.0: src/cea\cap.f:177:18:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:   177 |         tout(2) = .true.
+warning: rocket_core@0.1.0:       |                  1
+warning: rocket_core@0.1.0: Error: Cannot convert LOGICAL(4) to REAL(4) at (1)
+warning: rocket_core@0.1.0: src/cea\cap.f:190:10:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:   190 |       if (tin(i1).eq.0.)go to 35
+warning: rocket_core@0.1.0:       |          1
+warning: rocket_core@0.1.0: Warning: Equality comparison for REAL(8) at (1) [-Wcompare-reals]
+warning: rocket_core@0.1.0: src/cea\cap.f:253:10:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:   253 |       if (sel(i).ne.sl(i)) go to 120
+warning: rocket_core@0.1.0:       |          1
+warning: rocket_core@0.1.0: Warning: Inequality comparison for REAL(4) at (1) [-Wcompare-reals]
+warning: rocket_core@0.1.0: src/cea\cap.f:293:10:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:   293 |       if (sel(i).eq.0.) go to 95
+warning: rocket_core@0.1.0:       |          1
+warning: rocket_core@0.1.0: Warning: Equality comparison for REAL(4) at (1) [-Wcompare-reals]
+warning: rocket_core@0.1.0: src/cea\cap.f:320:9:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:   320 |       if(tt.eq.t(i))ix=1
+warning: rocket_core@0.1.0:       |         1
+warning: rocket_core@0.1.0: Warning: Equality comparison for REAL(8) at (1) [-Wcompare-reals]
+warning: rocket_core@0.1.0: src/cea\cap.f:332:15:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:   332 |       hasind = .false.
+warning: rocket_core@0.1.0:       |               1
+warning: rocket_core@0.1.0: Error: Cannot convert LOGICAL(4) to REAL(4) at (1)
+warning: rocket_core@0.1.0: src/cea\cap.f:355:12:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:   355 |         IF (TT.EQ.Tcoef(2,L)) THEN
+warning: rocket_core@0.1.0:       |            1
+warning: rocket_core@0.1.0: Warning: Equality comparison for REAL(8) at (1) [-Wcompare-reals]
+warning: rocket_core@0.1.0: src/cea\cap.f:357:14:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:   357 |           IF (TT.NE.T(it-1)) GOTO 340
+warning: rocket_core@0.1.0:       |              1
+warning: rocket_core@0.1.0: Warning: Inequality comparison for REAL(8) at (1) [-Wcompare-reals]
+warning: rocket_core@0.1.0: src/cea\cap.f:368:10:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:   368 |       IF (EXL.NE.0.) TEX=TEX*TT**EXL
+warning: rocket_core@0.1.0:       |          1
+warning: rocket_core@0.1.0: Warning: Inequality comparison for REAL(8) at (1) [-Wcompare-reals]
+warning: rocket_core@0.1.0: src/cea\cap.f:369:10:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:   369 |       IF (EXL.EQ.-1.) HHRT(IT)=HHRT(IT)+COEF(J,L)*DLOG(TT)/TT
+warning: rocket_core@0.1.0:       |          1
+warning: rocket_core@0.1.0: Warning: Equality comparison for REAL(8) at (1) [-Wcompare-reals]
+warning: rocket_core@0.1.0: src/cea\cap.f:370:10:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:   370 |       IF (EXL.NE.-1.) HHRT(IT)=HHRT(IT)+TEX/(EXL+1.D0)
+warning: rocket_core@0.1.0:       |          1
+warning: rocket_core@0.1.0: Warning: Inequality comparison for REAL(8) at (1) [-Wcompare-reals]
+warning: rocket_core@0.1.0: src/cea\cap.f:372:10:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:   372 |       IF (EXL.EQ.0.) SR(IT)=SR(IT)+COEF(J,L)*DLOG(TT)
+warning: rocket_core@0.1.0:       |          1
+warning: rocket_core@0.1.0: Warning: Equality comparison for REAL(8) at (1) [-Wcompare-reals]
+warning: rocket_core@0.1.0: src/cea\cap.f:373:10:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:   373 |       IF (EXL.NE.0.) SR(IT)=SR(IT)+TEX/EXL
+warning: rocket_core@0.1.0:       |          1
+warning: rocket_core@0.1.0: Warning: Inequality comparison for REAL(8) at (1) [-Wcompare-reals]
+warning: rocket_core@0.1.0: src/cea\cap.f:389:12:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:   389 | 360   refel=.false.
+warning: rocket_core@0.1.0:       |            1
+warning: rocket_core@0.1.0: Error: Cannot convert LOGICAL(4) to REAL(4) at (1)
+warning: rocket_core@0.1.0: src/cea\cap.f:397:24:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:   397 |       if(nkind.gt.1 .or. htform.ne.0.) go to 400
+warning: rocket_core@0.1.0:       |                        1
+warning: rocket_core@0.1.0: Warning: Inequality comparison for REAL(8) at (1) [-Wcompare-reals]
+warning: rocket_core@0.1.0: src/cea\cap.f:398:8:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:   398 |       n=sel(1)+.001
+warning: rocket_core@0.1.0:       |        1
+warning: rocket_core@0.1.0: Warning: Possible change of value in conversion from REAL(4) to INTEGER(4) at (1) [-Wconversion]
+warning: rocket_core@0.1.0: src/cea\cap.f:402:12:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:   402 |       refel=.true.
+warning: rocket_core@0.1.0:       |            1
+warning: rocket_core@0.1.0: Error: Cannot convert LOGICAL(4) to REAL(4) at (1)
+warning: rocket_core@0.1.0: src/cea\cap.f:411:18:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:   411 | 405   if(refel.or.htform.ne.0.d0) go to 430
+warning: rocket_core@0.1.0:       |                  1
+warning: rocket_core@0.1.0: Warning: Inequality comparison for REAL(8) at (1) [-Wcompare-reals]
+warning: rocket_core@0.1.0: src/cea\cap.f:411:18:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:   411 | 405   if(refel.or.htform.ne.0.d0) go to 430
+warning: rocket_core@0.1.0:       |                  1
+warning: rocket_core@0.1.0: Error: Operands of logical operator '.or.' at (1) are REAL(4)/LOGICAL(4)
+warning: rocket_core@0.1.0: src/cea\cap.f:421:10:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:   421 |       if (htform.ne.0. .or. refel) then
+warning: rocket_core@0.1.0:       |          1
+warning: rocket_core@0.1.0: Warning: Inequality comparison for REAL(8) at (1) [-Wcompare-reals]
+warning: rocket_core@0.1.0: src/cea\cap.f:421:27:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:   421 |       if (htform.ne.0. .or. refel) then
+warning: rocket_core@0.1.0:       |                           1
+warning: rocket_core@0.1.0: Error: Operands of logical operator '.or.' at (1) are LOGICAL(4)/REAL(4)
+warning: rocket_core@0.1.0: src/cea\cap.f:422:18:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:   422 |            hasind=.true.
+warning: rocket_core@0.1.0:       |                  1
+warning: rocket_core@0.1.0: Error: Cannot convert LOGICAL(4) to REAL(4) at (1)
+warning: rocket_core@0.1.0: src/cea\cap.f:423:14:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:   423 |            if(enth29.eq.0.) asindt=298.15d0
+warning: rocket_core@0.1.0:       |              1
+warning: rocket_core@0.1.0: Warning: Equality comparison for REAL(8) at (1) [-Wcompare-reals]
+warning: rocket_core@0.1.0: src/cea\cap.f:425:18:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:   425 |            hasind=.false.
+warning: rocket_core@0.1.0:       |                  1
+warning: rocket_core@0.1.0: Error: Cannot convert LOGICAL(4) to REAL(4) at (1)
+warning: rocket_core@0.1.0: src/cea\cap.f:427:18:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:   427 |       IF (mfig.or.tout(1)) CALL TABLES
+warning: rocket_core@0.1.0:       |                  1
+warning: rocket_core@0.1.0: Error: Operands of logical operator '.or.' at (1) are LOGICAL(4)/REAL(4)
+warning: rocket_core@0.1.0: src/cea\cap.f:809:14:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:   809 |           if (asindt .eq. 0.) then
+warning: rocket_core@0.1.0:       |              1
+warning: rocket_core@0.1.0: Warning: Equality comparison for REAL(8) at (1) [-Wcompare-reals]
+warning: rocket_core@0.1.0: src/cea\cap.f:856:16:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:   856 |             if (asindt .eq. 0.) then
+warning: rocket_core@0.1.0:       |                1
+warning: rocket_core@0.1.0: Warning: Equality comparison for REAL(8) at (1) [-Wcompare-reals]
+warning: rocket_core@0.1.0: src/cea\cap.f:878:14:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:   878 |           if (asindt .eq. 0.) then
+warning: rocket_core@0.1.0:       |              1
+warning: rocket_core@0.1.0: Warning: Equality comparison for REAL(8) at (1) [-Wcompare-reals]
+warning: rocket_core@0.1.0: src/cea\cap.f:914:13:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:   914 |          IF (asindt.ne.0.) then
+warning: rocket_core@0.1.0:       |             1
+warning: rocket_core@0.1.0: Warning: Inequality comparison for REAL(8) at (1) [-Wcompare-reals]
+warning: rocket_core@0.1.0: src/cea\cap.f:577:10:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:   577 |       IF (EXL.NE.0.) TEX=TEX*TT**EXL
+warning: rocket_core@0.1.0:       |          1
+warning: rocket_core@0.1.0: Warning: Inequality comparison for REAL(8) at (1) [-Wcompare-reals]
+warning: rocket_core@0.1.0: src/cea\cap.f:578:10:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:   578 |       IF (EXL.EQ.-1.) HH=HH+COEF(J,L)*DLOG(TT)/TT
+warning: rocket_core@0.1.0:       |          1
+warning: rocket_core@0.1.0: Warning: Equality comparison for REAL(8) at (1) [-Wcompare-reals]
+warning: rocket_core@0.1.0: src/cea\cap.f:579:10:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:   579 |       IF (EXL.NE.-1.) HH=HH+TEX/(EXL+1.D0)
+warning: rocket_core@0.1.0:       |          1
+warning: rocket_core@0.1.0: Warning: Inequality comparison for REAL(8) at (1) [-Wcompare-reals]
+warning: rocket_core@0.1.0: src/cea\cap.f:580:10:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:   580 |       IF (EXL.EQ.0.) S=S+COEF(J,L)*DLOG(TT)
+warning: rocket_core@0.1.0:       |          1
+warning: rocket_core@0.1.0: Warning: Equality comparison for REAL(8) at (1) [-Wcompare-reals]
+warning: rocket_core@0.1.0: src/cea\cap.f:581:10:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:   581 |       IF (EXL.NE.0.) S=S+TEX/EXL
+warning: rocket_core@0.1.0:       |          1
+warning: rocket_core@0.1.0: Warning: Inequality comparison for REAL(8) at (1) [-Wcompare-reals]
+warning: rocket_core@0.1.0: src/cea\cap.f:600:16:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:   600 |          PT(IK)=Tcoef(1,L)*tconv
+warning: rocket_core@0.1.0:       |                1
+warning: rocket_core@0.1.0: Warning: Possible change of value in conversion from REAL(8) to REAL(4) at (1) [-Wconversion]
+warning: rocket_core@0.1.0: src/cea\cap.f:613:21:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:   613 |       IF (hasind.and.asindt.eq.0.)DH0= DH0 + term*hconv
+warning: rocket_core@0.1.0:       |                     1
+warning: rocket_core@0.1.0: Warning: Equality comparison for REAL(8) at (1) [-Wcompare-reals]
+warning: rocket_core@0.1.0: src/cea\cap.f:648:25:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:   648 |       IF (.NOT.hasind.or.asindt.ne.0.0) GO TO 290
+warning: rocket_core@0.1.0:       |                         1
+warning: rocket_core@0.1.0: Warning: Inequality comparison for REAL(8) at (1) [-Wcompare-reals]
+warning: rocket_core@0.1.0: src/cea\cap.f:671:10:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:   671 |       IT= TI + 1.d-7
+warning: rocket_core@0.1.0:       |          1
+warning: rocket_core@0.1.0: Warning: Possible change of value in conversion from REAL(8) to INTEGER(4) at (1) [-Wconversion]
+warning: rocket_core@0.1.0: src/cea\cap.f:730:10:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:   730 | 400   IF (DMOD(T(I),500.D0).NE.0.0) GO TO 420
+warning: rocket_core@0.1.0:       |          1
+warning: rocket_core@0.1.0: Warning: Inequality comparison for REAL(8) at (1) [-Wcompare-reals]
+warning: rocket_core@0.1.0: src/cea\cap.f:731:31:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:   731 |       IF (T(I).GT.10000.D0.AND.DMOD(T(I),2500.D0).NE.0.) GO TO 420
+warning: rocket_core@0.1.0:       |                               1
+warning: rocket_core@0.1.0: Warning: Inequality comparison for REAL(8) at (1) [-Wcompare-reals]
+warning: rocket_core@0.1.0: src/cea\cap.f:110:15:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:   106 |       DO 10 I=1,500
+warning: rocket_core@0.1.0:       |                                                                        2
+warning: rocket_core@0.1.0: ......
+warning: rocket_core@0.1.0:   110 |         output(i)=blank
+warning: rocket_core@0.1.0:       |               1
+warning: rocket_core@0.1.0: Warning: Array reference at (1) out of bounds (500 > 8) in loop beginning at (2)
+warning: rocket_core@0.1.0: src/cea\cap.f:192:19:
+warning: rocket_core@0.1.0: 
+warning: rocket_core@0.1.0:   185 |       do 35 i=1,500,2
+warning: rocket_core@0.1.0:       |                                                                        2
+warning: rocket_core@0.1.0: ......
+warning: rocket_core@0.1.0:   192 |       if(tt.lt.tin(i+2)-.0001d0)then
+warning: rocket_core@0.1.0:       |                   1
+warning: rocket_core@0.1.0: Warning: Array reference at (1) out of bounds (501 > 500) in loop beginning at (2) [-Wdo-subscript]
+error: failed to run custom build command for `rocket_core v0.1.0 (C:\Users\samue\OneDrive\Documents\Rocket-Motor-Design-Plotter\rocket_core)`
+
+Caused by:
+  process didn't exit successfully: `set CARGO=C:\Users\samue\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin\cargo.exe&& set CARGO_CFG_FEATURE=""&& set CARGO_CFG_PANIC=unwind&& set CARGO_CFG_TARGET_ABI=""&& set CARGO_CFG_TARGET_ARCH=x86_64&& set CARGO_CFG_TARGET_ENDIAN=little&& set CARGO_CFG_TARGET_ENV=msvc&& set CARGO_CFG_TARGET_FAMILY=windows&& set CARGO_CFG_TARGET_FEATURE=cmpxchg16b,fxsr,sse,sse2,sse3&& set CARGO_CFG_TARGET_HAS_ATOMIC=128,16,32,64,8,ptr&& set CARGO_CFG_TARGET_OS=windows&& set CARGO_CFG_TARGET_POINTER_WIDTH=64&& set CARGO_CFG_TARGET_VENDOR=pc&& set CARGO_CFG_WINDOWS=""&& set CARGO_ENCODED_RUSTFLAGS=""&& set CARGO_MANIFEST_DIR=C:\Users\samue\OneDrive\Documents\Rocket-Motor-Design-Plotter\rocket_core&& set CARGO_MANIFEST_PATH=C:\Users\samue\OneDrive\Documents\Rocket-Motor-Design-Plotter\rocket_core\Cargo.toml&& set CARGO_PKG_AUTHORS=""&& set CARGO_PKG_DESCRIPTION=""&& set CARGO_PKG_HOMEPAGE=""&& set CARGO_PKG_LICENSE=""&& set CARGO_PKG_LICENSE_FILE=""&& set CARGO_PKG_NAME=rocket_core&& set CARGO_PKG_README=""&& set CARGO_PKG_REPOSITORY=""&& set CARGO_PKG_RUST_VERSION=""&& set CARGO_PKG_VERSION=0.1.0&& set CARGO_PKG_VERSION_MAJOR=0&& set CARGO_PKG_VERSION_MINOR=1&& set CARGO_PKG_VERSION_PATCH=0&& set CARGO_PKG_VERSION_PRE=""&& set DEBUG=true&& set HOST=x86_64-pc-windows-msvc&& set NUM_JOBS=16&& set OPT_LEVEL=0&& set OUT_DIR=C:\Users\samue\OneDrive\Documents\Rocket-Motor-Design-Plotter\rocket_core\target\debug\build\rocket_core-aa7a9028249d41a8\out&& set PATH="C:\Users\samue\OneDrive\Documents\Rocket-Motor-Design-Plotter\rocket_core\target\debug\deps;C:\Users\samue\OneDrive\Documents\Rocket-Motor-Design-Plotter\rocket_core\target\debug;C:\Users\samue\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\WindowsApps\Microsoft.PowerShell_7.5.4.0_x64__8wekyb3d8bbwe;C:\Python314\Scripts\;C:\Python314\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Python313\Scripts\;C:\Python313\;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files\dotnet\;C:\Program Files\Git\cmd;C:\Program Files\MATLAB\R2025b\runtime\win64;C:\Program Files\MATLAB\R2025b\bin;C:\Program Files\Docker\Docker\resources\bin;C:\ProgramData\chocolatey\bin;C:\msys64\ucrt64\bin;C:\Program Files\CMake\bin;C:\Program Files (x86)\Windows Kits\8.1\Windows Performance Toolkit\;C:\ProgramData\nvm;C:\nvm4w\nodejs;C:\Program Files\nodejs\;C:\Program Files\cursor\resources\app\bin;C:\Users\samue\.local\bin;C:\Users\samue\AppData\Local\Microsoft\WindowsApps;C:\Users\samue\AppData\Local\Programs\Microsoft VS Code\bin;C:\Users\samue\AppData\Local\Programs\Ollama;C:\Users\samue\AppData\Local\Microsoft\WinGet\Packages\zyedidia.micro_Microsoft.Winget.Source_8wekyb3d8bbwe\micro-2.0.14;C:\Users\samue\.lmstudio\bin;C:\Users\samue\.cache\lm-studio\bin;C:\ProgramData\nvm;C:\nvm4w\nodejs;C:\Users\samue\AppData\Roaming\npm;C:\Users\samue\AppData\Local\PowerToys\DSCModules\;C:\Users\samue\AppData\Local\Microsoft\WinGet\Packages\DenoLand.Deno_Microsoft.Winget.Source_8wekyb3d8bbwe;C:\Users\samue\AppData\Local\Microsoft\WinGet\Packages\yt-dlp.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-N-121583-g4348bde2d2-win64-gpl/bin;C:\Users\samue\AppData\Local\Microsoft\WinGet\Packages\yt-dlp.yt-dlp_Microsoft.Winget.Source_8wekyb3d8bbwe;C:\Users\samue\.cargo\bin;C:\msys64\mingw64\bin;C:\Users\samue\.cargo\bin;C:\msys64\mingw64\bin;C:\Users\samue\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin"&& set PROFILE=debug&& set RUSTC=C:\Users\samue\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin\rustc.exe&& set RUSTDOC=C:\Users\samue\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin\rustdoc.exe&& set TARGET=x86_64-pc-windows-msvc&& C:\Users\samue\OneDrive\Documents\Rocket-Motor-Design-Plotter\rocket_core\target\debug\build\rocket_core-14958325da8f9eee\build-script-build` (exit code: 1)
+  --- stdout
+  OUT_DIR = Some(C:\Users\samue\OneDrive\Documents\Rocket-Motor-Design-Plotter\rocket_core\target\debug\build\rocket_core-aa7a9028249d41a8\out)
+  OPT_LEVEL = Some(0)
+  cargo:rerun-if-env-changed=CC_ENABLE_DEBUG_OUTPUT
+  cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+  CRATE_CC_NO_DEFAULTS = None
+  TARGET = Some(x86_64-pc-windows-msvc)
+  DEBUG = Some(true)
+  CARGO_CFG_TARGET_FEATURE = Some(cmpxchg16b,fxsr,sse,sse2,sse3)
+  HOST = Some(x86_64-pc-windows-msvc)
+  cargo:rerun-if-env-changed=CFLAGS
+  CFLAGS = None
+  cargo:rerun-if-env-changed=HOST_CFLAGS
+  HOST_CFLAGS = None
+  cargo:rerun-if-env-changed=CFLAGS_x86_64_pc_windows_msvc
+  CFLAGS_x86_64_pc_windows_msvc = None
+  cargo:rerun-if-env-changed=CFLAGS_x86_64-pc-windows-msvc
+  CFLAGS_x86_64-pc-windows-msvc = None
+  CARGO_ENCODED_RUSTFLAGS = Some()
+  cargo:warning=f951.exe: Warning: Nonconforming tab character in column 1 of line 59 [-Wtabs]
+  cargo:warning=f951.exe: Warning: Nonconforming tab character in column 1 of line 62 [-Wtabs]
+  cargo:warning=f951.exe: Warning: Nonconforming tab character in column 1 of line 67 [-Wtabs]
+  cargo:warning=f951.exe: Warning: Nonconforming tab character in column 1 of line 68 [-Wtabs]
+  cargo:warning=f951.exe: Warning: Nonconforming tab character in column 1 of line 70 [-Wtabs]
+  cargo:warning=f951.exe: Warning: Nonconforming tab character in column 3 of line 73 [-Wtabs]
+  cargo:warning=f951.exe: Warning: Nonconforming tab character in column 1 of line 79 [-Wtabs]
+  cargo:warning=f951.exe: Warning: Nonconforming tab character in column 1 of line 80 [-Wtabs]
+  cargo:warning=f951.exe: Warning: Nonconforming tab character in column 3 of line 83 [-Wtabs]
+  cargo:warning=f951.exe: Warning: Nonconforming tab character in column 3 of line 89 [-Wtabs]
+  cargo:warning=src/cea\b1b2b3.f:124:72:
+  cargo:warning=
+  cargo:warning=  124 |         READ (IOTHM) sub,nint,date,(el(j),b(j),j=1,5),ifaz,t1,t2,mw,eform
+  cargo:warning=      |                                                                        1
+  cargo:warning=Warning: Line truncated at (1) [-Wline-truncation]
+  cargo:warning=src/cea\b1b2b3.f:174:72:
+  cargo:warning=
+  cargo:warning=  174 |         READ (IOTHM) sub,nint,date,(el(j),b(j),j=1,5),ifaz,t1,t2,mw,eform
+  cargo:warning=      |                                                                        1
+  cargo:warning=Warning: Line truncated at (1) [-Wline-truncation]
+  cargo:warning=src/cea\b1b2b3.f:193:3:
+  cargo:warning=
+  cargo:warning=  193 | 500   CLOSE (IOTHM)
+  cargo:warning=      |   1
+  cargo:warning=Warning: Label 500 at (1) defined but not used [-Wunused-label]
+  cargo:warning=src/cea\b1b2b3.f:107:3:
+  cargo:warning=
+  cargo:warning=  107 | 110   REWIND IOTHM
+  cargo:warning=      |   1
+  cargo:warning=Warning: Label 110 at (1) defined but not used [-Wunused-label]
+  cargo:warning=src/cea\b1b2b3.f:103:3:
+  cargo:warning=
+  cargo:warning=  103 | 100   IF (Nrid .EQ. 0)  goto 210
+  cargo:warning=      |   1
+  cargo:warning=Warning: Label 100 at (1) defined but not used [-Wunused-label]
+  cargo:warning=src/cea\b1b2b3.f:138:17:
+  cargo:warning=
+  cargo:warning=  138 |             if ( b(k).EQ.0. ) GOTO 140
+  cargo:warning=      |                 1
+  cargo:warning=Warning: Equality comparison for REAL(8) at (1) [-Wcompare-reals]
+  cargo:warning=src/cea\b1b2b3.f:183:17:
+  cargo:warning=
+  cargo:warning=  183 |             if ( b(k).EQ.0. ) GOTO 350
+  cargo:warning=      |                 1
+  cargo:warning=Warning: Equality comparison for REAL(8) at (1) [-Wcompare-reals]
+  cargo:warning=src/cea\cap.f:89:33:
+  cargo:warning=
+  cargo:warning=   89 |       LOGICAL hasind,refel,TOUT,mfig,eng
+  cargo:warning=      |                                 1~~~
+  cargo:warning=Error: Symbol 'mfig' at (1) already has basic type of LOGICAL
+  cargo:warning=src/cea\cap.f:112:72:
+  cargo:warning=
+  cargo:warning=  112 | 10    T(I)=0.
+  cargo:warning=      |                                                                        1
+  cargo:warning=Warning: Fortran 2018 deleted feature: DO termination statement which is not END DO or CONTINUE with label 10 at (1)
+  cargo:warning=src/cea\cap.f:119:72:
+  cargo:warning=
+  cargo:warning=  119 | 16      TOUT(I)=.FALSE.
+  cargo:warning=      |                                                                        1
+  cargo:warning=Warning: Fortran 2018 deleted feature: DO termination statement which is not END DO or CONTINUE with label 16 at (1)
+  cargo:warning=src/cea\cap.f:233:72:
+  cargo:warning=
+  cargo:warning=  233 |       DO 90 J=1,8
+  cargo:warning=      |                                                                        1
+  cargo:warning=Warning: Fortran 2018 deleted feature: Shared DO termination label 90 at (1)
+  cargo:warning=src/cea\cap.f:327:72:
+  cargo:warning=
+  cargo:warning=  327 | 300   t(i)=t(i-ix)
+  cargo:warning=      |                                                                        1
+  cargo:warning=Warning: Fortran 2018 deleted feature: DO termination statement which is not END DO or CONTINUE with label 300 at (1)
+  cargo:warning=src/cea\cap.f:349:72:
+  cargo:warning=
+  cargo:warning=  349 | 324       t(j)=t(j+1)
+  cargo:warning=      |                                                                        1
+  cargo:warning=Warning: Fortran 2018 deleted feature: DO termination statement which is not END DO or CONTINUE with label 324 at (1)
+  cargo:warning=src/cea\cap.f:510:72:
+  cargo:warning=
+  cargo:warning=  510 | 10    ALK(I)=0.D0
+  cargo:warning=      |                                                                        1
+  cargo:warning=Warning: Fortran 2018 deleted feature: DO termination statement which is not END DO or CONTINUE with label 10 at (1)
+  cargo:warning=src/cea\cap.f:806:72:
+  cargo:warning=
+  cargo:warning=  806 | 81        FORMAT(///'        Assigned H(T)/R at',f7.2,' Rankine =',F12.3,
+  cargo:warning=      |                                                                        1
+  cargo:warning=Warning: Line truncated at (1) [-Wline-truncation]
+  cargo:warning=src/cea\cap.f:807:95:
+  cargo:warning=
+  cargo:warning=  807 |      1      ' Rankine')
+  cargo:warning=      |                                                                                               1
+  cargo:warning=Warning: Legacy Extension: Missing comma in FORMAT string at (1)
+  cargo:warning=src/cea\cap.f:822:72:
+  cargo:warning=
+  cargo:warning=  822 | 66      VFM (i) = 'F13.7,'
+  cargo:warning=      |                                                                        1
+  cargo:warning=Warning: Fortran 2018 deleted feature: DO termination statement which is not END DO or CONTINUE with label 66 at (1)
+  cargo:warning=src/cea\cap.f:337:3:
+  cargo:warning=
+  cargo:warning=  337 | 322   TT=T(IT)
+  cargo:warning=      |   1
+  cargo:warning=Warning: Label 322 at (1) defined but not used [-Wunused-label]
+  cargo:warning=src/cea\cap.f:111:1:
+  cargo:warning=
+  cargo:warning=  111 | 5     CONTINUE
+  cargo:warning=      | 1
+  cargo:warning=Warning: Label 5 at (1) defined but not used [-Wunused-label]
+  cargo:warning=src/cea\cap.f:119:16:
+  cargo:warning=
+  cargo:warning=  119 | 16      TOUT(I)=.FALSE.
+  cargo:warning=      |                1
+  cargo:warning=Error: Cannot convert LOGICAL(4) to REAL(4) at (1)
+  cargo:warning=src/cea\cap.f:123:10:
+  cargo:warning=
+  cargo:warning=  123 |       eng=.false.
+  cargo:warning=      |          1
+  cargo:warning=Error: Cannot convert LOGICAL(4) to REAL(4) at (1)
+  cargo:warning=src/cea\cap.f:137:17:
+  cargo:warning=
+  cargo:warning=  137 |         tout(2) =.TRUE.
+  cargo:warning=      |                 1
+  cargo:warning=Error: Cannot convert LOGICAL(4) to REAL(4) at (1)
+  cargo:warning=src/cea\cap.f:139:17:
+  cargo:warning=
+  cargo:warning=  139 |         TOUT(3) =.TRUE.
+  cargo:warning=      |                 1
+  cargo:warning=Error: Cannot convert LOGICAL(4) to REAL(4) at (1)
+  cargo:warning=src/cea\cap.f:141:17:
+  cargo:warning=
+  cargo:warning=  141 |         TOUT(1) =.TRUE.
+  cargo:warning=      |                 1
+  cargo:warning=Error: Cannot convert LOGICAL(4) to REAL(4) at (1)
+  cargo:warning=src/cea\cap.f:148:12:
+  cargo:warning=
+  cargo:warning=  148 |         eng=.TRUE.
+  cargo:warning=      |            1
+  cargo:warning=Error: Cannot convert LOGICAL(4) to REAL(4) at (1)
+  cargo:warning=src/cea\cap.f:160:32:
+  cargo:warning=
+  cargo:warning=  160 |       if (.not.tout(2).and..not.tout(3)) then
+  cargo:warning=      |                                1
+  cargo:warning=Error: Operand of .not. operator at (1) is REAL(4)
+  cargo:warning=src/cea\cap.f:160:15:
+  cargo:warning=
+  cargo:warning=  160 |       if (.not.tout(2).and..not.tout(3)) then
+  cargo:warning=      |               1
+  cargo:warning=Error: Operand of .not. operator at (1) is REAL(4)
+  cargo:warning=src/cea\cap.f:161:17:
+  cargo:warning=
+  cargo:warning=  161 |         if (.not.tout(1)) then
+  cargo:warning=      |                 1
+  cargo:warning=Error: Operand of .not. operator at (1) is REAL(4)
+  cargo:warning=src/cea\cap.f:162:20:
+  cargo:warning=
+  cargo:warning=  162 |           tout(2) = .true.
+  cargo:warning=      |                    1
+  cargo:warning=Error: Cannot convert LOGICAL(4) to REAL(4) at (1)
+  cargo:warning=src/cea\cap.f:167:12:
+  cargo:warning=
+  cargo:warning=  167 |         if (eng) WRITE (6,26)
+  cargo:warning=      |            1
+  cargo:warning=Error: IF clause at (1) requires a scalar LOGICAL expression
+  cargo:warning=src/cea\cap.f:171:10:
+  cargo:warning=
+  cargo:warning=  171 |       if (eng) then
+  cargo:warning=      |          1
+  cargo:warning=Error: IF clause at (1) requires a scalar LOGICAL expression
+  cargo:warning=src/cea\cap.f:172:18:
+  cargo:warning=
+  cargo:warning=  172 |         tout(2) = .true.
+  cargo:warning=      |                  1
+  cargo:warning=Error: Cannot convert LOGICAL(4) to REAL(4) at (1)
+  cargo:warning=src/cea\cap.f:176:18:
+  cargo:warning=
+  cargo:warning=  176 |         tout(3) = .false.
+  cargo:warning=      |                  1
+  cargo:warning=Error: Cannot convert LOGICAL(4) to REAL(4) at (1)
+  cargo:warning=src/cea\cap.f:177:18:
+  cargo:warning=
+  cargo:warning=  177 |         tout(2) = .true.
+  cargo:warning=      |                  1
+  cargo:warning=Error: Cannot convert LOGICAL(4) to REAL(4) at (1)
+  cargo:warning=src/cea\cap.f:190:10:
+  cargo:warning=
+  cargo:warning=  190 |       if (tin(i1).eq.0.)go to 35
+  cargo:warning=      |          1
+  cargo:warning=Warning: Equality comparison for REAL(8) at (1) [-Wcompare-reals]
+  cargo:warning=src/cea\cap.f:253:10:
+  cargo:warning=
+  cargo:warning=  253 |       if (sel(i).ne.sl(i)) go to 120
+  cargo:warning=      |          1
+  cargo:warning=Warning: Inequality comparison for REAL(4) at (1) [-Wcompare-reals]
+  cargo:warning=src/cea\cap.f:293:10:
+  cargo:warning=
+  cargo:warning=  293 |       if (sel(i).eq.0.) go to 95
+  cargo:warning=      |          1
+  cargo:warning=Warning: Equality comparison for REAL(4) at (1) [-Wcompare-reals]
+  cargo:warning=src/cea\cap.f:320:9:
+  cargo:warning=
+  cargo:warning=  320 |       if(tt.eq.t(i))ix=1
+  cargo:warning=      |         1
+  cargo:warning=Warning: Equality comparison for REAL(8) at (1) [-Wcompare-reals]
+  cargo:warning=src/cea\cap.f:332:15:
+  cargo:warning=
+  cargo:warning=  332 |       hasind = .false.
+  cargo:warning=      |               1
+  cargo:warning=Error: Cannot convert LOGICAL(4) to REAL(4) at (1)
+  cargo:warning=src/cea\cap.f:355:12:
+  cargo:warning=
+  cargo:warning=  355 |         IF (TT.EQ.Tcoef(2,L)) THEN
+  cargo:warning=      |            1
+  cargo:warning=Warning: Equality comparison for REAL(8) at (1) [-Wcompare-reals]
+  cargo:warning=src/cea\cap.f:357:14:
+  cargo:warning=
+  cargo:warning=  357 |           IF (TT.NE.T(it-1)) GOTO 340
+  cargo:warning=      |              1
+  cargo:warning=Warning: Inequality comparison for REAL(8) at (1) [-Wcompare-reals]
+  cargo:warning=src/cea\cap.f:368:10:
+  cargo:warning=
+  cargo:warning=  368 |       IF (EXL.NE.0.) TEX=TEX*TT**EXL
+  cargo:warning=      |          1
+  cargo:warning=Warning: Inequality comparison for REAL(8) at (1) [-Wcompare-reals]
+  cargo:warning=src/cea\cap.f:369:10:
+  cargo:warning=
+  cargo:warning=  369 |       IF (EXL.EQ.-1.) HHRT(IT)=HHRT(IT)+COEF(J,L)*DLOG(TT)/TT
+  cargo:warning=      |          1
+  cargo:warning=Warning: Equality comparison for REAL(8) at (1) [-Wcompare-reals]
+  cargo:warning=src/cea\cap.f:370:10:
+  cargo:warning=
+  cargo:warning=  370 |       IF (EXL.NE.-1.) HHRT(IT)=HHRT(IT)+TEX/(EXL+1.D0)
+  cargo:warning=      |          1
+  cargo:warning=Warning: Inequality comparison for REAL(8) at (1) [-Wcompare-reals]
+  cargo:warning=src/cea\cap.f:372:10:
+  cargo:warning=
+  cargo:warning=  372 |       IF (EXL.EQ.0.) SR(IT)=SR(IT)+COEF(J,L)*DLOG(TT)
+  cargo:warning=      |          1
+  cargo:warning=Warning: Equality comparison for REAL(8) at (1) [-Wcompare-reals]
+  cargo:warning=src/cea\cap.f:373:10:
+  cargo:warning=
+  cargo:warning=  373 |       IF (EXL.NE.0.) SR(IT)=SR(IT)+TEX/EXL
+  cargo:warning=      |          1
+  cargo:warning=Warning: Inequality comparison for REAL(8) at (1) [-Wcompare-reals]
+  cargo:warning=src/cea\cap.f:389:12:
+  cargo:warning=
+  cargo:warning=  389 | 360   refel=.false.
+  cargo:warning=      |            1
+  cargo:warning=Error: Cannot convert LOGICAL(4) to REAL(4) at (1)
+  cargo:warning=src/cea\cap.f:397:24:
+  cargo:warning=
+  cargo:warning=  397 |       if(nkind.gt.1 .or. htform.ne.0.) go to 400
+  cargo:warning=      |                        1
+  cargo:warning=Warning: Inequality comparison for REAL(8) at (1) [-Wcompare-reals]
+  cargo:warning=src/cea\cap.f:398:8:
+  cargo:warning=
+  cargo:warning=  398 |       n=sel(1)+.001
+  cargo:warning=      |        1
+  cargo:warning=Warning: Possible change of value in conversion from REAL(4) to INTEGER(4) at (1) [-Wconversion]
+  cargo:warning=src/cea\cap.f:402:12:
+  cargo:warning=
+  cargo:warning=  402 |       refel=.true.
+  cargo:warning=      |            1
+  cargo:warning=Error: Cannot convert LOGICAL(4) to REAL(4) at (1)
+  cargo:warning=src/cea\cap.f:411:18:
+  cargo:warning=
+  cargo:warning=  411 | 405   if(refel.or.htform.ne.0.d0) go to 430
+  cargo:warning=      |                  1
+  cargo:warning=Warning: Inequality comparison for REAL(8) at (1) [-Wcompare-reals]
+  cargo:warning=src/cea\cap.f:411:18:
+  cargo:warning=
+  cargo:warning=  411 | 405   if(refel.or.htform.ne.0.d0) go to 430
+  cargo:warning=      |                  1
+  cargo:warning=Error: Operands of logical operator '.or.' at (1) are REAL(4)/LOGICAL(4)
+  cargo:warning=src/cea\cap.f:421:10:
+  cargo:warning=
+  cargo:warning=  421 |       if (htform.ne.0. .or. refel) then
+  cargo:warning=      |          1
+  cargo:warning=Warning: Inequality comparison for REAL(8) at (1) [-Wcompare-reals]
+  cargo:warning=src/cea\cap.f:421:27:
+  cargo:warning=
+  cargo:warning=  421 |       if (htform.ne.0. .or. refel) then
+  cargo:warning=      |                           1
+  cargo:warning=Error: Operands of logical operator '.or.' at (1) are LOGICAL(4)/REAL(4)
+  cargo:warning=src/cea\cap.f:422:18:
+  cargo:warning=
+  cargo:warning=  422 |            hasind=.true.
+  cargo:warning=      |                  1
+  cargo:warning=Error: Cannot convert LOGICAL(4) to REAL(4) at (1)
+  cargo:warning=src/cea\cap.f:423:14:
+  cargo:warning=
+  cargo:warning=  423 |            if(enth29.eq.0.) asindt=298.15d0
+  cargo:warning=      |              1
+  cargo:warning=Warning: Equality comparison for REAL(8) at (1) [-Wcompare-reals]
+  cargo:warning=src/cea\cap.f:425:18:
+  cargo:warning=
+  cargo:warning=  425 |            hasind=.false.
+  cargo:warning=      |                  1
+  cargo:warning=Error: Cannot convert LOGICAL(4) to REAL(4) at (1)
+  cargo:warning=src/cea\cap.f:427:18:
+  cargo:warning=
+  cargo:warning=  427 |       IF (mfig.or.tout(1)) CALL TABLES
+  cargo:warning=      |                  1
+  cargo:warning=Error: Operands of logical operator '.or.' at (1) are LOGICAL(4)/REAL(4)
+  cargo:warning=src/cea\cap.f:809:14:
+  cargo:warning=
+  cargo:warning=  809 |           if (asindt .eq. 0.) then
+  cargo:warning=      |              1
+  cargo:warning=Warning: Equality comparison for REAL(8) at (1) [-Wcompare-reals]
+  cargo:warning=src/cea\cap.f:856:16:
+  cargo:warning=
+  cargo:warning=  856 |             if (asindt .eq. 0.) then
+  cargo:warning=      |                1
+  cargo:warning=Warning: Equality comparison for REAL(8) at (1) [-Wcompare-reals]
+  cargo:warning=src/cea\cap.f:878:14:
+  cargo:warning=
+  cargo:warning=  878 |           if (asindt .eq. 0.) then
+  cargo:warning=      |              1
+  cargo:warning=Warning: Equality comparison for REAL(8) at (1) [-Wcompare-reals]
+  cargo:warning=src/cea\cap.f:914:13:
+  cargo:warning=
+  cargo:warning=  914 |          IF (asindt.ne.0.) then
+  cargo:warning=      |             1
+  cargo:warning=Warning: Inequality comparison for REAL(8) at (1) [-Wcompare-reals]
+  cargo:warning=src/cea\cap.f:577:10:
+  cargo:warning=
+  cargo:warning=  577 |       IF (EXL.NE.0.) TEX=TEX*TT**EXL
+  cargo:warning=      |          1
+  cargo:warning=Warning: Inequality comparison for REAL(8) at (1) [-Wcompare-reals]
+  cargo:warning=src/cea\cap.f:578:10:
+  cargo:warning=
+  cargo:warning=  578 |       IF (EXL.EQ.-1.) HH=HH+COEF(J,L)*DLOG(TT)/TT
+  cargo:warning=      |          1
+  cargo:warning=Warning: Equality comparison for REAL(8) at (1) [-Wcompare-reals]
+  cargo:warning=src/cea\cap.f:579:10:
+  cargo:warning=
+  cargo:warning=  579 |       IF (EXL.NE.-1.) HH=HH+TEX/(EXL+1.D0)
+  cargo:warning=      |          1
+  cargo:warning=Warning: Inequality comparison for REAL(8) at (1) [-Wcompare-reals]
+  cargo:warning=src/cea\cap.f:580:10:
+  cargo:warning=
+  cargo:warning=  580 |       IF (EXL.EQ.0.) S=S+COEF(J,L)*DLOG(TT)
+  cargo:warning=      |          1
+  cargo:warning=Warning: Equality comparison for REAL(8) at (1) [-Wcompare-reals]
+  cargo:warning=src/cea\cap.f:581:10:
+  cargo:warning=
+  cargo:warning=  581 |       IF (EXL.NE.0.) S=S+TEX/EXL
+  cargo:warning=      |          1
+  cargo:warning=Warning: Inequality comparison for REAL(8) at (1) [-Wcompare-reals]
+  cargo:warning=src/cea\cap.f:600:16:
+  cargo:warning=
+  cargo:warning=  600 |          PT(IK)=Tcoef(1,L)*tconv
+  cargo:warning=      |                1
+  cargo:warning=Warning: Possible change of value in conversion from REAL(8) to REAL(4) at (1) [-Wconversion]
+  cargo:warning=src/cea\cap.f:613:21:
+  cargo:warning=
+  cargo:warning=  613 |       IF (hasind.and.asindt.eq.0.)DH0= DH0 + term*hconv
+  cargo:warning=      |                     1
+  cargo:warning=Warning: Equality comparison for REAL(8) at (1) [-Wcompare-reals]
+  cargo:warning=src/cea\cap.f:648:25:
+  cargo:warning=
+  cargo:warning=  648 |       IF (.NOT.hasind.or.asindt.ne.0.0) GO TO 290
+  cargo:warning=      |                         1
+  cargo:warning=Warning: Inequality comparison for REAL(8) at (1) [-Wcompare-reals]
+  cargo:warning=src/cea\cap.f:671:10:
+  cargo:warning=
+  cargo:warning=  671 |       IT= TI + 1.d-7
+  cargo:warning=      |          1
+  cargo:warning=Warning: Possible change of value in conversion from REAL(8) to INTEGER(4) at (1) [-Wconversion]
+  cargo:warning=src/cea\cap.f:730:10:
+  cargo:warning=
+  cargo:warning=  730 | 400   IF (DMOD(T(I),500.D0).NE.0.0) GO TO 420
+  cargo:warning=      |          1
+  cargo:warning=Warning: Inequality comparison for REAL(8) at (1) [-Wcompare-reals]
+  cargo:warning=src/cea\cap.f:731:31:
+  cargo:warning=
+  cargo:warning=  731 |       IF (T(I).GT.10000.D0.AND.DMOD(T(I),2500.D0).NE.0.) GO TO 420
+  cargo:warning=      |                               1
+  cargo:warning=Warning: Inequality comparison for REAL(8) at (1) [-Wcompare-reals]
+  cargo:warning=src/cea\cap.f:110:15:
+  cargo:warning=
+  cargo:warning=  106 |       DO 10 I=1,500
+  cargo:warning=      |                                                                        2
+  cargo:warning=......
+  cargo:warning=  110 |         output(i)=blank
+  cargo:warning=      |               1
+  cargo:warning=Warning: Array reference at (1) out of bounds (500 > 8) in loop beginning at (2)
+  cargo:warning=src/cea\cap.f:192:19:
+  cargo:warning=
+  cargo:warning=  185 |       do 35 i=1,500,2
+  cargo:warning=      |                                                                        2
+  cargo:warning=......
+  cargo:warning=  192 |       if(tt.lt.tin(i+2)-.0001d0)then
+  cargo:warning=      |                   1
+  cargo:warning=Warning: Array reference at (1) out of bounds (501 > 500) in loop beginning at (2) [-Wdo-subscript]
+
+  --- stderr
+
+
+  error occurred in cc-rs: command did not execute successfully (status code exit code: 1): "gfortran" "-O0" "-ffunction-sections" "-fdata-sections" "-g" "-fno-omit-frame-pointer" "-m64" "-Wall" "-Wextra" "-o" "C:\\Users\\samue\\OneDrive\\Documents\\Rocket-Motor-Design-Plotter\\rocket_core\\target\\debug\\build\\rocket_core-aa7a9028249d41a8\\out\\2e636c99e60e448f-cap.o" "-c" "src/cea\\cap.f"
+
+
+warning: build failed, waiting for other jobs to finish...
+[pyo3-ffi 0.20.3] cargo:rerun-if-env-changed=PYO3_CROSS
+[pyo3-ffi 0.20.3] cargo:rerun-if-env-changed=PYO3_CROSS_LIB_DIR
+[pyo3-ffi 0.20.3] cargo:rerun-if-env-changed=PYO3_CROSS_PYTHON_VERSION
+[pyo3-ffi 0.20.3] cargo:rerun-if-env-changed=PYO3_CROSS_PYTHON_IMPLEMENTATION
+[pyo3-ffi 0.20.3] cargo:rerun-if-env-changed=PYO3_PRINT_CONFIG
+[pyo3-ffi 0.20.3] cargo:rerun-if-env-changed=PYO3_USE_ABI3_FORWARD_COMPATIBILITY
+[pyo3-ffi 0.20.3] error: the configured Python interpreter version (3.14) is newer than PyO3's maximum supported version (3.12)
+[pyo3-ffi 0.20.3] = help: please check if an updated version of PyO3 is available. Current version: 0.20.3
+[pyo3-ffi 0.20.3] = help: set PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 to suppress this check and build anyway using the stable ABI
+error: failed to run custom build command for `pyo3-ffi v0.20.3`
+
+Caused by:
+  process didn't exit successfully: `set CARGO=C:\Users\samue\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin\cargo.exe&& set CARGO_CFG_FEATURE=default,extension-module&& set CARGO_CFG_PANIC=unwind&& set CARGO_CFG_TARGET_ABI=""&& set CARGO_CFG_TARGET_ARCH=x86_64&& set CARGO_CFG_TARGET_ENDIAN=little&& set CARGO_CFG_TARGET_ENV=msvc&& set CARGO_CFG_TARGET_FAMILY=windows&& set CARGO_CFG_TARGET_FEATURE=cmpxchg16b,fxsr,sse,sse2,sse3&& set CARGO_CFG_TARGET_HAS_ATOMIC=128,16,32,64,8,ptr&& set CARGO_CFG_TARGET_OS=windows&& set CARGO_CFG_TARGET_POINTER_WIDTH=64&& set CARGO_CFG_TARGET_VENDOR=pc&& set CARGO_CFG_WINDOWS=""&& set CARGO_ENCODED_RUSTFLAGS=""&& set CARGO_FEATURE_DEFAULT=1&& set CARGO_FEATURE_EXTENSION_MODULE=1&& set CARGO_MANIFEST_DIR=C:\Users\samue\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\pyo3-ffi-0.20.3&& set CARGO_MANIFEST_LINKS=python&& set CARGO_MANIFEST_PATH=C:\Users\samue\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\pyo3-ffi-0.20.3\Cargo.toml&& set CARGO_PKG_AUTHORS="PyO3 Project and Contributors <https://github.com/PyO3>"&& set CARGO_PKG_DESCRIPTION="Python-API bindings for the PyO3 ecosystem"&& set CARGO_PKG_HOMEPAGE=https://github.com/pyo3/pyo3&& set CARGO_PKG_LICENSE="MIT OR Apache-2.0"&& set CARGO_PKG_LICENSE_FILE=""&& set CARGO_PKG_NAME=pyo3-ffi&& set CARGO_PKG_README=README.md&& set CARGO_PKG_REPOSITORY=https://github.com/pyo3/pyo3&& set CARGO_PKG_RUST_VERSION=""&& set CARGO_PKG_VERSION=0.20.3&& set CARGO_PKG_VERSION_MAJOR=0&& set CARGO_PKG_VERSION_MINOR=20&& set CARGO_PKG_VERSION_PATCH=3&& set CARGO_PKG_VERSION_PRE=""&& set DEBUG=true&& set HOST=x86_64-pc-windows-msvc&& set NUM_JOBS=16&& set OPT_LEVEL=0&& set OUT_DIR=C:\Users\samue\OneDrive\Documents\Rocket-Motor-Design-Plotter\rocket_core\target\debug\build\pyo3-ffi-83eca6bd2356db9e\out&& set PATH="C:\Users\samue\OneDrive\Documents\Rocket-Motor-Design-Plotter\rocket_core\target\debug\deps;C:\Users\samue\OneDrive\Documents\Rocket-Motor-Design-Plotter\rocket_core\target\debug;C:\Users\samue\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\WindowsApps\Microsoft.PowerShell_7.5.4.0_x64__8wekyb3d8bbwe;C:\Python314\Scripts\;C:\Python314\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Python313\Scripts\;C:\Python313\;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files\dotnet\;C:\Program Files\Git\cmd;C:\Program Files\MATLAB\R2025b\runtime\win64;C:\Program Files\MATLAB\R2025b\bin;C:\Program Files\Docker\Docker\resources\bin;C:\ProgramData\chocolatey\bin;C:\msys64\ucrt64\bin;C:\Program Files\CMake\bin;C:\Program Files (x86)\Windows Kits\8.1\Windows Performance Toolkit\;C:\ProgramData\nvm;C:\nvm4w\nodejs;C:\Program Files\nodejs\;C:\Program Files\cursor\resources\app\bin;C:\Users\samue\.local\bin;C:\Users\samue\AppData\Local\Microsoft\WindowsApps;C:\Users\samue\AppData\Local\Programs\Microsoft VS Code\bin;C:\Users\samue\AppData\Local\Programs\Ollama;C:\Users\samue\AppData\Local\Microsoft\WinGet\Packages\zyedidia.micro_Microsoft.Winget.Source_8wekyb3d8bbwe\micro-2.0.14;C:\Users\samue\.lmstudio\bin;C:\Users\samue\.cache\lm-studio\bin;C:\ProgramData\nvm;C:\nvm4w\nodejs;C:\Users\samue\AppData\Roaming\npm;C:\Users\samue\AppData\Local\PowerToys\DSCModules\;C:\Users\samue\AppData\Local\Microsoft\WinGet\Packages\DenoLand.Deno_Microsoft.Winget.Source_8wekyb3d8bbwe;C:\Users\samue\AppData\Local\Microsoft\WinGet\Packages\yt-dlp.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-N-121583-g4348bde2d2-win64-gpl/bin;C:\Users\samue\AppData\Local\Microsoft\WinGet\Packages\yt-dlp.yt-dlp_Microsoft.Winget.Source_8wekyb3d8bbwe;C:\Users\samue\.cargo\bin;C:\msys64\mingw64\bin;C:\Users\samue\.cargo\bin;C:\msys64\mingw64\bin;C:\Users\samue\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin"&& set PROFILE=debug&& set RUSTC=C:\Users\samue\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin\rustc.exe&& set RUSTDOC=C:\Users\samue\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin\rustdoc.exe&& set TARGET=x86_64-pc-windows-msvc&& C:\Users\samue\OneDrive\Documents\Rocket-Motor-Design-Plotter\rocket_core\target\debug\build\pyo3-ffi-5a7ae3ee70108dce\build-script-build` (exit code: 1)
+  --- stdout
+  cargo:rerun-if-env-changed=PYO3_CROSS
+  cargo:rerun-if-env-changed=PYO3_CROSS_LIB_DIR
+  cargo:rerun-if-env-changed=PYO3_CROSS_PYTHON_VERSION
+  cargo:rerun-if-env-changed=PYO3_CROSS_PYTHON_IMPLEMENTATION
+  cargo:rerun-if-env-changed=PYO3_PRINT_CONFIG
+  cargo:rerun-if-env-changed=PYO3_USE_ABI3_FORWARD_COMPATIBILITY
+
+  --- stderr
+  error: the configured Python interpreter version (3.14) is newer than PyO3's maximum supported version (3.12)
+  = help: please check if an updated version of PyO3 is available. Current version: 0.20.3
+  = help: set PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 to suppress this check and build anyway using the stable ABI
+warning: eliding a lifetime that's named elsewhere is confusing
+   --> C:\Users\samue\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\pyo3-macros-backend-0.20.3\src\pymethod.rs:718:63
+    |
+718 | fn split_off_python_arg<'a>(args: &'a [FnArg<'a>]) -> (Option<&FnArg<'_>>, &[FnArg<'_>]) {
+    |                                    --        --               ^^^^^^^^^^   ^^^^^^^^^^^^
+    |                                    |         |                |      |     |       |
+    |                                    |         |                |      |     |       the same lifetime is elided here
+    |                                    |         |                |      |     the same lifetime is elided here
+    |                                    |         |                |      the same lifetime is elided here
+    |                                    |         |                the same lifetime is elided here
+    |                                    |         the lifetime is named here
+    |                                    the lifetime is named here
+    |
+    = help: the same lifetime is referred to in inconsistent ways, making the signature confusing
+    = note: `#[warn(mismatched_lifetime_syntaxes)]` on by default
+help: consistently use `'a`
+    |
+718 - fn split_off_python_arg<'a>(args: &'a [FnArg<'a>]) -> (Option<&FnArg<'_>>, &[FnArg<'_>]) {
+718 + fn split_off_python_arg<'a>(args: &'a [FnArg<'a>]) -> (Option<&'a FnArg<'a>>, &'a [FnArg<'a>]) {
+    |
+
+warning: `pyo3-macros-backend` (lib) generated 1 warning
