@@ -1,5 +1,5 @@
-# Simplified Dockerfile for Next.js + Python CEA
-# Optimized for CasaOS deployment (without Rust server for now)
+# Full Dockerfile for Next.js + Python CEA + Rust server
+# Optimized for CasaOS deployment
 
 # === Stage 1: Frontend Build ===
 FROM node:20-alpine AS frontend-builder
@@ -14,7 +14,22 @@ RUN npm ci --legacy-peer-deps || npm install --legacy-peer-deps
 COPY web/ ./
 RUN npm run build
 
-# === Stage 2: Runtime ===
+# === Stage 2: Rust Build ===
+FROM rust:1.75 AS rust-builder
+WORKDIR /app
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*
+
+# Copy Rust project
+COPY rocket_server/ ./rocket_server/
+COPY rocket_core/ ./rocket_core/
+
+# Build release
+WORKDIR /app/rocket_server
+RUN cargo build --release
+
+# === Stage 3: Runtime ===
 FROM python:3.10-slim AS runtime
 WORKDIR /app
 
@@ -27,7 +42,7 @@ RUN apt-get update && apt-get install -y curl && \
 # Install Python dependencies for CEA
 RUN pip install --no-cache-dir fastapi uvicorn pydantic
 
-# Try to install rocketcea (may fail on some systems without Fortran)
+# Try to install rocketcea
 RUN pip install --no-cache-dir rocketcea || echo "RocketCEA not available"
 
 # Copy Next.js standalone build
@@ -35,24 +50,32 @@ COPY --from=frontend-builder /app/web/.next/standalone ./web/
 COPY --from=frontend-builder /app/web/.next/static ./web/.next/static
 COPY --from=frontend-builder /app/web/public ./web/public
 
-# Copy Python CEA service
+# Copy Rust server binary
+COPY --from=rust-builder /app/rocket_server/target/release/rocket_server ./
+
+# Copy Python CEA service and resources
 COPY cea_service.py ./
 COPY wiki.md ./
 
-# Create simple startup script
+# Create startup script
 RUN echo '#!/bin/bash\n\
     echo "🚀 Starting Rocket Design Studio..."\n\
+    echo "🔬 Starting CEA Service on :8001..."\n\
     cd /app && python cea_service.py &\n\
     sleep 2\n\
+    echo "⚙️ Starting Rust API on :8000..."\n\
+    cd /app && ./rocket_server &\n\
+    sleep 2\n\
+    echo "🌐 Starting Next.js on :3000..."\n\
     cd /app/web && node server.js\n\
     ' > /docker-entrypoint.sh && chmod +x /docker-entrypoint.sh
 
 # Expose ports
-EXPOSE 3000 8001
+EXPOSE 3000 8000 8001
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
     CMD curl -f http://localhost:3000/ || exit 1
 
-# Start services
+# Start all services
 CMD ["/docker-entrypoint.sh"]
