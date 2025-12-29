@@ -7,6 +7,7 @@ import { ReactNode } from "react";
 const NAV_ITEMS = [
     { name: "Vue d'ensemble", href: "/", icon: "📊" },
     { name: "Graphiques", href: "/graphs", icon: "📈" },
+    { name: "Carte Thermique", href: "/thermal", icon: "🔥" },
     { name: "Thermodynamique", href: "/thermo", icon: "🌡️" },
     { name: "Refroidissement", href: "/cooling", icon: "❄️" },
     { name: "Éléments CEA", href: "/elements", icon: "⚗️" },
