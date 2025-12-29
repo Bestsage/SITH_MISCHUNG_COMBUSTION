@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import dynamic from "next/dynamic";
 import AppLayout from "@/components/AppLayout";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, AreaChart, Area, ComposedChart, Bar } from "recharts";
 import { useCalculation, MotorConfig } from "@/contexts/CalculationContext";
+import katex from "katex";
 
 const Motor3DViewer = dynamic(() => import("@/components/Motor3DViewer"), { ssr: false });
 
@@ -113,35 +114,40 @@ export default function Home() {
   // Calculate stress data
   const calculateStressData = () => {
     if (!results) return { sigmaHoop: 0, sigmaThermal: 0, sigmaVM: 0, fos: 0, tOuterShell: 0 };
+
+    const mat = materials?.[config.material_name];
+    if (!mat) return { sigmaHoop: 0, sigmaThermal: 0, sigmaVM: 0, fos: 0, tOuterShell: 0 };
+
     const pc = config.pc * 1e5; // Pa
     const r = results.r_throat || 0.02; // m
     const e = config.wall_thickness / 1000; // m
     const sigmaHoop = (pc * r) / e / 1e6; // MPa
 
-    const deltaT = results.t_chamber * 0.3 - 300; // Approximate wall temp gradient
+    // Use actual wall temperature from thermal solver if available, otherwise fallback
+    const t_wall = results.max_wall_temp || (results.t_chamber * 0.35);
+    const deltaT = t_wall - (config.coolant_tin || 300);
 
-    const mat = materials?.[config.material_name];
-    const E = (mat?.E || 120) * 1e9; // Pa (from GPa)
-    const alpha = (mat?.alpha || 17) * 1e-6; // 1/K (from 10^-6)
-    const nu = mat?.nu || 0.33;
+    const E = (mat.E || 120) * 1e9; // Pa
+    const alpha = (mat.alpha || 17) * 1e-6; // 1/K
+    const nu = mat.nu || 0.33;
 
     const sigmaThermal = E * alpha * deltaT / (2 * (1 - nu)) / 1e6; // MPa
 
     const sigmaVM = Math.sqrt(sigmaHoop ** 2 + sigmaThermal ** 2 - sigmaHoop * sigmaThermal);
-    const sigmaYield = mat?.sigma_y || 280;
+    const sigmaYield = mat.sigma_y || 280;
     const fos = sigmaYield / sigmaVM;
 
-    // Outer shell thickness estimation (steel 316L, 290 MPa yield)
+    // Outer shell thickness estimation (jacket)
     const pCoolant = config.coolant_pressure * 1e5;
-    const rOuter = (results.r_chamber || 0.05) + e;
-    const sigmaYieldOuter = 290e6; // Pa (316L)
+    const rOuter = (results.r_chamber || 0.05) + e + 0.005; // radius + liner + channel gap
+    const sigmaYieldOuter = 290e6; // 316L
     const factorOfSafetyOuter = 1.25;
-    const tOuterShell = (pCoolant * rOuter) / (sigmaYieldOuter / factorOfSafetyOuter) * 1000; // mm
+    const tOuterShell = (pCoolant * rOuter) / (sigmaYieldOuter / factorOfSafetyOuter) * 1000;
 
     return { sigmaHoop, sigmaThermal, sigmaVM, fos, tOuterShell };
   };
 
-  const stressData = calculateStressData();
+  const stressData = useMemo(() => calculateStressData(), [results, config, materials]);
 
   return (
     <AppLayout>
@@ -211,7 +217,15 @@ export default function Home() {
             {configTab === "advanced" && (
               <>
                 <div className="text-[10px] font-bold text-[#f59e0b] uppercase mb-2">Matériau</div>
-                <select value={config.material_name} onChange={(e) => updateConfig("material_name", e.target.value)} className="input-field text-xs w-full py-1 mb-2">
+                <select value={config.material_name} onChange={(e) => {
+                  const val = e.target.value;
+                  const updates: any = { material_name: val };
+                  if (materials && materials[val]) {
+                    updates.wall_k = materials[val].k;
+                    updates.twall_max = materials[val].T_max;
+                  }
+                  setContextConfig(updates);
+                }} className="input-field text-xs w-full py-1 mb-2">
                   {materials && Object.keys(materials).map((mat) => <option key={mat} value={mat}>{mat}</option>)}
                 </select>
                 <InputField label="Épaisseur" configKey="wall_thickness" unit="mm" />
@@ -331,6 +345,10 @@ export default function Home() {
                         profile={results.geometry_profile}
                         height={500}
                         showFlames={false}
+                        showChannels={true}
+                        wallColor={materials?.[config.material_name]?.color || "#cc7733"}
+                        wallThickness={config.wall_thickness}
+                        outerShellThickness={stressData.tOuterShell}
                       />
                     </div>
 
@@ -623,12 +641,16 @@ export default function Home() {
                       <h3 className="card-header">Équations</h3>
                       <div className="grid grid-cols-2 gap-4">
                         <div className="bg-[#0a0a0f] rounded-lg p-3">
-                          <p className="text-xs text-[#00d4ff] mb-1">Contrainte de Pression</p>
-                          <p className="font-mono text-white">σ<sub>hoop</sub> = (P × R) / e</p>
+                          <p className="text-xs text-[#00d4ff] mb-2 font-semibold">Contrainte de Pression</p>
+                          <div className="text-lg py-2" dangerouslySetInnerHTML={{
+                            __html: katex.renderToString("\\sigma_{hoop} = \\frac{P \\times R}{e}", { displayMode: true, throwOnError: false })
+                          }} />
                         </div>
                         <div className="bg-[#0a0a0f] rounded-lg p-3">
-                          <p className="text-xs text-[#f59e0b] mb-1">Contrainte Thermique</p>
-                          <p className="font-mono text-white">σ<sub>th</sub> = E·α·ΔT / 2(1-ν)</p>
+                          <p className="text-xs text-[#f59e0b] mb-2 font-semibold">Contrainte Thermique</p>
+                          <div className="text-lg py-2" dangerouslySetInnerHTML={{
+                            __html: katex.renderToString("\\sigma_{th} = \\frac{E \\cdot \\alpha \\cdot \\Delta T}{2(1-\\nu)}", { displayMode: true, throwOnError: false })
+                          }} />
                         </div>
                       </div>
                     </div>

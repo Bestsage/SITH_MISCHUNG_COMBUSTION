@@ -30,6 +30,8 @@ export interface MotorConfig {
     custom_tboil: number;
     custom_tcrit: number;
     custom_hvap: number;
+    jacket_material_name: string;
+    jacket_fos: number;
 }
 
 export interface GeometryProfile {
@@ -167,8 +169,10 @@ const defaultConfig: MotorConfig = {
     coolant_margin: 20.0,
     custom_cp: 2500.0,
     custom_tboil: 350.0,
-    custom_tcrit: 500.0,
+    custom_tcrit: 700.0,
     custom_hvap: 400.0,
+    jacket_material_name: "Acier Inox 316L",
+    jacket_fos: 1.25,
 };
 
 const API_BASE = "http://localhost:8000";
