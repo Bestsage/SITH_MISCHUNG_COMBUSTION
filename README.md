@@ -1,394 +1,469 @@
-# 🚀 Rocket Motor Design Plotter v2.0
+# 🚀 SITH Mischung Combustion - Rocket Motor Design Suite
 
-Application moderne de conception de moteurs-fusées avec architecture Rust + Next.js.
+Application complète de conception de moteurs-fusées avec solveur CFD avancé, déployable sur Proxmox/Docker.
 
 ## 📋 Table des Matières
 
-- [Prérequis](#prérequis)
-- [Installation](#installation)
-- [Compilation](#compilation)
-- [Lancement](#lancement)
 - [Architecture](#architecture)
-- [Utilisation](#utilisation)
+- [Ports & Services](#ports--services)
+- [Déploiement Proxmox](#déploiement-proxmox)
+- [Déploiement Local (Dev)](#déploiement-local-dev)
+- [Solveur CFD](#solveur-cfd)
+- [API Endpoints](#api-endpoints)
 - [Dépannage](#dépannage)
-
----
-
-## 🔧 Prérequis
-
-### Obligatoires
-
-1. **Rust** (stable, 1.70+)
-   - Télécharger: https://rustup.rs/
-   - Vérifier: `rustc --version`
-
-2. **Python 3.10+**
-   - Télécharger: https://www.python.org/downloads/
-   - Vérifier: `py -3.10 --version`
-
-3. **Node.js 18+** et **npm**
-   - Télécharger: https://nodejs.org/
-   - Vérifier: `node --version` et `npm --version`
-
-4. **Git**
-   - Télécharger: https://git-scm.com/
-   - Vérifier: `git --version`
-
-### Optionnels (pour développement)
-
-- **MSYS2** (Windows uniquement, pour compilation Fortran)
-- **Visual Studio Build Tools** (Windows)
-
----
-
-## 📦 Installation
-
-### 1. Cloner le Repository
-
-```bash
-git clone https://github.com/votre-repo/Rocket-Motor-Design-Plotter.git
-cd Rocket-Motor-Design-Plotter
-```
-
-### 2. Installer les Dépendances Python
-
-```bash
-# Créer un environnement virtuel (recommandé)
-py -3.10 -m venv venv
-venv\Scripts\activate  # Windows
-# source venv/bin/activate  # Linux/Mac
-
-# Installer les packages
-pip install fastapi uvicorn pydantic numpy rocketcea
-```
-
-### 3. Installer les Dépendances Node.js
-
-```bash
-cd web
-npm install
-cd ..
-```
-
-### 4. Compiler le Core Rust (rocket_core)
-
-```bash
-cd rocket_core
-
-# Définir la variable d'environnement pour PyO3
-set PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1  # Windows CMD
-# export PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1  # Linux/Mac
-
-# Compiler avec maturin
-pip install maturin
-maturin develop --release
-
-cd ..
-```
-
-### 5. Compiler le Serveur Rust (rocket_server)
-
-```bash
-cd rocket_server
-cargo build --release
-cd ..
-```
-
----
-
-## 🔨 Compilation
-
-### Compilation Complète (Tout Recompiler)
-
-```bash
-# 1. Core Rust (PyO3)
-cd rocket_core
-set PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1
-maturin develop --release
-cd ..
-
-# 2. Serveur Rust
-cd rocket_server
-cargo build --release
-cd ..
-
-# 3. Frontend Next.js
-cd web
-npm run build
-cd ..
-```
-
-### Compilation Rapide (Développement)
-
-```bash
-# Core Rust (mode debug)
-cd rocket_core
-maturin develop
-cd ..
-
-# Serveur Rust (mode debug)
-cd rocket_server
-cargo build
-cd ..
-
-# Frontend (pas de build nécessaire en dev)
-```
-
----
-
-## 🚀 Lancement
-
-### Méthode Recommandée : 3 Terminaux
-
-#### Terminal 1 : Service CEA (Python)
-
-```bash
-# Depuis la racine du projet
-py -3.10 cea_service.py
-```
-
-**Sortie attendue:**
-```
-🔬 CEA Microservice starting on port 8001...
-INFO:     Uvicorn running on http://0.0.0.0:8001
-```
-
-#### Terminal 2 : Serveur Rust
-
-```bash
-# Depuis la racine du projet
-cd rocket_server
-cargo run --release
-```
-
-**Sortie attendue:**
-```
-🚀 Rust Server listening on http://0.0.0.0:8000
-```
-
-#### Terminal 3 : Frontend Next.js
-
-```bash
-# Depuis la racine du projet
-cd web
-npm run dev
-```
-
-**Sortie attendue:**
-```
-▲ Next.js 14.x.x
-- Local:        http://localhost:3000
-```
-
-### Accès à l'Application
-
-Ouvrez votre navigateur et allez sur:
-```
-http://localhost:3000
-```
 
 ---
 
 ## 🏗️ Architecture
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                    FRONTEND (Next.js)                   │
-│                   http://localhost:3000                 │
-│  • React + TypeScript                                   │
-│  • TailwindCSS                                          │
-│  • Recharts (graphiques)                                │
-└────────────────────┬────────────────────────────────────┘
-                     │ HTTP REST API
-┌────────────────────▼────────────────────────────────────┐
-│              SERVEUR RUST (Axum)                        │
-│              http://localhost:8000                      │
-│  • /api/materials - Base de données matériaux          │
-│  • /api/cea/calculate - Proxy vers CEA                 │
-│  • /api/geometry/generate - Génération géométrie       │
-│  • /api/solve - Solveur thermique                      │
-│  • /api/calculate/full - Calcul complet                │
-└────────────────────┬────────────────────────────────────┘
-                     │
-        ┌────────────┴────────────┐
-        │                         │
-┌───────▼──────────┐    ┌────────▼─────────┐
-│  ROCKET_CORE     │    │  CEA SERVICE     │
-│  (Rust + PyO3)   │    │  (Python)        │
-│  • Solveur       │    │  Port 8001       │
-│  • Optimiseur    │    │  • RocketCEA     │
-│  • Math          │    │  • FastAPI       │
-└──────────────────┘    └──────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         PROXMOX SERVER                                       │
+│  ┌────────────────────────────────────────────────────────────────────────┐ │
+│  │                    DOCKER COMPOSE STACK                                 │ │
+│  │                                                                         │ │
+│  │  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────────┐  │ │
+│  │  │   FRONTEND       │  │   RUST SERVER    │  │   CFD SOLVER         │  │ │
+│  │  │   Next.js        │  │   Axum           │  │   OpenFOAM           │  │ │
+│  │  │   Port: 3000     │  │   Port: 8000     │  │   rhoCentralFoam     │  │ │
+│  │  │                  │  │                  │  │   Port: 8001         │  │ │
+│  │  │  • React 18      │  │  • API REST      │  │                      │  │ │
+│  │  │  • TailwindCSS   │  │  • SSE Progress  │  │  • Compressible      │  │ │
+│  │  │  • Recharts      │  │  • CFD Solver    │  │  • Shock Capture     │  │ │
+│  │  │  • 3D Viewer     │  │  • Thermal       │  │  • Python Fallback   │  │ │
+│  │  └────────┬─────────┘  └────────┬─────────┘  └──────────┬───────────┘  │ │
+│  │           │                     │                       │              │ │
+│  │           └─────────────────────┴───────────────────────┘              │ │
+│  │                            Docker Network                               │ │
+│  └────────────────────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
-
-### Ports Utilisés
-
-- **3000** : Frontend Next.js
-- **8000** : Serveur Rust (API principale)
-- **8001** : Service CEA Python
 
 ---
 
-## 📖 Utilisation
+## 🌐 Ports & Services
 
-### 1. Charger les Matériaux
+| Service | Port | Description | Conteneur |
+|---------|------|-------------|-----------|
+| **Frontend** | `3000` | Interface utilisateur Next.js | `sith-frontend` |
+| **Backend API** | `8000` | Serveur Rust (Axum) - API principale | `sith-backend` |
+| **CFD Solver** | `8001` | Solveur CFD OpenFOAM (rhoCentralFoam) | `sith-openfoam` |
 
-Cliquez sur **"📦 Charger Matériaux"** pour charger la base de données de 18+ matériaux.
+### URLs d'accès depuis le réseau
 
-### 2. Configurer le Moteur
+```
+http://<IP_PROXMOX>:3000    # Interface Web
+http://<IP_PROXMOX>:8000    # API REST
+http://<IP_PROXMOX>:8001    # CFD Solver API (interne)
+```
 
-Remplissez les paramètres dans la sidebar gauche:
-- **Nom du moteur**
-- **Propergols** (Oxydant, Carburant, O/F ratio)
-- **Chambre** (Pc, débit, L*, contraction ratio)
-- **Tuyère** (Pe, angles)
-- **Matériau** (sélection automatique des propriétés)
+---
 
-### 3. Calculer
+## 🖥️ Déploiement Proxmox
 
-Cliquez sur **"🔥 CALCULER TOUT"** pour lancer:
-1. Calculs NASA CEA
-2. Génération de la géométrie
-3. Analyse thermique
-4. Calculs de performance
+### Prérequis sur Proxmox
 
-### 4. Consulter les Résultats
+1. **VM ou LXC avec Docker installé**
+   ```bash
+   # Sur Debian/Ubuntu
+   apt update && apt install -y docker.io docker-compose
+   systemctl enable docker
+   systemctl start docker
+   ```
 
-Le résumé affiche:
-- **Performance** : Isp, Poussée, c*, T chambre
-- **Géométrie** : Rayons, longueurs, expansion ratio
-- **Thermique** : Flux, températures, ΔP
-- **CEA** : γ, MW, CF
+2. **Ressources recommandées**
+   - CPU: 4+ cores (8 recommandés pour CFD)
+   - RAM: 8 GB minimum (16 GB recommandés)
+   - Stockage: 20 GB SSD
+
+### Étape 1 : Cloner le Repository
+
+```bash
+cd /opt
+git clone https://github.com/votre-repo/SITH_MISCHUNG_COMBUSTION.git
+cd SITH_MISCHUNG_COMBUSTION
+```
+
+### Étape 2 : Créer le docker-compose.yml principal
+
+Créez `/opt/SITH_MISCHUNG_COMBUSTION/docker-compose.yml`:
+
+```yaml
+version: '3.8'
+
+services:
+  # =============================================
+  # FRONTEND - Next.js (Port 3000)
+  # =============================================
+  frontend:
+    container_name: sith-frontend
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://backend:8000
+    depends_on:
+      - backend
+    networks:
+      - sith-network
+    restart: unless-stopped
+
+  # =============================================
+  # BACKEND - Rust Axum Server (Port 8000)
+  # =============================================
+  backend:
+    container_name: sith-backend
+    build:
+      context: ./rocket_server
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - CFD_API_URL=http://cfd-solver:8001
+      - RUST_LOG=info
+    depends_on:
+      - cfd-solver
+    networks:
+      - sith-network
+    restart: unless-stopped
+
+  # =============================================
+  # CFD SOLVER - OpenFOAM rhoCentralFoam (Port 8001)
+  # =============================================
+  openfoam-cfd:
+    container_name: sith-openfoam
+    build:
+      context: ./openfoam-cfd
+      dockerfile: Dockerfile
+    ports:
+      - "8001:8001"
+    volumes:
+      - cfd-cases:/app/cases
+      - cfd-results:/app/results
+    environment:
+      - NUM_PROCS=4
+      - PYTHONUNBUFFERED=1
+    networks:
+      - sith-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 8G
+
+networks:
+  sith-network:
+    driver: bridge
+
+volumes:
+  cfd-cases:
+  cfd-results:
+```
+
+### Étape 3 : Créer les Dockerfiles manquants
+
+#### 3.1 Dockerfile Frontend (`web/Dockerfile`)
+
+```dockerfile
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+COPY . .
+RUN npm run build
+
+FROM node:20-alpine AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
+
+EXPOSE 3000
+ENV PORT=3000
+CMD ["node", "server.js"]
+```
+
+#### 3.2 Dockerfile Backend (`rocket_server/Dockerfile`)
+
+```dockerfile
+FROM rust:1.75-bookworm AS builder
+
+WORKDIR /app
+COPY Cargo.toml Cargo.lock ./
+COPY src ./src
+RUN cargo build --release
+
+FROM debian:bookworm-slim
+RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY --from=builder /app/target/release/rocket_server .
+
+EXPOSE 8000
+ENV RUST_LOG=info
+CMD ["./rocket_server"]
+```
+
+### Étape 4 : Lancer le Stack
+
+```bash
+# Depuis /opt/SITH_MISCHUNG_COMBUSTION
+docker-compose up -d --build
+
+# Vérifier les logs
+docker-compose logs -f
+
+# Vérifier le status
+docker-compose ps
+```
+
+### Étape 5 : Configurer le Firewall Proxmox
+
+```bash
+# Sur le host Proxmox, ouvrir les ports
+iptables -A INPUT -p tcp --dport 3000 -j ACCEPT
+iptables -A INPUT -p tcp --dport 8000 -j ACCEPT
+iptables -A INPUT -p tcp --dport 8001 -j ACCEPT
+
+# Ou via pve-firewall si activé
+```
+
+### Étape 6 : Accéder à l'Application
+
+Depuis votre navigateur:
+```
+http://<IP_PROXMOX>:3000
+```
+
+---
+
+## 💻 Déploiement Local (Dev)
+
+### Prérequis
+
+1. **Rust** (1.70+): https://rustup.rs/
+2. **Node.js** (18+): https://nodejs.org/
+3. **Python** (3.10+): https://python.org/
+
+### Installation Rapide
+
+```powershell
+# 1. Cloner
+git clone <repo>
+cd SITH_MISCHUNG_COMBUSTION
+
+# 2. Backend Rust
+cd rocket_server
+cargo build --release
+cd ..
+
+# 3. Frontend
+cd web
+npm install
+cd ..
+```
+
+### Lancement (3 terminaux)
+
+```powershell
+# Terminal 1 - CFD Service (OpenFOAM Docker ou Python)
+cd openfoam-cfd && docker-compose up -d
+# Ou sans Docker:
+python openfoam-cfd/api/server.py
+
+# Terminal 2 - Backend Rust
+cd rocket_server; cargo run --release
+
+# Terminal 3 - Frontend
+cd web; npm run dev
+```
+
+---
+
+## 🔬 Solveur CFD
+
+Le système CFD utilise une architecture en cascade:
+
+```
+Requête CFD → OpenFOAM (rhoCentralFoam)
+               ↓ (si indisponible)
+             Python Quasi-1D (fallback)
+```
+
+### Caractéristiques
+
+- **Solveur principal**: OpenFOAM rhoCentralFoam
+- **Méthode**: Central-upwind Kurganov-Tadmor
+- **Maillage**: Axisymétrique wedge
+- **Fallback**: Python quasi-1D + corrections 2D
+- **Formats de sortie**: JSON
+
+### Appel API CFD
+
+```bash
+curl -X POST http://localhost:8001/api/cfd/run \
+  -H "Content-Type: application/json" \
+  -d '{
+    "r_throat": 0.025,
+    "r_exit": 0.075,
+    "p_chamber": 5000000,
+    "t_chamber": 3500,
+    "gamma": 1.2,
+    "molar_mass": 0.022
+  }'
+```
+
+---
+
+## 📡 API Endpoints
+
+### Backend Rust (Port 8000)
+
+| Endpoint | Méthode | Description |
+|----------|---------|-------------|
+| `/` | GET | Health check |
+| `/api/materials` | GET | Liste des matériaux |
+| `/api/cea/calculate` | POST | Calculs thermochimiques CEA |
+| `/api/geometry/generate` | POST | Génération géométrie tuyère |
+| `/api/cfd/solve` | POST | Solveur CFD intégré + SSE progress |
+| `/api/cfd/external` | POST | Appel solveur CFD externe (Docker) |
+| `/api/calculate/full` | POST | Calcul complet moteur |
+
+### CFD Solver (Port 8001)
+
+| Endpoint | Méthode | Description |
+|----------|---------|-------------|
+| `/health` | GET | Health check |
+| `/api/cfd/run` | POST | Lancer simulation CFD |
+| `/api/cfd/status/{job_id}` | GET | Status d'un job |
+| `/api/cfd/result/{job_id}` | GET | Résultats d'un job |
+
+---
+
+## 🔧 Commandes Docker Utiles
+
+```bash
+# Voir les logs en temps réel
+docker-compose logs -f sith-backend
+
+# Redémarrer un service
+docker-compose restart sith-cfd
+
+# Reconstruire un service spécifique
+docker-compose up -d --build sith-backend
+
+# Entrer dans un conteneur
+docker exec -it sith-cfd /bin/bash
+
+# Nettoyer tout
+docker-compose down -v
+docker system prune -a
+
+# Stats ressources
+docker stats
+```
 
 ---
 
 ## 🔍 Dépannage
 
-### Erreur : "Module rocket_core not found"
+### Container ne démarre pas
 
-**Solution:**
 ```bash
-cd rocket_core
-set PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1
-maturin develop --release
+# Voir les logs détaillés
+docker-compose logs sith-backend
+
+# Vérifier le build
+docker-compose build --no-cache sith-backend
 ```
 
-### Erreur : "CEA Service not responding"
+### Port déjà utilisé
 
-**Vérifications:**
-1. Le service CEA est-il lancé ? (`py -3.10 cea_service.py`)
-2. Port 8001 disponible ? (`netstat -an | findstr 8001`)
-3. RocketCEA installé ? (`pip show rocketcea`)
-
-### Erreur : "Rust Server failed to start"
-
-**Vérifications:**
-1. Port 8000 disponible ?
-2. Compilation réussie ? (`cargo build --release`)
-3. Dépendances à jour ? (`cargo update`)
-
-### Erreur : "Frontend build failed"
-
-**Solutions:**
 ```bash
-cd web
-rm -rf node_modules package-lock.json
-npm install
-npm run dev
+# Trouver le processus
+netstat -tulpn | grep 8000
+# ou sur Windows
+netstat -ano | findstr 8000
+
+# Arrêter le processus
+kill <PID>  # Linux
+taskkill /PID <PID> /F  # Windows
 ```
 
-### Performance Lente
+### CFD Solver ne répond pas
 
-**Optimisations:**
-1. Utiliser `--release` pour Rust : `cargo run --release`
-2. Compiler rocket_core en release : `maturin develop --release`
-3. Fermer les autres applications
-
-### Erreur Python "No module named 'rocketcea'"
-
-**Solution:**
 ```bash
-pip install rocketcea
-# Si erreur de compilation, installer les wheels pré-compilés
-pip install --upgrade rocketcea
+# Vérifier le health
+curl http://localhost:8001/health
+
+# Redémarrer le solver
+docker-compose restart sith-cfd
+```
+
+### Erreur mémoire CFD
+
+```bash
+# Augmenter les limites dans docker-compose.yml
+deploy:
+  resources:
+    limits:
+      memory: 16G
 ```
 
 ---
 
-## 🛠️ Développement
+## 📊 Monitoring (Optionnel)
 
-### Structure du Projet
+Ajouter Prometheus + Grafana au stack:
 
-```
-Rocket-Motor-Design-Plotter/
-├── rocket_core/          # Core Rust (PyO3)
-│   ├── src/
-│   │   ├── lib.rs
-│   │   ├── solver.rs
-│   │   ├── optimizer.rs
-│   │   └── math.rs
-│   └── Cargo.toml
-├── rocket_server/        # Serveur Web Rust
-│   ├── src/
-│   │   ├── main.rs
-│   │   ├── materials.rs
-│   │   ├── cea_client.rs
-│   │   ├── geometry.rs
-│   │   └── motor_definition.rs
-│   └── Cargo.toml
-├── web/                  # Frontend Next.js
-│   ├── app/
-│   │   └── page.tsx
-│   ├── components/
-│   └── package.json
-├── cea_service.py        # Micro-service CEA
-└── README.md
-```
+```yaml
+# Ajouter à docker-compose.yml
+  prometheus:
+    image: prom/prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - sith-network
 
-### Commandes Utiles
-
-```bash
-# Tester le serveur Rust
-curl http://localhost:8000/
-
-# Tester CEA
-curl -X POST http://localhost:8001/cea -H "Content-Type: application/json" -d '{"fuel":"RP-1","oxidizer":"LOX","of_ratio":2.5,"pc":50,"expansion_ratio":40}'
-
-# Linter Rust
-cargo clippy
-
-# Formater Rust
-cargo fmt
-
-# Tests Rust
-cargo test
-
-# Linter Frontend
-cd web && npm run lint
+  grafana:
+    image: grafana/grafana
+    ports:
+      - "3001:3000"
+    networks:
+      - sith-network
 ```
 
 ---
 
-## 📝 Notes
+## 📝 Variables d'Environnement
 
-- **Python minimal** : Seul le service CEA utilise Python (RocketCEA)
-- **Performance** : Le core Rust est ~100x plus rapide que Python
-- **Compatibilité** : Testé sur Windows 10/11, devrait fonctionner sur Linux/Mac
+| Variable | Service | Description | Défaut |
+|----------|---------|-------------|--------|
+| `CFD_API_URL` | backend | URL du solveur CFD | `http://cfd-solver:8001` |
+| `RUST_LOG` | backend | Niveau de log | `info` |
+| `OMP_NUM_THREADS` | cfd-solver | Threads OpenMP | `4` |
+| `MPI_PROCESSES` | cfd-solver | Processus MPI | `4` |
+| `NEXT_PUBLIC_API_URL` | frontend | URL API backend | `http://backend:8000` |
 
 ---
 
 ## 📄 Licence
 
-MIT License - Voir LICENSE pour détails
+MIT License
 
 ---
 
-## 🤝 Contribution
+## 🤝 Support
 
-Les contributions sont bienvenues ! Ouvrez une issue ou un PR.
-
----
-
-## 📧 Contact
-
-Pour questions ou support, ouvrez une issue sur GitHub.
+Pour questions ou bugs, ouvrir une issue sur GitHub.

@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 pub mod cea_client;
+pub mod cfd_solver;
 pub mod geometry;
 pub mod materials;
 pub mod motor_definition;
