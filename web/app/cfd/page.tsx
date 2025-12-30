@@ -241,20 +241,46 @@ export default function CFDPage() {
         setError(null);
 
         try {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 120000); // 2 min timeout
+
             const response = await fetch("http://localhost:8000/api/cfd/solve", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(params),
+                signal: controller.signal,
             });
 
+            clearTimeout(timeout);
+
             if (!response.ok) {
-                throw new Error(`HTTP ${response.status}`);
+                const text = await response.text();
+                throw new Error(`HTTP ${response.status}: ${text || 'Erreur serveur'}`);
             }
 
-            const data: CFDResult = await response.json();
-            setResult(data);
+            const text = await response.text();
+            if (!text) {
+                throw new Error("Réponse vide du serveur. Vérifiez que le backend Rust est lancé.");
+            }
+
+            try {
+                const data: CFDResult = JSON.parse(text);
+                setResult(data);
+            } catch (parseErr) {
+                throw new Error(`Erreur parsing JSON: ${text.substring(0, 100)}...`);
+            }
         } catch (err) {
-            setError(err instanceof Error ? err.message : "Erreur inconnue");
+            if (err instanceof Error) {
+                if (err.name === 'AbortError') {
+                    setError("Timeout: la simulation a pris trop de temps");
+                } else if (err.message.includes('fetch')) {
+                    setError("Impossible de contacter le serveur. Lancez: cargo run dans rocket_server/");
+                } else {
+                    setError(err.message);
+                }
+            } else {
+                setError("Erreur inconnue");
+            }
         } finally {
             setLoading(false);
         }
