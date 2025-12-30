@@ -1,8 +1,15 @@
-version: '3.8'
 services:
   rocket-app:
-    # ... ton build ...
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: sith-monolith
+    ports:
+      - "3000:3000"
+      - "8000:8000"
+      - "8001:8001"
     environment:
-      - NEXT_PUBLIC_API_URL=http://192.168.1.43:8000 # L'IP de ton LXC
+      - NEXT_PUBLIC_API_URL=http://192.168.1.43:8000
       - RUST_BACKEND_URL=http://localhost:8000
       - CEA_SERVICE_URL=http://localhost:8001
+    restart: unless-stopped
