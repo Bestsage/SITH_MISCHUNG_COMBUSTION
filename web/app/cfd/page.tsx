@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useRef } from "react";
 import AppLayout from "@/components/AppLayout";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, Html, Line } from "@react-three/drei";
@@ -38,6 +38,16 @@ interface CFDResult {
     residual_history: number[];
     converged: boolean;
     iterations: number;
+}
+
+interface ProgressUpdate {
+    iteration: number;
+    max_iter: number;
+    residual: number;
+    dt: number;
+    max_mach: number;
+    converged: boolean;
+    phase: string;
 }
 
 type FieldType = "mach" | "pressure" | "temperature" | "velocity_x" | "density";
@@ -274,44 +284,78 @@ export default function CFDPage() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [selectedField, setSelectedField] = useState<FieldType>("mach");
+    const [progress, setProgress] = useState<ProgressUpdate | null>(null);
+    const abortControllerRef = useRef<AbortController | null>(null);
 
     const runSimulation = useCallback(async () => {
         setLoading(true);
         setError(null);
+        setProgress(null);
+
+        // Abort any existing request
+        if (abortControllerRef.current) {
+            abortControllerRef.current.abort();
+        }
+        abortControllerRef.current = new AbortController();
 
         try {
-            const controller = new AbortController();
-            const timeout = setTimeout(() => controller.abort(), 120000); // 2 min timeout
-
-            const response = await fetch("http://localhost:8000/api/cfd/solve", {
+            // Use streaming endpoint for progress updates
+            const response = await fetch("http://localhost:8000/api/cfd/stream", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(params),
-                signal: controller.signal,
+                signal: abortControllerRef.current.signal,
             });
-
-            clearTimeout(timeout);
 
             if (!response.ok) {
                 const text = await response.text();
                 throw new Error(`HTTP ${response.status}: ${text || 'Erreur serveur'}`);
             }
 
-            const text = await response.text();
-            if (!text) {
-                throw new Error("Réponse vide du serveur. Vérifiez que le backend Rust est lancé.");
+            if (!response.body) {
+                throw new Error("Pas de stream disponible");
             }
 
-            try {
-                const data: CFDResult = JSON.parse(text);
-                setResult(data);
-            } catch (parseErr) {
-                throw new Error(`Erreur parsing JSON: ${text.substring(0, 100)}...`);
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = "";
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split("\n");
+                buffer = lines.pop() || "";
+
+                for (const line of lines) {
+                    if (line.startsWith("event:")) {
+                        const eventType = line.slice(6).trim();
+                        continue;
+                    }
+                    if (line.startsWith("data:")) {
+                        const data = line.slice(5).trim();
+                        if (!data || data === "complete") continue;
+
+                        try {
+                            const parsed = JSON.parse(data);
+                            
+                            // Check if it's a progress update or final result
+                            if ('iteration' in parsed && 'max_iter' in parsed) {
+                                setProgress(parsed as ProgressUpdate);
+                            } else if ('mach' in parsed) {
+                                setResult(parsed as CFDResult);
+                            }
+                        } catch (e) {
+                            // Ignore parse errors for non-JSON data
+                        }
+                    }
+                }
             }
         } catch (err) {
             if (err instanceof Error) {
                 if (err.name === 'AbortError') {
-                    setError("Timeout: la simulation a pris trop de temps");
+                    setError("Simulation annulée");
                 } else if (err.message.includes('fetch')) {
                     setError("Impossible de contacter le serveur. Lancez: cargo run dans rocket_server/");
                 } else {
@@ -322,8 +366,15 @@ export default function CFDPage() {
             }
         } finally {
             setLoading(false);
+            setProgress(null);
         }
     }, [params]);
+
+    const cancelSimulation = useCallback(() => {
+        if (abortControllerRef.current) {
+            abortControllerRef.current.abort();
+        }
+    }, []);
 
     const fieldData = result ? result[selectedField] : [];
     const minVal = fieldData.length > 0 ? Math.min(...fieldData) : 0;
@@ -484,27 +535,91 @@ export default function CFDPage() {
                     </div>
 
                     {/* Run button */}
-                    <div className="p-4">
-                        <button
-                            onClick={runSimulation}
-                            disabled={loading}
-                            className={`w-full py-3 rounded-lg font-bold text-white transition-all ${loading
-                                ? "bg-gray-600 cursor-wait"
-                                : "bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 shadow-lg shadow-cyan-500/30"
-                                }`}
-                        >
-                            {loading ? (
-                                <span className="flex items-center justify-center gap-2">
-                                    <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                                    </svg>
-                                    Calcul en cours...
-                                </span>
-                            ) : (
-                                "🚀 Lancer Simulation"
-                            )}
-                        </button>
+                    <div className="p-4 space-y-3">
+                        {loading ? (
+                            <>
+                                <button
+                                    onClick={cancelSimulation}
+                                    className="w-full py-3 rounded-lg font-bold text-white bg-red-600 hover:bg-red-500 transition-all"
+                                >
+                                    ⏹ Annuler
+                                </button>
+
+                                {/* Progress bar */}
+                                {progress && (
+                                    <div className="bg-[#1a1a25] rounded-lg p-3 border border-[#27272a]">
+                                        <div className="flex justify-between text-xs mb-2">
+                                            <span className="text-cyan-400 font-semibold">{progress.phase}</span>
+                                            <span className="text-gray-400">
+                                                {progress.iteration} / {progress.max_iter}
+                                            </span>
+                                        </div>
+                                        
+                                        {/* Progress bar */}
+                                        <div className="h-2 bg-[#0a0a0f] rounded-full overflow-hidden mb-2">
+                                            <div 
+                                                className="h-full bg-gradient-to-r from-cyan-500 to-blue-500 transition-all duration-300 ease-out"
+                                                style={{ width: `${(progress.iteration / progress.max_iter) * 100}%` }}
+                                            />
+                                        </div>
+
+                                        {/* Stats */}
+                                        <div className="grid grid-cols-2 gap-2 text-xs">
+                                            <div className="flex justify-between">
+                                                <span className="text-gray-500">Résidu:</span>
+                                                <span className="text-orange-400 font-mono">
+                                                    {progress.residual.toExponential(2)}
+                                                </span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                                <span className="text-gray-500">Δt:</span>
+                                                <span className="text-green-400 font-mono">
+                                                    {progress.dt.toExponential(2)}
+                                                </span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                                <span className="text-gray-500">Mach max:</span>
+                                                <span className="text-purple-400 font-mono">
+                                                    {progress.max_mach.toFixed(2)}
+                                                </span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                                <span className="text-gray-500">Progression:</span>
+                                                <span className="text-cyan-400 font-mono">
+                                                    {((progress.iteration / progress.max_iter) * 100).toFixed(1)}%
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        {/* Convergence indicator */}
+                                        {progress.converged && (
+                                            <div className="mt-2 text-center text-green-400 text-xs font-bold">
+                                                ✓ Convergé!
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {!progress && (
+                                    <div className="bg-[#1a1a25] rounded-lg p-3 border border-[#27272a] text-center">
+                                        <div className="flex items-center justify-center gap-2 text-gray-400 text-sm">
+                                            <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                            </svg>
+                                            Initialisation du solveur...
+                                        </div>
+                                    </div>
+                                )}
+                            </>
+                        ) : (
+                            <button
+                                onClick={runSimulation}
+                                className="w-full py-3 rounded-lg font-bold text-white bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 shadow-lg shadow-cyan-500/30 transition-all"
+                            >
+                                🚀 Lancer Simulation
+                            </button>
+                        )}
                     </div>
 
                     {/* Results summary */}

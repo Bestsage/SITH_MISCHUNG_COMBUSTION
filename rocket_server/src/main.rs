@@ -1,10 +1,15 @@
 use axum::{
     http::{Method, StatusCode},
+    response::sse::{Event, Sse},
     routing::{get, post},
     Json, Router,
 };
+use futures::stream::Stream;
 use serde::{Deserialize, Serialize};
+use std::convert::Infallible;
 use std::net::SocketAddr;
+use tokio::sync::mpsc;
+use tokio_stream::wrappers::ReceiverStream;
 use tower_http::cors::{Any, CorsLayer};
 
 mod cea_client;
@@ -13,7 +18,7 @@ mod geometry;
 mod materials;
 mod motor_definition;
 
-use cfd_solver::{CFDRequest, CFDResult};
+use cfd_solver::{CFDRequest, CFDResult, ProgressUpdate};
 use geometry::{GeometryParams, GeometryProfile};
 use motor_definition::{CalculationResults, MotorDefinition};
 use rocket_server::{CEARequest, CEAResponse};
@@ -99,6 +104,66 @@ async fn run_cfd(Json(payload): Json<CFDRequest>) -> Result<Json<CFDResult>, (St
             "CFD solver panicked - try reducing grid size or iterations".to_string(),
         )),
     }
+}
+
+/// CFD solver with SSE streaming for progress updates
+async fn run_cfd_stream(
+    Json(payload): Json<CFDRequest>,
+) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
+    let (tx, rx) = mpsc::channel::<Result<Event, Infallible>>(100);
+
+    // Spawn blocking task for CFD computation
+    tokio::task::spawn_blocking(move || {
+        let tx_clone = tx.clone();
+
+        // Progress callback that sends SSE events
+        let progress_callback = move |update: ProgressUpdate| {
+            let event_data = serde_json::to_string(&update).unwrap_or_default();
+            let event = Event::default()
+                .event("progress")
+                .data(event_data);
+            let _ = tx_clone.blocking_send(Ok(event));
+        };
+
+        // Run simulation with progress
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            cfd_solver::run_cfd_simulation_with_progress(payload, progress_callback)
+        }));
+
+        // Send final result
+        match result {
+            Ok(cfd_result) => {
+                // Check for valid result
+                let is_valid = !cfd_result.mach.iter().any(|v| v.is_nan() || v.is_infinite());
+                
+                if is_valid {
+                    let result_data = serde_json::to_string(&cfd_result).unwrap_or_default();
+                    let event = Event::default()
+                        .event("result")
+                        .data(result_data);
+                    let _ = tx.blocking_send(Ok(event));
+                } else {
+                    let event = Event::default()
+                        .event("error")
+                        .data("Solver diverged: NaN/Inf in results");
+                    let _ = tx.blocking_send(Ok(event));
+                }
+            }
+            Err(_) => {
+                let event = Event::default()
+                    .event("error")
+                    .data("CFD solver panicked");
+                let _ = tx.blocking_send(Ok(event));
+            }
+        }
+
+        // Send done event
+        let event = Event::default().event("done").data("complete");
+        let _ = tx.blocking_send(Ok(event));
+    });
+
+    Sse::new(ReceiverStream::new(rx))
+        .keep_alive(axum::response::sse::KeepAlive::default())
 }
 
 async fn run_solver(
@@ -426,6 +491,155 @@ async fn get_wiki() -> Result<String, StatusCode> {
     }
 }
 
+/// Run CFD on external solver (Docker/OpenFOAM)
+/// This calls the CFD API container running on the Proxmox server
+#[derive(Debug, Serialize, Deserialize)]
+struct ExternalCFDRequest {
+    #[serde(flatten)]
+    params: CFDRequest,
+    solver: Option<String>,  // "openfoam" or "python"
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct ExternalJobResponse {
+    job_id: String,
+    status: String,
+    progress: f64,
+    message: String,
+    result_url: Option<String>,
+}
+
+async fn run_cfd_external(
+    Json(payload): Json<ExternalCFDRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    // Get the external CFD API URL from environment or use default
+    let cfd_api_url = std::env::var("CFD_API_URL")
+        .unwrap_or_else(|_| "http://localhost:8001".to_string());
+    
+    let client = reqwest::Client::new();
+    
+    // Start the job
+    let response = client
+        .post(format!("{}/api/cfd/run", cfd_api_url))
+        .json(&serde_json::json!({
+            "r_throat": payload.params.r_throat,
+            "r_chamber": payload.params.r_chamber,
+            "r_exit": payload.params.r_exit,
+            "l_chamber": payload.params.l_chamber,
+            "l_nozzle": payload.params.l_nozzle,
+            "p_chamber": payload.params.p_chamber,
+            "t_chamber": payload.params.t_chamber,
+            "gamma": payload.params.gamma,
+            "molar_mass": payload.params.molar_mass,
+            "nx": payload.params.nx,
+            "ny": payload.params.ny,
+            "max_iter": payload.params.max_iter,
+            "tolerance": payload.params.tolerance,
+            "solver": payload.solver.unwrap_or_else(|| "auto".to_string())
+        }))
+        .send()
+        .await
+        .map_err(|e| (StatusCode::BAD_GATEWAY, format!("Failed to connect to CFD API: {}", e)))?;
+    
+    if !response.status().is_success() {
+        return Err((
+            StatusCode::BAD_GATEWAY,
+            format!("CFD API error: {}", response.status())
+        ));
+    }
+    
+    let job: ExternalJobResponse = response
+        .json()
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to parse response: {}", e)))?;
+    
+    // Poll for completion (with timeout)
+    let job_id = job.job_id;
+    let max_wait = 600; // 10 minutes max
+    let mut elapsed = 0;
+    
+    loop {
+        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+        elapsed += 2;
+        
+        if elapsed > max_wait {
+            return Err((
+                StatusCode::GATEWAY_TIMEOUT,
+                "CFD simulation timed out".to_string()
+            ));
+        }
+        
+        let status_response = client
+            .get(format!("{}/api/cfd/status/{}", cfd_api_url, job_id))
+            .send()
+            .await
+            .map_err(|e| (StatusCode::BAD_GATEWAY, format!("Failed to get status: {}", e)))?;
+        
+        let status: ExternalJobResponse = status_response
+            .json()
+            .await
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to parse status: {}", e)))?;
+        
+        match status.status.as_str() {
+            "completed" => {
+                // Get the result
+                let result_response = client
+                    .get(format!("{}/api/cfd/result/{}", cfd_api_url, job_id))
+                    .send()
+                    .await
+                    .map_err(|e| (StatusCode::BAD_GATEWAY, format!("Failed to get result: {}", e)))?;
+                
+                let result: serde_json::Value = result_response
+                    .json()
+                    .await
+                    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to parse result: {}", e)))?;
+                
+                return Ok(Json(result));
+            }
+            "failed" => {
+                return Err((
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("CFD simulation failed: {}", status.message)
+                ));
+            }
+            _ => {
+                // Still running, continue polling
+                continue;
+            }
+        }
+    }
+}
+
+/// Check if external CFD solver is available
+async fn check_external_cfd() -> Json<serde_json::Value> {
+    let cfd_api_url = std::env::var("CFD_API_URL")
+        .unwrap_or_else(|_| "http://localhost:8001".to_string());
+    
+    let client = reqwest::Client::new();
+    
+    match client
+        .get(format!("{}/health", cfd_api_url))
+        .timeout(std::time::Duration::from_secs(5))
+        .send()
+        .await
+    {
+        Ok(response) if response.status().is_success() => {
+            Json(serde_json::json!({
+                "available": true,
+                "url": cfd_api_url,
+                "message": "External CFD solver is available"
+            }))
+        }
+        _ => {
+            Json(serde_json::json!({
+                "available": false,
+                "url": cfd_api_url,
+                "message": "External CFD solver is not available - using local solver"
+            }))
+        }
+    }
+}
+
 pub async fn create_app() -> Router {
     // CORS layer
     let cors = CorsLayer::new()
@@ -441,6 +655,9 @@ pub async fn create_app() -> Router {
         .route("/api/solve", post(run_solver))
         .route("/api/calculate/full", post(calculate_full))
         .route("/api/cfd/solve", post(run_cfd))
+        .route("/api/cfd/stream", post(run_cfd_stream))
+        .route("/api/cfd/external", post(run_cfd_external))
+        .route("/api/cfd/external/status", get(check_external_cfd))
         .route("/api/wiki", get(get_wiki))
         .layer(cors)
 }
