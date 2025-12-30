@@ -1,11 +1,8 @@
 version: '3.8'
 services:
   rocket-app:
-    build:
-      context: .
-      dockerfile: Dockerfile # Le nom du fichier que tu viens de m'envoyer
-    ports:
-      - "3000:3000" # Frontend Next.js
-      - "8000:8000" # Backend Rust
-      - "8001:8001" # Service Python CEA
-    restart: unless-stopped
+    # ... ton build ...
+    environment:
+      - NEXT_PUBLIC_API_URL=http://192.168.1.43:8000 # L'IP de ton LXC
+      - RUST_BACKEND_URL=http://localhost:8000
+      - CEA_SERVICE_URL=http://localhost:8001
