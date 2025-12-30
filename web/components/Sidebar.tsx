@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, Flame, Droplets, Rocket, Database, Settings, Menu, X, ChevronRight, Waves } from "lucide-react";
+import { Activity, Flame, Droplets, Rocket, Database, Settings, Menu, X, ChevronRight, Wind } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -9,7 +9,7 @@ const NAV_ITEMS = [
     { name: "Thermodynamique", icon: Flame, href: "/thermo", gradient: "from-orange-500 to-red-500" },
     { name: "Canal de Refroidissement", icon: Droplets, href: "/cooling", gradient: "from-green-500 to-emerald-500" },
     { name: "Combustion", icon: Rocket, href: "/combustion", gradient: "from-purple-500 to-pink-500" },
-    { name: "CFD 2D", icon: Waves, href: "/cfd", gradient: "from-cyan-500 to-blue-500" },
+    { name: "CFD 2D", icon: Wind, href: "/cfd", gradient: "from-cyan-500 to-blue-500" },
     { name: "Matériaux", icon: Database, href: "/materials", gradient: "from-yellow-500 to-orange-500" },
     { name: "Paramètres", icon: Settings, href: "/settings", gradient: "from-slate-500 to-slate-600" },
 ];

@@ -152,7 +152,7 @@ impl CFDSolver {
         let r_gas = R_UNIVERSAL / req.molar_mass;
 
         let dx = total_length / nx as f64;
-        let dy = req.r_chamber / ny as f64; // Use max radius for dy
+        let dy = req.r_chamber / ny as f64;
 
         // X coordinates (cell centers)
         let x = Array1::from_iter((0..nx).map(|i| (i as f64 + 0.5) * dx));
@@ -163,14 +163,58 @@ impl CFDSolver {
             compute_wall_radius(xi, req)
         }));
 
-        // R coordinates (cell centers) - will be scaled per column
+        // R coordinates (cell centers) - normalized 0 to 1
         let r = Array1::from_iter((0..ny).map(|j| (j as f64 + 0.5) / ny as f64));
 
-        // Initialize with chamber conditions
+        // Initialize with 1D quasi-steady flow guess
         let rho_chamber = req.p_chamber / (r_gas * req.t_chamber);
-        let initial = ConservativeVars::new(rho_chamber, 1.0, 0.0, req.p_chamber, gamma);
+        let a_star = std::f64::consts::PI * req.r_throat * req.r_throat;
 
-        let u = Array2::from_elem((ny, nx), initial);
+        // Speed of sound at chamber
+        let c_chamber = (gamma * req.p_chamber / rho_chamber).sqrt();
+
+        // Mass flow from choked throat
+        let gamma_factor = ((gamma + 1.0) / 2.0).powf(-(gamma + 1.0) / (2.0 * (gamma - 1.0)));
+        let mdot = rho_chamber * a_star * c_chamber * gamma_factor;
+
+        let mut u = Array2::from_elem(
+            (ny, nx),
+            ConservativeVars::new(rho_chamber, 10.0, 0.0, req.p_chamber, gamma),
+        );
+
+        // Initialize each column with 1D isentropic estimate
+        for i in 0..nx {
+            let r_local = r_wall[i];
+            let a_local = std::f64::consts::PI * r_local * r_local;
+            let area_ratio = a_local / a_star;
+
+            // Approximate Mach number from area ratio (subsonic or supersonic)
+            let throat_x = req.l_chamber;
+            let xi = (i as f64 + 0.5) * dx;
+
+            let mach = if xi < throat_x {
+                // Subsonic: M ~ 0.1 to 1.0 in convergent
+                let progress = xi / throat_x;
+                0.1 + 0.9 * progress.powf(2.0)
+            } else {
+                // Supersonic: M ~ 1.0 to 3.0+ in divergent
+                let progress = (xi - throat_x) / req.l_nozzle;
+                1.0 + 2.5 * progress.powf(0.8)
+            };
+
+            // Isentropic relations
+            let temp_ratio = 1.0 + 0.5 * (gamma - 1.0) * mach * mach;
+            let t_local = req.t_chamber / temp_ratio;
+            let p_local = req.p_chamber * temp_ratio.powf(-gamma / (gamma - 1.0));
+            let rho_local = p_local / (r_gas * t_local);
+            let c_local = (gamma * p_local / rho_local).sqrt();
+            let u_local = mach * c_local;
+
+            // Set all radial cells in this column
+            for j in 0..ny {
+                u[[j, i]] = ConservativeVars::new(rho_local, u_local, 0.0, p_local, gamma);
+            }
+        }
 
         Self {
             nx,

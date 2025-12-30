@@ -66,13 +66,39 @@ async fn calculate_cea(Json(payload): Json<CEARequest>) -> Result<Json<CEARespon
 
 /// CFD 2D axisymmetric solver endpoint
 /// This is computationally intensive and runs in a blocking thread
-async fn run_cfd(Json(payload): Json<CFDRequest>) -> Result<Json<CFDResult>, StatusCode> {
-    // Run heavy computation in blocking thread pool
-    let result = tokio::task::spawn_blocking(move || cfd_solver::run_cfd_simulation(payload))
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+async fn run_cfd(Json(payload): Json<CFDRequest>) -> Result<Json<CFDResult>, (StatusCode, String)> {
+    // Run heavy computation in blocking thread pool with panic catching
+    let result = tokio::task::spawn_blocking(move || {
+        std::panic::catch_unwind(|| cfd_solver::run_cfd_simulation(payload))
+    })
+    .await
+    .map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Task join error: {:?}", e),
+        )
+    })?;
 
-    Ok(Json(result))
+    match result {
+        Ok(cfd_result) => {
+            // Check for NaN/Inf in results (would cause JSON serialization issues)
+            if cfd_result
+                .mach
+                .iter()
+                .any(|v| v.is_nan() || v.is_infinite())
+            {
+                return Err((
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Solver diverged: NaN/Inf in Mach field".to_string(),
+                ));
+            }
+            Ok(Json(cfd_result))
+        }
+        Err(_) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "CFD solver panicked - try reducing grid size or iterations".to_string(),
+        )),
+    }
 }
 
 async fn run_solver(
