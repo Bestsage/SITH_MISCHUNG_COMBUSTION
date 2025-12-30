@@ -8,10 +8,12 @@ use std::net::SocketAddr;
 use tower_http::cors::{Any, CorsLayer};
 
 mod cea_client;
+mod cfd_solver;
 mod geometry;
 mod materials;
 mod motor_definition;
 
+use cfd_solver::{CFDRequest, CFDResult};
 use geometry::{GeometryParams, GeometryProfile};
 use motor_definition::{CalculationResults, MotorDefinition};
 use rocket_server::{CEARequest, CEAResponse};
@@ -60,6 +62,17 @@ async fn calculate_cea(Json(payload): Json<CEARequest>) -> Result<Json<CEARespon
         Ok(result) => Ok(Json(result)),
         Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
     }
+}
+
+/// CFD 2D axisymmetric solver endpoint
+/// This is computationally intensive and runs in a blocking thread
+async fn run_cfd(Json(payload): Json<CFDRequest>) -> Result<Json<CFDResult>, StatusCode> {
+    // Run heavy computation in blocking thread pool
+    let result = tokio::task::spawn_blocking(move || cfd_solver::run_cfd_simulation(payload))
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(Json(result))
 }
 
 async fn run_solver(
@@ -401,6 +414,7 @@ pub async fn create_app() -> Router {
         .route("/api/geometry/generate", post(generate_geometry))
         .route("/api/solve", post(run_solver))
         .route("/api/calculate/full", post(calculate_full))
+        .route("/api/cfd/solve", post(run_cfd))
         .route("/api/wiki", get(get_wiki))
         .layer(cors)
 }
