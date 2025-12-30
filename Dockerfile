@@ -15,7 +15,7 @@ COPY web/ ./
 RUN npm run build
 
 # === Stage 2: Rust Build ===
-FROM rust:1.75 AS rust-builder
+FROM rust:latest AS rust-builder
 WORKDIR /app
 
 # Install build dependencies
