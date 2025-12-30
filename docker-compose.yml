@@ -1,56 +1,11 @@
 version: '3.8'
-
 services:
-  # FRONTEND (Next.js - Port 3000)
-  frontend:
-    container_name: sith-frontend
+  rocket-app:
     build:
-      context: ./web
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: Dockerfile # Le nom du fichier que tu viens de m'envoyer
     ports:
-      - "3000:3000"
-    environment:
-      - NEXT_PUBLIC_API_URL=http://backend:8000
-    depends_on:
-      - backend
-    networks:
-      - sith-network
+      - "3000:3000" # Frontend Next.js
+      - "8000:8000" # Backend Rust
+      - "8001:8001" # Service Python CEA
     restart: unless-stopped
-
-  # BACKEND (Rust Axum - Port 8000)
-  backend:
-    container_name: sith-backend
-    build:
-      context: ./rocket_server
-      dockerfile: Dockerfile
-    ports:
-      - "8000:8000"
-    environment:
-      - CFD_API_URL=http://cfd-solver:8001
-      - RUST_LOG=info
-    depends_on:
-      - cfd-solver
-    networks:
-      - sith-network
-    restart: unless-stopped
-
-  # CFD SOLVER (OpenFOAM - Port 8001)
-  cfd-solver:
-    container_name: sith-openfoam
-    build:
-      context: ./openfoam-cfd
-      dockerfile: Dockerfile
-    ports:
-      - "8001:8001"
-    networks:
-      - sith-network
-    restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          cpus: '4'
-          memory: 8G
-
-networks:
-  sith-network:
-    driver: bridge
