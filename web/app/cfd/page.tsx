@@ -570,7 +570,7 @@ export default function CFDPage() {
                                 <Canvas orthographic camera={{ zoom: 20, position: [0, 0, 50] }}>
                                     <CFDHeatmap
                                         result={result}
-                                        request={request}
+                                        request={params}
                                         field={selectedField}
                                         colormap={FIELD_CONFIG[selectedField].colormap}
                                     />
