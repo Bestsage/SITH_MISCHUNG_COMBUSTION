@@ -1,0 +1,98 @@
+   Compiling rocket_core v0.1.0 (C:\Users\samue\OneDrive\Documents\Rocket-Motor-Design-Plotter\rocket_core)
+error[E0277]: the trait bound `&PyDict: FromPyObjectBound<'_, '_>` is not satisfied
+    --> src\lib.rs:39:63
+     |
+  39 |         let cea_data: &PyDict = cea_callback.call1(py, args)?.extract(py)?;
+     |                                                               ^^^^^^^ the trait `PyClass` is not implemented for `&PyDict`
+     |
+     = help: the following other types implement trait `FromPyObjectBound<'a, 'py>`:
+               &'a [u8]
+               &'a str
+               Cow<'a, [u8]>
+               Cow<'a, str>
+     = note: required for `&PyDict` to implement `FromPyObject<'_>`
+     = note: required for `&PyDict` to implement `FromPyObjectBound<'_, '_>`
+note: required by a bound in `Py::<T>::extract`
+    --> C:\Users\samue\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\pyo3-0.22.6\src\instance.rs:1418:12
+     |
+1416 |     pub fn extract<'a, 'py, D>(&'a self, py: Python<'py>) -> PyResult<D>
+     |            ------- required by a bound in this associated function
+1417 |     where
+1418 |         D: crate::conversion::FromPyObjectBound<'a, 'py>,
+     |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `Py::<T>::extract`
+
+error[E0599]: no method named `get_item` found for reference `&PyDict` in the current scope
+  --> src\lib.rs:42:33
+   |
+42 |         let isp: f64 = cea_data.get_item("isp").unwrap().extract()?;
+   |                                 ^^^^^^^^ method not found in `&PyDict`
+
+error[E0599]: no method named `get_item` found for reference `&PyDict` in the current scope
+  --> src\lib.rs:43:36
+   |
+43 |         let t_comb: f64 = cea_data.get_item("t_comb").unwrap().extract()?;
+   |                                    ^^^^^^^^ method not found in `&PyDict`
+
+error[E0599]: no function or associated item named `new` found for struct `PyDict` in the current scope
+  --> src\lib.rs:56:27
+   |
+56 |     let results = PyDict::new(py);
+   |                           ^^^ function or associated item not found in `PyDict`
+
+error[E0277]: the trait bound `&PyDict: PyFunctionArgument<'_, '_>` is not satisfied
+   --> src\lib.rs:27:15
+    |
+ 27 |     geometry: &PyDict,
+    |               ^ the trait `PyClass` is not implemented for `&PyDict`
+    |
+    = help: the following other types implement trait `PyFunctionArgument<'a, 'py>`:
+              &'a pyo3::Bound<'py, T>
+              Option<&'a pyo3::Bound<'py, T>>
+    = note: required for `&PyDict` to implement `FromPyObject<'_>`
+    = note: required for `&PyDict` to implement `FromPyObjectBound<'_, '_>`
+    = note: required for `&PyDict` to implement `PyFunctionArgument<'_, '_>`
+note: required by a bound in `extract_argument`
+   --> C:\Users\samue\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\pyo3-0.22.6\src\impl_\extract_argument.rs:119:8
+    |
+113 | pub fn extract_argument<'a, 'py, T>(
+    |        ---------------- required by a bound in this function
+...
+119 |     T: PyFunctionArgument<'a, 'py>,
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `extract_argument`
+
+error[E0599]: no method named `add_function` found for reference `&pyo3::types::PyModule` in the current scope
+  --> src\lib.rs:66:7
+   |
+66 |     m.add_function(wrap_pyfunction!(run_cooling_loop, m)?)?;
+   |       ^^^^^^^^^^^^ method not found in `&pyo3::types::PyModule`
+
+error[E0277]: the trait bound `&pyo3::types::PyModule: WrapPyFunctionArg<'_, _>` is not satisfied
+  --> src\lib.rs:66:20
+   |
+66 |     m.add_function(wrap_pyfunction!(run_cooling_loop, m)?)?;
+   |                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |                    |
+   |                    the trait `WrapPyFunctionArg<'_, _>` is not implemented for `&pyo3::types::PyModule`
+   |                    required by a bound introduced by this call
+   |
+   = help: the following other types implement trait `WrapPyFunctionArg<'py, T>`:
+             &pyo3::Borrowed<'_, 'py, pyo3::types::PyModule>
+             &pyo3::Bound<'py, pyo3::types::PyModule>
+             OnlyBound<T>
+             pyo3::Borrowed<'_, 'py, pyo3::types::PyModule>
+             pyo3::Bound<'py, pyo3::types::PyModule>
+             pyo3::Python<'py>
+   = note: this error originates in the macro `wrap_pyfunction` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: the trait bound `&pyo3::types::PyModule: From<BoundRef<'_, '_, pyo3::types::PyModule>>` is not satisfied
+  --> src\lib.rs:64:1
+   |
+64 | #[pymodule]
+   | ^^^^^^^^^^^ the trait `From<BoundRef<'_, '_, pyo3::types::PyModule>>` is not implemented for `&pyo3::types::PyModule`
+   |
+   = note: required for `BoundRef<'_, '_, pyo3::types::PyModule>` to implement `Into<&pyo3::types::PyModule>`
+   = note: this error originates in the attribute macro `pymodule` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+Some errors have detailed explanations: E0277, E0599.
+For more information about an error, try `rustc --explain E0277`.
+error: could not compile `rocket_core` (lib) due to 8 previous errors

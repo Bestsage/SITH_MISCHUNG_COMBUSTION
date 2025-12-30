@@ -1,0 +1,153 @@
+       Fresh autocfg v1.5.0
+       Fresh once_cell v1.21.3
+       Fresh unicode-ident v1.0.22
+       Fresh cfg-if v1.0.4
+       Fresh windows-link v0.2.1
+       Fresh smallvec v1.15.1
+       Fresh heck v0.4.1
+       Fresh scopeguard v1.2.0
+       Fresh lock_api v0.4.14
+       Fresh find-msvc-tools v0.1.6
+       Fresh shlex v1.3.0
+       Fresh rawpointer v0.2.1
+       Fresh unindent v0.2.4
+       Fresh indoc v2.0.7
+       Fresh rustc-hash v1.1.0
+       Fresh target-lexicon v0.12.16
+       Fresh proc-macro2 v1.0.104
+       Fresh num-traits v0.2.19
+       Fresh libc v0.2.178
+       Fresh parking_lot_core v0.9.12
+       Fresh memoffset v0.9.1
+       Fresh cc v1.2.51
+       Fresh matrixmultiply v0.3.10
+       Fresh portable-atomic v1.13.0
+       Fresh quote v1.0.42
+       Fresh num-complex v0.4.6
+       Fresh parking_lot v0.12.5
+       Fresh num-integer v0.1.46
+       Fresh syn v2.0.111
+       Fresh ndarray v0.15.6
+warning: unexpected `cfg` condition name: `features`
+ --> C:\Users\samue\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ndarray-0.15.6\src\zip\ndproducer.rs:5:11
+  |
+5 | #[cfg(not(features = "std"))]
+  |           ^^^^^^^^^^^^^^^^
+  |
+  = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+  = note: `#[warn(unexpected_cfgs)]` on by default
+help: there is a config with a similar name and value
+  |
+5 - #[cfg(not(features = "std"))]
+5 + #[cfg(not(feature = "std"))]
+  |
+
+warning: unused import: `constructors::*`
+ --> C:\Users\samue\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ndarray-0.15.6\src\impl_views\mod.rs:6:9
+  |
+6 | pub use constructors::*;
+  |         ^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `conversions::*`
+ --> C:\Users\samue\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ndarray-0.15.6\src\impl_views\mod.rs:7:9
+  |
+7 | pub use conversions::*;
+  |         ^^^^^^^^^^^^^^
+
+warning: unused import: `splitting::*`
+ --> C:\Users\samue\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ndarray-0.15.6\src\impl_views\mod.rs:9:9
+  |
+9 | pub use splitting::*;
+  |         ^^^^^^^^^^^^
+
+warning: unused import: `rawpointer::PointerExt`
+ --> C:\Users\samue\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ndarray-0.15.6\src\impl_owned_array.rs:6:5
+  |
+6 | use rawpointer::PointerExt;
+  |     ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `rawpointer::PointerExt`
+  --> C:\Users\samue\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ndarray-0.15.6\src\impl_methods.rs:13:5
+   |
+13 | use rawpointer::PointerExt;
+   |     ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `rawpointer::PointerExt`
+ --> C:\Users\samue\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ndarray-0.15.6\src\data_repr.rs:9:5
+  |
+9 | use rawpointer::PointerExt;
+  |     ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `rawpointer::PointerExt`
+  --> C:\Users\samue\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ndarray-0.15.6\src\impl_constructors.rs:36:5
+   |
+36 | use rawpointer::PointerExt;
+   |     ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `rawpointer::PointerExt`
+  --> C:\Users\samue\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ndarray-0.15.6\src\data_traits.rs:11:5
+   |
+11 | use rawpointer::PointerExt;
+   |     ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `rawpointer::PointerExt`
+  --> C:\Users\samue\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ndarray-0.15.6\src\impl_views\conversions.rs:10:5
+   |
+10 | use rawpointer::PointerExt;
+   |     ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `can_split` is never used
+  --> C:\Users\samue\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ndarray-0.15.6\src\split_at.rs:10:8
+   |
+ 9 | pub(crate) trait SplitPreference : SplitAt {
+   |                  --------------- method in this trait
+10 |     fn can_split(&self) -> bool;
+   |        ^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: method `post_dec` is never used
+   --> C:\Users\samue\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ndarray-0.15.6\src\dimension\axes.rs:146:8
+    |
+144 | trait IncOps: Copy {
+    |       ------ method in this trait
+145 |     fn post_inc(&mut self) -> Self;
+146 |     fn post_dec(&mut self) -> Self;
+    |        ^^^^^^^^
+
+warning: `ndarray` (lib) generated 12 warnings
+       Fresh pyo3-build-config v0.20.3
+       Fresh pyo3-macros-backend v0.20.3
+   Compiling pyo3-ffi v0.20.3
+       Dirty pyo3-macros v0.20.3: dependency info changed
+   Compiling pyo3-macros v0.20.3
+     Running `set CARGO=C:\Users\samue\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin\cargo.exe&& set CARGO_CRATE_NAME=pyo3_macros&& set CARGO_MANIFEST_DIR=C:\Users\samue\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\pyo3-macros-0.20.3&& set CARGO_MANIFEST_PATH=C:\Users\samue\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\pyo3-macros-0.20.3\Cargo.toml&& set CARGO_PKG_AUTHORS="PyO3 Project and Contributors <https://github.com/PyO3>"&& set CARGO_PKG_DESCRIPTION="Proc macros for PyO3 package"&& set CARGO_PKG_HOMEPAGE=https://github.com/pyo3/pyo3&& set CARGO_PKG_LICENSE="MIT OR Apache-2.0"&& set CARGO_PKG_LICENSE_FILE=""&& set CARGO_PKG_NAME=pyo3-macros&& set CARGO_PKG_README=""&& set CARGO_PKG_REPOSITORY=https://github.com/pyo3/pyo3&& set CARGO_PKG_RUST_VERSION=""&& set CARGO_PKG_VERSION=0.20.3&& set CARGO_PKG_VERSION_MAJOR=0&& set CARGO_PKG_VERSION_MINOR=20&& set CARGO_PKG_VERSION_PATCH=3&& set CARGO_PKG_VERSION_PRE=""&& set PATH="C:\Users\samue\OneDrive\Documents\Rocket-Motor-Design-Plotter\rocket_core\target\debug\deps;C:\Program Files\WindowsApps\Microsoft.PowerShell_7.5.4.0_x64__8wekyb3d8bbwe;C:\Python314\Scripts\;C:\Python314\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Python313\Scripts\;C:\Python313\;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files\dotnet\;C:\Program Files\Git\cmd;C:\Program Files\MATLAB\R2025b\runtime\win64;C:\Program Files\MATLAB\R2025b\bin;C:\Program Files\Docker\Docker\resources\bin;C:\ProgramData\chocolatey\bin;C:\msys64\ucrt64\bin;C:\Program Files\CMake\bin;C:\Program Files (x86)\Windows Kits\8.1\Windows Performance Toolkit\;C:\ProgramData\nvm;C:\nvm4w\nodejs;C:\Program Files\nodejs\;C:\Program Files\cursor\resources\app\bin;C:\Users\samue\.local\bin;C:\Users\samue\AppData\Local\Microsoft\WindowsApps;C:\Users\samue\AppData\Local\Programs\Microsoft VS Code\bin;C:\Users\samue\AppData\Local\Programs\Ollama;C:\Users\samue\AppData\Local\Microsoft\WinGet\Packages\zyedidia.micro_Microsoft.Winget.Source_8wekyb3d8bbwe\micro-2.0.14;C:\Users\samue\.lmstudio\bin;C:\Users\samue\.cache\lm-studio\bin;C:\ProgramData\nvm;C:\nvm4w\nodejs;C:\Users\samue\AppData\Roaming\npm;C:\Users\samue\AppData\Local\PowerToys\DSCModules\;C:\Users\samue\AppData\Local\Microsoft\WinGet\Packages\DenoLand.Deno_Microsoft.Winget.Source_8wekyb3d8bbwe;C:\Users\samue\AppData\Local\Microsoft\WinGet\Packages\yt-dlp.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-N-121583-g4348bde2d2-win64-gpl/bin;C:\Users\samue\AppData\Local\Microsoft\WinGet\Packages\yt-dlp.yt-dlp_Microsoft.Winget.Source_8wekyb3d8bbwe;C:\Users\samue\.cargo\bin;C:\msys64\mingw64\bin;C:\Users\samue\.cargo\bin;C:\msys64\mingw64\bin;C:\Users\samue\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin"&& C:\Users\samue\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin\rustc.exe --crate-name pyo3_macros --edition=2021 C:\Users\samue\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\pyo3-macros-0.20.3\src\lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --crate-type proc-macro --emit=dep-info,link -C prefer-dynamic -C embed-bitcode=no --warn=clippy::useless_transmute --warn=clippy::used_underscore_binding --warn=unused_lifetimes --allow=unused_imports --warn=clippy::unnecessary_wraps --warn=clippy::todo --warn=rust_2021_prelude_collisions --warn=rust_2018_idioms --warn=clippy::manual_ok_or --warn=clippy::manual_assert --warn=clippy::let_unit_value --warn=invalid_doc_attributes --warn=clippy::flat_map_option --warn=clippy::filter_map_next --warn=clippy::explicit_iter_loop --warn=clippy::explicit_into_iter_loop --warn=elided_lifetimes_in_paths --allow=dead_code --warn=clippy::dbg_macro --warn=clippy::checked_conversions --warn=rustdoc::broken_intra_doc_links --warn=rustdoc::bare_urls --check-cfg cfg(docsrs,test) --check-cfg "cfg(feature, values(\"multiple-pymethods\"))" -C metadata=57b831285f3b65ea -C extra-filename=-b9ddef0be5c0d825 --out-dir C:\Users\samue\OneDrive\Documents\Rocket-Motor-Design-Plotter\rocket_core\target\debug\deps -L dependency=C:\Users\samue\OneDrive\Documents\Rocket-Motor-Design-Plotter\rocket_core\target\debug\deps --extern proc_macro2=C:\Users\samue\OneDrive\Documents\Rocket-Motor-Design-Plotter\rocket_core\target\debug\deps\libproc_macro2-b800b2f75d233022.rlib --extern pyo3_macros_backend=C:\Users\samue\OneDrive\Documents\Rocket-Motor-Design-Plotter\rocket_core\target\debug\deps\libpyo3_macros_backend-d3e6925eed5fb4a1.rlib --extern quote=C:\Users\samue\OneDrive\Documents\Rocket-Motor-Design-Plotter\rocket_core\target\debug\deps\libquote-e6aaaaaf7461f3b1.rlib --extern syn=C:\Users\samue\OneDrive\Documents\Rocket-Motor-Design-Plotter\rocket_core\target\debug\deps\libsyn-1a8547356275e494.rlib --extern proc_macro --cap-lints warn`
+     Running `set CARGO=C:\Users\samue\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin\cargo.exe&& set CARGO_CFG_FEATURE=default,extension-module&& set CARGO_CFG_PANIC=unwind&& set CARGO_CFG_TARGET_ABI=""&& set CARGO_CFG_TARGET_ARCH=x86_64&& set CARGO_CFG_TARGET_ENDIAN=little&& set CARGO_CFG_TARGET_ENV=msvc&& set CARGO_CFG_TARGET_FAMILY=windows&& set CARGO_CFG_TARGET_FEATURE=cmpxchg16b,fxsr,sse,sse2,sse3&& set CARGO_CFG_TARGET_HAS_ATOMIC=128,16,32,64,8,ptr&& set CARGO_CFG_TARGET_OS=windows&& set CARGO_CFG_TARGET_POINTER_WIDTH=64&& set CARGO_CFG_TARGET_VENDOR=pc&& set CARGO_CFG_WINDOWS=""&& set CARGO_ENCODED_RUSTFLAGS=""&& set CARGO_FEATURE_DEFAULT=1&& set CARGO_FEATURE_EXTENSION_MODULE=1&& set CARGO_MANIFEST_DIR=C:\Users\samue\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\pyo3-ffi-0.20.3&& set CARGO_MANIFEST_LINKS=python&& set CARGO_MANIFEST_PATH=C:\Users\samue\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\pyo3-ffi-0.20.3\Cargo.toml&& set CARGO_PKG_AUTHORS="PyO3 Project and Contributors <https://github.com/PyO3>"&& set CARGO_PKG_DESCRIPTION="Python-API bindings for the PyO3 ecosystem"&& set CARGO_PKG_HOMEPAGE=https://github.com/pyo3/pyo3&& set CARGO_PKG_LICENSE="MIT OR Apache-2.0"&& set CARGO_PKG_LICENSE_FILE=""&& set CARGO_PKG_NAME=pyo3-ffi&& set CARGO_PKG_README=README.md&& set CARGO_PKG_REPOSITORY=https://github.com/pyo3/pyo3&& set CARGO_PKG_RUST_VERSION=""&& set CARGO_PKG_VERSION=0.20.3&& set CARGO_PKG_VERSION_MAJOR=0&& set CARGO_PKG_VERSION_MINOR=20&& set CARGO_PKG_VERSION_PATCH=3&& set CARGO_PKG_VERSION_PRE=""&& set DEBUG=true&& set HOST=x86_64-pc-windows-msvc&& set NUM_JOBS=16&& set OPT_LEVEL=0&& set OUT_DIR=C:\Users\samue\OneDrive\Documents\Rocket-Motor-Design-Plotter\rocket_core\target\debug\build\pyo3-ffi-83eca6bd2356db9e\out&& set PATH="C:\Users\samue\OneDrive\Documents\Rocket-Motor-Design-Plotter\rocket_core\target\debug\deps;C:\Users\samue\OneDrive\Documents\Rocket-Motor-Design-Plotter\rocket_core\target\debug;C:\Users\samue\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\WindowsApps\Microsoft.PowerShell_7.5.4.0_x64__8wekyb3d8bbwe;C:\Python314\Scripts\;C:\Python314\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Python313\Scripts\;C:\Python313\;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files\dotnet\;C:\Program Files\Git\cmd;C:\Program Files\MATLAB\R2025b\runtime\win64;C:\Program Files\MATLAB\R2025b\bin;C:\Program Files\Docker\Docker\resources\bin;C:\ProgramData\chocolatey\bin;C:\msys64\ucrt64\bin;C:\Program Files\CMake\bin;C:\Program Files (x86)\Windows Kits\8.1\Windows Performance Toolkit\;C:\ProgramData\nvm;C:\nvm4w\nodejs;C:\Program Files\nodejs\;C:\Program Files\cursor\resources\app\bin;C:\Users\samue\.local\bin;C:\Users\samue\AppData\Local\Microsoft\WindowsApps;C:\Users\samue\AppData\Local\Programs\Microsoft VS Code\bin;C:\Users\samue\AppData\Local\Programs\Ollama;C:\Users\samue\AppData\Local\Microsoft\WinGet\Packages\zyedidia.micro_Microsoft.Winget.Source_8wekyb3d8bbwe\micro-2.0.14;C:\Users\samue\.lmstudio\bin;C:\Users\samue\.cache\lm-studio\bin;C:\ProgramData\nvm;C:\nvm4w\nodejs;C:\Users\samue\AppData\Roaming\npm;C:\Users\samue\AppData\Local\PowerToys\DSCModules\;C:\Users\samue\AppData\Local\Microsoft\WinGet\Packages\DenoLand.Deno_Microsoft.Winget.Source_8wekyb3d8bbwe;C:\Users\samue\AppData\Local\Microsoft\WinGet\Packages\yt-dlp.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-N-121583-g4348bde2d2-win64-gpl/bin;C:\Users\samue\AppData\Local\Microsoft\WinGet\Packages\yt-dlp.yt-dlp_Microsoft.Winget.Source_8wekyb3d8bbwe;C:\Users\samue\.cargo\bin;C:\msys64\mingw64\bin;C:\Users\samue\.cargo\bin;C:\msys64\mingw64\bin;C:\Users\samue\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin"&& set PROFILE=debug&& set RUSTC=C:\Users\samue\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin\rustc.exe&& set RUSTDOC=C:\Users\samue\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin\rustdoc.exe&& set TARGET=x86_64-pc-windows-msvc&& C:\Users\samue\OneDrive\Documents\Rocket-Motor-Design-Plotter\rocket_core\target\debug\build\pyo3-ffi-5a7ae3ee70108dce\build-script-build`
+[pyo3-ffi 0.20.3] cargo:rerun-if-env-changed=PYO3_CROSS
+[pyo3-ffi 0.20.3] cargo:rerun-if-env-changed=PYO3_CROSS_LIB_DIR
+[pyo3-ffi 0.20.3] cargo:rerun-if-env-changed=PYO3_CROSS_PYTHON_VERSION
+[pyo3-ffi 0.20.3] cargo:rerun-if-env-changed=PYO3_CROSS_PYTHON_IMPLEMENTATION
+[pyo3-ffi 0.20.3] cargo:rerun-if-env-changed=PYO3_PRINT_CONFIG
+[pyo3-ffi 0.20.3] cargo:rerun-if-env-changed=PYO3_USE_ABI3_FORWARD_COMPATIBILITY
+[pyo3-ffi 0.20.3] error: the configured Python interpreter version (3.14) is newer than PyO3's maximum supported version (3.12)
+[pyo3-ffi 0.20.3] = help: please check if an updated version of PyO3 is available. Current version: 0.20.3
+[pyo3-ffi 0.20.3] = help: set PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 to suppress this check and build anyway using the stable ABI
+error: failed to run custom build command for `pyo3-ffi v0.20.3`
+
+Caused by:
+  process didn't exit successfully: `set CARGO=C:\Users\samue\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin\cargo.exe&& set CARGO_CFG_FEATURE=default,extension-module&& set CARGO_CFG_PANIC=unwind&& set CARGO_CFG_TARGET_ABI=""&& set CARGO_CFG_TARGET_ARCH=x86_64&& set CARGO_CFG_TARGET_ENDIAN=little&& set CARGO_CFG_TARGET_ENV=msvc&& set CARGO_CFG_TARGET_FAMILY=windows&& set CARGO_CFG_TARGET_FEATURE=cmpxchg16b,fxsr,sse,sse2,sse3&& set CARGO_CFG_TARGET_HAS_ATOMIC=128,16,32,64,8,ptr&& set CARGO_CFG_TARGET_OS=windows&& set CARGO_CFG_TARGET_POINTER_WIDTH=64&& set CARGO_CFG_TARGET_VENDOR=pc&& set CARGO_CFG_WINDOWS=""&& set CARGO_ENCODED_RUSTFLAGS=""&& set CARGO_FEATURE_DEFAULT=1&& set CARGO_FEATURE_EXTENSION_MODULE=1&& set CARGO_MANIFEST_DIR=C:\Users\samue\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\pyo3-ffi-0.20.3&& set CARGO_MANIFEST_LINKS=python&& set CARGO_MANIFEST_PATH=C:\Users\samue\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\pyo3-ffi-0.20.3\Cargo.toml&& set CARGO_PKG_AUTHORS="PyO3 Project and Contributors <https://github.com/PyO3>"&& set CARGO_PKG_DESCRIPTION="Python-API bindings for the PyO3 ecosystem"&& set CARGO_PKG_HOMEPAGE=https://github.com/pyo3/pyo3&& set CARGO_PKG_LICENSE="MIT OR Apache-2.0"&& set CARGO_PKG_LICENSE_FILE=""&& set CARGO_PKG_NAME=pyo3-ffi&& set CARGO_PKG_README=README.md&& set CARGO_PKG_REPOSITORY=https://github.com/pyo3/pyo3&& set CARGO_PKG_RUST_VERSION=""&& set CARGO_PKG_VERSION=0.20.3&& set CARGO_PKG_VERSION_MAJOR=0&& set CARGO_PKG_VERSION_MINOR=20&& set CARGO_PKG_VERSION_PATCH=3&& set CARGO_PKG_VERSION_PRE=""&& set DEBUG=true&& set HOST=x86_64-pc-windows-msvc&& set NUM_JOBS=16&& set OPT_LEVEL=0&& set OUT_DIR=C:\Users\samue\OneDrive\Documents\Rocket-Motor-Design-Plotter\rocket_core\target\debug\build\pyo3-ffi-83eca6bd2356db9e\out&& set PATH="C:\Users\samue\OneDrive\Documents\Rocket-Motor-Design-Plotter\rocket_core\target\debug\deps;C:\Users\samue\OneDrive\Documents\Rocket-Motor-Design-Plotter\rocket_core\target\debug;C:\Users\samue\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\WindowsApps\Microsoft.PowerShell_7.5.4.0_x64__8wekyb3d8bbwe;C:\Python314\Scripts\;C:\Python314\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Python313\Scripts\;C:\Python313\;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files\dotnet\;C:\Program Files\Git\cmd;C:\Program Files\MATLAB\R2025b\runtime\win64;C:\Program Files\MATLAB\R2025b\bin;C:\Program Files\Docker\Docker\resources\bin;C:\ProgramData\chocolatey\bin;C:\msys64\ucrt64\bin;C:\Program Files\CMake\bin;C:\Program Files (x86)\Windows Kits\8.1\Windows Performance Toolkit\;C:\ProgramData\nvm;C:\nvm4w\nodejs;C:\Program Files\nodejs\;C:\Program Files\cursor\resources\app\bin;C:\Users\samue\.local\bin;C:\Users\samue\AppData\Local\Microsoft\WindowsApps;C:\Users\samue\AppData\Local\Programs\Microsoft VS Code\bin;C:\Users\samue\AppData\Local\Programs\Ollama;C:\Users\samue\AppData\Local\Microsoft\WinGet\Packages\zyedidia.micro_Microsoft.Winget.Source_8wekyb3d8bbwe\micro-2.0.14;C:\Users\samue\.lmstudio\bin;C:\Users\samue\.cache\lm-studio\bin;C:\ProgramData\nvm;C:\nvm4w\nodejs;C:\Users\samue\AppData\Roaming\npm;C:\Users\samue\AppData\Local\PowerToys\DSCModules\;C:\Users\samue\AppData\Local\Microsoft\WinGet\Packages\DenoLand.Deno_Microsoft.Winget.Source_8wekyb3d8bbwe;C:\Users\samue\AppData\Local\Microsoft\WinGet\Packages\yt-dlp.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-N-121583-g4348bde2d2-win64-gpl/bin;C:\Users\samue\AppData\Local\Microsoft\WinGet\Packages\yt-dlp.yt-dlp_Microsoft.Winget.Source_8wekyb3d8bbwe;C:\Users\samue\.cargo\bin;C:\msys64\mingw64\bin;C:\Users\samue\.cargo\bin;C:\msys64\mingw64\bin;C:\Users\samue\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin"&& set PROFILE=debug&& set RUSTC=C:\Users\samue\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin\rustc.exe&& set RUSTDOC=C:\Users\samue\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin\rustdoc.exe&& set TARGET=x86_64-pc-windows-msvc&& C:\Users\samue\OneDrive\Documents\Rocket-Motor-Design-Plotter\rocket_core\target\debug\build\pyo3-ffi-5a7ae3ee70108dce\build-script-build` (exit code: 1)
+  --- stdout
+  cargo:rerun-if-env-changed=PYO3_CROSS
+  cargo:rerun-if-env-changed=PYO3_CROSS_LIB_DIR
+  cargo:rerun-if-env-changed=PYO3_CROSS_PYTHON_VERSION
+  cargo:rerun-if-env-changed=PYO3_CROSS_PYTHON_IMPLEMENTATION
+  cargo:rerun-if-env-changed=PYO3_PRINT_CONFIG
+  cargo:rerun-if-env-changed=PYO3_USE_ABI3_FORWARD_COMPATIBILITY
+
+  --- stderr
+  error: the configured Python interpreter version (3.14) is newer than PyO3's maximum supported version (3.12)
+  = help: please check if an updated version of PyO3 is available. Current version: 0.20.3
+  = help: set PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 to suppress this check and build anyway using the stable ABI
+warning: build failed, waiting for other jobs to finish...
