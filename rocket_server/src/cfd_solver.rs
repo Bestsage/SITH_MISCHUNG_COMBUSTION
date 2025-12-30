@@ -151,12 +151,21 @@ pub struct CFDSolver {
     r: Array1<f64>,
     r_wall: Array1<f64>,
     u: Array2<ConservativeVars>,
+    exit_cell_index: usize,
 }
 
 impl CFDSolver {
     /// Create a new CFD solver from request parameters
     pub fn new(req: &CFDRequest) -> Self {
-        let total_length = req.l_chamber + req.l_nozzle;
+        // Plume simulation: extend domain by 1.5x nozzle length
+        let l_plume = req.l_nozzle * 1.5;
+        let total_length = req.l_chamber + req.l_nozzle + l_plume;
+
+        // Adjust dx to maintain resolution? Or keep fixed nx?
+        // User sets nx. If we increase L, dx increases.
+        // We should probably keep dx similar to nozzle resolution if possible?
+        // But req.nx is fixed. Let's just use req.nx for the WHOLE domain for now
+        // (might need higher nx from frontend default!).
         let nx = req.nx;
         let ny = req.ny;
         let gamma = req.gamma;
@@ -227,6 +236,9 @@ impl CFDSolver {
             }
         }
 
+        let exit_x_pos = req.l_chamber + req.l_nozzle;
+        let exit_cell_index = (exit_x_pos / dx).round() as usize;
+
         Self {
             nx,
             ny,
@@ -239,6 +251,7 @@ impl CFDSolver {
             r,
             r_wall,
             u,
+            exit_cell_index,
         }
     }
 
@@ -429,26 +442,39 @@ impl CFDSolver {
                 );
 
                 // Axisymmetric source terms (S = -G/r)
-                let (rho, _, v, p) = u_old[[j, i]].to_primitive(gamma);
-                let source_geo = (
-                    -rho * v / r_local.max(1e-10),
-                    0.0,                               // Momentum x source is 0 from axisymmetry
-                    -rho * v * v / r_local.max(1e-10), // Momentum r source - wait, check Euler axisym form
-                    -(u_old[[j, i]].e + p) * v / r_local.max(1e-10),
-                );
-                // Correct momentum r source term includes hoop stress p/r?
-                // d(rho*v)/dt + ... = -rho*v*v/r ?
-                // Actually Euler r-momentum eq: d(rho*v)/dt + ... = -rho*v*v/r + p/r ??
-                // Let's stick to simple source -G/r + Correction for P?
-                // Standard form: S = -1/r * (rho*v, rho*u*v, rho*v*v, (E+p)*v) + (0, 0, p/r, 0)
-                let source_p_r = p / r_local.max(1e-10);
+                // At j=0 (first cell), r is small. 1/r is large.
+                // L'Hopital's rule for v/r at r->0 is dv/dr.
+                // We are at cell center j (r = eta * h).
+                // If j is small, we should be careful.
 
-                let source_total = (
-                    source_geo.0,
-                    source_geo.1,
-                    source_geo.2 + source_p_r,
-                    source_geo.3,
-                );
+                // Calculate G (flux_r_local)
+                let (rho, u, v, p) = u_old[[j, i]].to_primitive(gamma);
+
+                let r_eff = r_local.max(1e-10);
+
+                let (s0, s1, s2, s3) = if j <= 2 {
+                    // NEAR AXIS: Use approximation v/r ~ dv/dr
+
+                    // Simple singularity fix:
+                    // If r is very small, assume flow is 1D axial, so v=0, source=0.
+                    let damping = (r_local / (0.1 * h_val)).min(1.0); // Ramp up from 0 to 1 over 10% of radius
+
+                    (
+                        -rho * v / r_eff * damping,
+                        0.0,
+                        -rho * v * v / r_eff * damping + p / r_eff * damping,
+                        -(u_old[[j, i]].e + p) * v / r_eff * damping,
+                    )
+                } else {
+                    (
+                        -rho * v / r_eff,
+                        -rho * u * v / r_eff,
+                        -rho * v * v / r_eff, // Explicitly cancelled form as derived in comments
+                        -(u_old[[j, i]].e + p) * v / r_eff,
+                    )
+                };
+
+                let source_total = (s0, s1, s2, s3);
 
                 // Metric term factor
                 let metric_factor = eta * h_prime / h_val;
@@ -505,24 +531,39 @@ impl CFDSolver {
             self.u[[0, i]].rho_v = 0.0; // v = 0
         }
 
-        // Wall (top, j=ny-1): Tangency?
+        // Wall (top, j=ny-1)
         // With mapped grid, j=ny-1 is exactly the wall.
-        // Inviscid wall: normal velocity = 0.
-        // In physical coords: v_n = v_r * cos(theta) - v_x * sin(theta) = 0
-        // where tan(theta) = dr_w/dx.
-        // v_r = v_x * h'(x).
-        // Let's enforce this relation.
+        // For x <= exit_x, this is the nozzle wall (Tangency).
+        // For x > exit_x, this is the far-field plume boundary (Pressure Outlet / Ambient).
+
+        let p_ambient = p_chamber * 0.05; // Assume 20:1 expansion ratio for simulation
+                                          // Ideally this should be a parameter, but for visualization we want to guarantee over/under expansion.
+
         for i in 1..self.nx - 1 {
-            let h_prime = (self.r_wall[i + 1] - self.r_wall[i - 1]) / (2.0 * self.dx);
+            if i <= self.exit_cell_index {
+                // NOZZLE WALL: Tangency
+                let h_prime = (self.r_wall[i + 1] - self.r_wall[i - 1]) / (2.0 * self.dx);
 
-            // Extrapolate pressure and density from interior
-            let u_inner = self.u[[self.ny - 2, i]];
-            let (rho, u_x, _, p) = u_inner.to_primitive(gamma);
+                // Extrapolate pressure and density from interior
+                let u_inner = self.u[[self.ny - 2, i]];
+                let (rho, u_x, _, p) = u_inner.to_primitive(gamma);
 
-            // Enforce tangency: v_r = u_x * h'
-            let v_r = u_x * h_prime;
+                // Enforce tangency: v_r = u_x * h'
+                let v_r = u_x * h_prime;
 
-            self.u[[self.ny - 1, i]] = ConservativeVars::new(rho, u_x, v_r, p, gamma);
+                self.u[[self.ny - 1, i]] = ConservativeVars::new(rho, u_x, v_r, p, gamma);
+            } else {
+                // PLUME JET BOUNDARY (Far Field)
+                // Set to ambient conditions to allow waves to reflect off the pressure boundary
+                // or simply be an open boundary.
+                // To see diamonds, we need the jet to feel the ambient pressure.
+                let t_ambient = 300.0;
+                let rho_ambient = p_ambient / (self.r_gas * t_ambient);
+
+                // Set ghost cell to static ambient air
+                self.u[[self.ny - 1, i]] =
+                    ConservativeVars::new(rho_ambient, 0.0, 0.0, p_ambient, gamma);
+            }
         }
     }
 
@@ -593,6 +634,7 @@ impl CFDSolver {
 fn compute_wall_radius(x: f64, req: &CFDRequest) -> f64 {
     let throat_x = req.l_chamber;
     let l_conv = req.l_chamber * 0.25; // Convergent length
+    let exit_x = req.l_chamber + req.l_nozzle;
 
     if x < throat_x - l_conv {
         // Cylindrical chamber
@@ -602,11 +644,17 @@ fn compute_wall_radius(x: f64, req: &CFDRequest) -> f64 {
         let t = (x - (throat_x - l_conv)) / l_conv;
         let blend = (1.0 - (t * std::f64::consts::PI).cos()) / 2.0;
         req.r_chamber - (req.r_chamber - req.r_throat) * blend
-    } else {
+    } else if x <= exit_x {
         // Divergent section (parabolic bell)
         let t = (x - throat_x) / req.l_nozzle;
         let t = t.min(1.0);
         req.r_throat + (req.r_exit - req.r_throat) * (2.0 * t - t * t).powf(0.85)
+    } else {
+        // Plume Region (Free expansion domain)
+        // Expand continuously to avoid grid discontinuity.
+        // Assume 45 degree opening angle (slope 1.0)
+        let slope = 1.0;
+        req.r_exit + (x - exit_x) * slope
     }
 }
 

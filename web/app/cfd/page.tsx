@@ -94,11 +94,12 @@ function getColorForValue(t: number, colormap: string): THREE.Color {
 }
 
 // 2D Heatmap visualization using Three.js
-function CFDHeatmap({ result, field, colormap }: { result: CFDResult; field: FieldType; colormap: string }) {
+function CFDHeatmap({ result, request, field, colormap }: { result: CFDResult; request: CFDRequest; field: FieldType; colormap: string }) {
     const { geometry, wallPoints, minVal, maxVal } = useMemo(() => {
         const nx = result.nx;
         const ny = result.ny;
         const fieldData = result[field];
+        const exit_x = request.l_chamber + request.l_nozzle;
 
         // Find min/max for normalization
         let min = Infinity, max = -Infinity;
@@ -140,8 +141,8 @@ function CFDHeatmap({ result, field, colormap }: { result: CFDResult; field: Fie
                 colors[idx * 3 + 1] = color.g;
                 colors[idx * 3 + 2] = color.b;
 
-                // Capture wall points (top row)
-                if (j === ny - 1) {
+                // Capture wall points (top row) - ONLY up to nozzle exit
+                if (j === ny - 1 && result.x[idx] <= exit_x * 1.01) { // 1% tolerance
                     wallPoints.push(new THREE.Vector3(x, r, 0.01)); // Slightly offset Z to be consistent
                 }
             }
@@ -171,7 +172,7 @@ function CFDHeatmap({ result, field, colormap }: { result: CFDResult; field: Fie
         geo.computeVertexNormals();
 
         return { geometry: geo, wallPoints, minVal: min, maxVal: max };
-    }, [result, field, colormap]);
+    }, [result, request, field, colormap]);
 
     return (
         <group>
@@ -569,6 +570,7 @@ export default function CFDPage() {
                                 <Canvas orthographic camera={{ zoom: 20, position: [0, 0, 50] }}>
                                     <CFDHeatmap
                                         result={result}
+                                        request={request}
                                         field={selectedField}
                                         colormap={FIELD_CONFIG[selectedField].colormap}
                                     />
