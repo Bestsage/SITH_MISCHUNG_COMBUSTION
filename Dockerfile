@@ -2,7 +2,7 @@
 # Optimized for CasaOS deployment
 
 # === Stage 1: Frontend Build ===
-FROM node:20-alpine AS frontend-builder
+FROM node:22-alpine AS frontend-builder
 WORKDIR /app
 
 # Copy package files
@@ -43,6 +43,13 @@ RUN apt-get update && apt-get install -y curl && \
 RUN pip install --no-cache-dir fastapi uvicorn pydantic
 
 # Try to install rocketcea
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    gcc \
+    gfortran \
+    python3-dev \
+    && rm -rf /var/lib/apt/lists/*
+
 RUN pip install --no-cache-dir rocketcea || echo "RocketCEA not available"
 
 # Copy Next.js standalone build
