@@ -3,7 +3,7 @@
 import { useState, useMemo, useCallback } from "react";
 import AppLayout from "@/components/AppLayout";
 import { Canvas } from "@react-three/fiber";
-import { OrbitControls, Html } from "@react-three/drei";
+import { OrbitControls, Html, Line } from "@react-three/drei";
 import * as THREE from "three";
 
 // Types matching Rust backend
@@ -21,6 +21,7 @@ interface CFDRequest {
     ny: number;
     max_iter: number;
     tolerance: number;
+    mode: number;
 }
 
 interface CFDResult {
@@ -94,7 +95,7 @@ function getColorForValue(t: number, colormap: string): THREE.Color {
 
 // 2D Heatmap visualization using Three.js
 function CFDHeatmap({ result, field, colormap }: { result: CFDResult; field: FieldType; colormap: string }) {
-    const { geometry, minVal, maxVal } = useMemo(() => {
+    const { geometry, wallPoints, minVal, maxVal } = useMemo(() => {
         const nx = result.nx;
         const ny = result.ny;
         const fieldData = result[field];
@@ -106,31 +107,50 @@ function CFDHeatmap({ result, field, colormap }: { result: CFDResult; field: Fie
             if (v > max) max = v;
         }
 
-        // Create geometry
+        // Create heatmap geometry
         const positions = new Float32Array(nx * ny * 3);
         const colors = new Float32Array(nx * ny * 3);
 
-        // Scale factors for visualization
-        const xScale = 20 / Math.max(...result.x);
-        const rScale = 10 / Math.max(...result.r);
+        // Scale factors to fit in view [-10, 10]
+        const max_x = Math.max(...result.x);
+        const xScale = 20 / max_x;
+        const rScale = xScale; // Keep aspect ratio 1:1
 
-        for (let idx = 0; idx < nx * ny; idx++) {
-            const x = result.x[idx] * xScale - 10;
-            const r = result.r[idx] * rScale;
+        // Wall points for contour
+        const wallPoints = [];
 
-            positions[idx * 3] = x;
-            positions[idx * 3 + 1] = r;
-            positions[idx * 3 + 2] = 0;
+        for (let j = 0; j < ny; j++) {
+            for (let i = 0; i < nx; i++) {
+                const idx = j * nx + i;
+                const x = result.x[idx] * xScale - 10;
+                const r = result.r[idx] * rScale;
 
-            const t = (fieldData[idx] - min) / (max - min || 1);
-            const color = getColorForValue(t, colormap);
+                positions[idx * 3] = x;
+                positions[idx * 3 + 1] = r;
+                positions[idx * 3 + 2] = 0;
 
-            colors[idx * 3] = color.r;
-            colors[idx * 3 + 1] = color.g;
-            colors[idx * 3 + 2] = color.b;
+                const val = fieldData[idx];
+                // Check for NaN or Inf
+                const safeVal = (isNaN(val) || !isFinite(val)) ? min : val;
+
+                const t = (safeVal - min) / (max - min || 1);
+                const color = getColorForValue(t, colormap);
+
+                colors[idx * 3] = color.r;
+                colors[idx * 3 + 1] = color.g;
+                colors[idx * 3 + 2] = color.b;
+
+                // Capture wall points (top row)
+                if (j === ny - 1) {
+                    wallPoints.push(new THREE.Vector3(x, r, 0.01)); // Slightly offset Z to be consistent
+                }
+            }
         }
 
-        // Create indices for triangles
+        // Sort wall points by x (just in case)
+        wallPoints.sort((a, b) => a.x - b.x);
+
+        // Create indices for triangles (quad -> 2 triangles)
         const indices: number[] = [];
         for (let j = 0; j < ny - 1; j++) {
             for (let i = 0; i < nx - 1; i++) {
@@ -148,36 +168,53 @@ function CFDHeatmap({ result, field, colormap }: { result: CFDResult; field: Fie
         geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
         geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
         geo.setIndex(indices);
+        geo.computeVertexNormals();
 
-        return { geometry: geo, minVal: min, maxVal: max };
+        return { geometry: geo, wallPoints, minVal: min, maxVal: max };
     }, [result, field, colormap]);
 
     return (
-        <group rotation={[-Math.PI / 2, 0, 0]}>
-            <OrbitControls enableRotate={true} enablePan={true} enableZoom={true} />
-            <ambientLight intensity={0.8} />
+        <group>
+            {/* Standard XY Plane View */}
+            <OrbitControls enableRotate={false} enablePan={true} enableZoom={true} />
+            <ambientLight intensity={1} />
 
-            {/* Upper half */}
+            {/* Upper half (Positive Y) */}
             <mesh geometry={geometry}>
                 <meshBasicMaterial vertexColors side={THREE.DoubleSide} />
             </mesh>
 
-            {/* Mirror for lower half (axisymmetric) */}
+            {/* Mirror for lower half (Negative Y) */}
             <mesh geometry={geometry} scale={[1, -1, 1]}>
                 <meshBasicMaterial vertexColors side={THREE.DoubleSide} />
             </mesh>
 
+            {/* Wall Contour (White Line) - Upper */}
+            <Line
+                points={wallPoints}
+                color="white"
+                lineWidth={2}
+            />
+
+            {/* Wall Contour - Lower */}
+            <Line
+                points={wallPoints}
+                color="white"
+                lineWidth={2}
+                scale={[1, -1, 1]}
+            />
+
             {/* Centerline */}
-            <line>
-                <bufferGeometry>
-                    <bufferAttribute
-                        attach="attributes-position"
-                        args={[new Float32Array([-10, 0, 0, 10, 0, 0]), 3]}
-                        count={2}
-                    />
-                </bufferGeometry>
-                <lineBasicMaterial color="#ffffff" opacity={0.5} transparent />
-            </line>
+            <Line
+                points={[[-15, 0, 0], [15, 0, 0]]}
+                color="white"
+                opacity={0.3}
+                transparent
+                dashed
+                dashSize={0.5}
+                gapSize={0.5}
+                lineWidth={1}
+            />
         </group>
     );
 }
@@ -226,9 +263,10 @@ export default function CFDPage() {
         gamma: 1.2,
         molar_mass: 0.025,
         nx: 80,
-        ny: 30,
+        ny: 40,
         max_iter: 3000,
         tolerance: 1e-5,
+        mode: 0,
     });
 
     const [result, setResult] = useState<CFDResult | null>(null);
@@ -387,6 +425,25 @@ export default function CFDPage() {
                     {/* Solver settings */}
                     <div className="p-4 border-b border-[#27272a]">
                         <h3 className="text-xs text-gray-500 uppercase font-bold mb-3">Solveur</h3>
+
+                        <div className="mb-3">
+                            <label className="text-gray-400 text-xs block mb-1">Mode de Simulation</label>
+                            <div className="flex bg-[#1a1a25] rounded p-1 border border-[#27272a]">
+                                <button
+                                    className={`flex-1 text-xs py-1 rounded ${params.mode === 0 ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'}`}
+                                    onClick={() => setParams(p => ({ ...p, mode: 0 }))}
+                                >
+                                    Euler 2D (Lent)
+                                </button>
+                                <button
+                                    className={`flex-1 text-xs py-1 rounded ${params.mode === 1 ? 'bg-green-600 text-white' : 'text-gray-400 hover:text-white'}`}
+                                    onClick={() => setParams(p => ({ ...p, mode: 1 }))}
+                                >
+                                    Quasi-1D (Rapide)
+                                </button>
+                            </div>
+                        </div>
+
                         <div className="grid grid-cols-2 gap-2 text-xs">
                             <div>
                                 <label className="text-gray-400">Grille X</label>
@@ -509,7 +566,7 @@ export default function CFDPage() {
                     <div className="flex-1">
                         {result ? (
                             <>
-                                <Canvas camera={{ position: [0, 0, 15], fov: 50 }}>
+                                <Canvas orthographic camera={{ zoom: 20, position: [0, 0, 50] }}>
                                     <CFDHeatmap
                                         result={result}
                                         field={selectedField}
