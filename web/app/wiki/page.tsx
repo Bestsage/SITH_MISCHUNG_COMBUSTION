@@ -14,7 +14,7 @@ export default function WikiPage() {
     const [searchQuery, setSearchQuery] = useState("");
 
     useEffect(() => {
-        fetch("http://localhost:8000/api/wiki")
+        fetch("/api/wiki")
             .then(res => res.text())
             .then(content => {
                 setWikiContent(content);

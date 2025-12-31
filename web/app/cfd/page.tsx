@@ -300,7 +300,8 @@ export default function CFDPage() {
 
         try {
             // Use streaming endpoint for progress updates
-            const response = await fetch("http://localhost:8000/api/cfd/stream", {
+            // Use relative path for proxying
+            const response = await fetch("/api/cfd/stream", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(params),
@@ -339,7 +340,7 @@ export default function CFDPage() {
 
                         try {
                             const parsed = JSON.parse(data);
-                            
+
                             // Check if it's a progress update or final result
                             if ('iteration' in parsed && 'max_iter' in parsed) {
                                 setProgress(parsed as ProgressUpdate);
@@ -554,10 +555,10 @@ export default function CFDPage() {
                                                 {progress.iteration} / {progress.max_iter}
                                             </span>
                                         </div>
-                                        
+
                                         {/* Progress bar */}
                                         <div className="h-2 bg-[#0a0a0f] rounded-full overflow-hidden mb-2">
-                                            <div 
+                                            <div
                                                 className="h-full bg-gradient-to-r from-cyan-500 to-blue-500 transition-all duration-300 ease-out"
                                                 style={{ width: `${(progress.iteration / progress.max_iter) * 100}%` }}
                                             />

@@ -17,7 +17,7 @@ export default function CombustionPage() {
     const calculateCEA = async () => {
         setLoading(true);
         try {
-            const res = await fetch("http://localhost:8000/api/cea/calculate", {
+            const res = await fetch("/api/cea/calculate", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(ceaParams)
@@ -65,7 +65,7 @@ export default function CombustionPage() {
                                             of_ratio: preset.of
                                         })}
                                         className={`btn-secondary text-xs py-2 ${ceaParams.oxidizer === preset.ox && ceaParams.fuel === preset.fuel
-                                                ? 'border-[#00d4ff] text-[#00d4ff]' : ''
+                                            ? 'border-[#00d4ff] text-[#00d4ff]' : ''
                                             }`}
                                     >
                                         {preset.name}

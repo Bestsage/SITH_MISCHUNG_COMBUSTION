@@ -14,7 +14,7 @@ export default function MaterialsPage() {
 
     const loadMaterials = async () => {
         try {
-            const res = await fetch("http://localhost:8000/api/materials");
+            const res = await fetch("/api/materials");
             const data = await res.json();
             setMaterials(data.materials);
         } catch (e) {
@@ -58,8 +58,8 @@ export default function MaterialsPage() {
                                                 key={name}
                                                 onClick={() => setSelectedMaterial(name)}
                                                 className={`w-full text-left px-3 py-2 rounded-lg transition-all ${selectedMaterial === name
-                                                        ? 'bg-[#00d4ff]/20 text-[#00d4ff] border border-[#00d4ff]/30'
-                                                        : 'hover:bg-[#1f1f2e] text-[#a1a1aa] hover:text-white'
+                                                    ? 'bg-[#00d4ff]/20 text-[#00d4ff] border border-[#00d4ff]/30'
+                                                    : 'hover:bg-[#1f1f2e] text-[#a1a1aa] hover:text-white'
                                                     }`}
                                             >
                                                 <span className="text-sm font-medium">{name}</span>

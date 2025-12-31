@@ -30,7 +30,7 @@ export default function CoolingPage() {
     const runSolver = async () => {
         setLoading(true);
         try {
-            const res = await fetch("http://localhost:8000/api/solve", {
+            const res = await fetch("/api/solve", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
