@@ -45,5 +45,8 @@ WORKDIR /app
 # Expose API port
 EXPOSE 8001
 
+# Override default OpenFOAM entrypoint
+ENTRYPOINT ["/bin/bash", "-c"]
+
 # Source OpenFOAM and run API server
-CMD ["/bin/bash", "-c", "source /usr/lib/openfoam/openfoam2312/etc/bashrc && python3 /app/api/server.py"]
+CMD ["source /usr/lib/openfoam/openfoam2312/etc/bashrc && python3 /app/api/server.py"]
