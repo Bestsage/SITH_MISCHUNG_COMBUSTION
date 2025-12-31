@@ -562,15 +562,16 @@ struct ExternalJobResponse {
 async fn run_cfd_external(
     Json(payload): Json<ExternalCFDRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    // Get the external CFD API URL from environment or use default
-    let cfd_api_url =
-        std::env::var("CFD_API_URL").unwrap_or_else(|_| "http://localhost:8001".to_string());
+    // Get the OpenFOAM CFD API URL from environment
+    // In Docker Compose, this will be http://openfoam-cfd:8001
+    let openfoam_url =
+        std::env::var("OPENFOAM_URL").unwrap_or_else(|_| "http://openfoam-cfd:8001".to_string());
 
     let client = reqwest::Client::new();
 
     // Start the job
     let response = client
-        .post(format!("{}/api/cfd/run", cfd_api_url))
+        .post(format!("{}/api/cfd/run", openfoam_url))
         .json(&serde_json::json!({
             "r_throat": payload.params.r_throat,
             "r_chamber": payload.params.r_chamber,
@@ -627,7 +628,7 @@ async fn run_cfd_external(
         }
 
         let status_response = client
-            .get(format!("{}/api/cfd/status/{}", cfd_api_url, job_id))
+            .get(format!("{}/api/cfd/status/{}", openfoam_url, job_id))
             .send()
             .await
             .map_err(|e| {
@@ -648,7 +649,7 @@ async fn run_cfd_external(
             "completed" => {
                 // Get the result
                 let result_response = client
-                    .get(format!("{}/api/cfd/result/{}", cfd_api_url, job_id))
+                    .get(format!("{}/api/cfd/result/{}", openfoam_url, job_id))
                     .send()
                     .await
                     .map_err(|e| {
@@ -681,28 +682,28 @@ async fn run_cfd_external(
     }
 }
 
-/// Check if external CFD solver is available
-async fn check_external_cfd() -> Json<serde_json::Value> {
-    let cfd_api_url =
-        std::env::var("CFD_API_URL").unwrap_or_else(|_| "http://localhost:8001".to_string());
+/// Check if OpenFOAM CFD solver is available
+async fn check_openfoam_status() -> Json<serde_json::Value> {
+    let openfoam_url =
+        std::env::var("OPENFOAM_URL").unwrap_or_else(|_| "http://openfoam-cfd:8001".to_string());
 
     let client = reqwest::Client::new();
 
     match client
-        .get(format!("{}/health", cfd_api_url))
+        .get(format!("{}/health", openfoam_url))
         .timeout(std::time::Duration::from_secs(5))
         .send()
         .await
     {
         Ok(response) if response.status().is_success() => Json(serde_json::json!({
             "available": true,
-            "url": cfd_api_url,
+            "url": openfoam_url,
             "message": "External CFD solver is available"
         })),
         _ => Json(serde_json::json!({
             "available": false,
-            "url": cfd_api_url,
-            "message": "External CFD solver is not available - using local solver"
+            "url": openfoam_url,
+            "message": "OpenFOAM solver is not available"
         })),
     }
 }
@@ -724,7 +725,7 @@ pub async fn create_app() -> Router {
         .route("/api/cfd/solve", post(run_cfd))
         .route("/api/cfd/stream", post(run_cfd_stream))
         .route("/api/cfd/external", post(run_cfd_external))
-        .route("/api/cfd/external/status", get(check_external_cfd))
+        .route("/api/cfd/openfoam/status", get(check_openfoam_status))
         .route("/api/wiki", get(get_wiki))
         .layer(cors)
 }

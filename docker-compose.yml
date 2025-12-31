@@ -1,4 +1,7 @@
 services:
+  # ==============================================
+  # Main Application (Next.js + Rust + CEA)
+  # ==============================================
   rocket-app:
     build:
       context: .
@@ -7,9 +10,57 @@ services:
     ports:
       - "3000:3000"
       - "8000:8000"
-      - "8001:8001"
     environment:
       - NEXT_PUBLIC_API_URL=https://api.mischungcombustor.uk
       - RUST_BACKEND_URL=http://localhost:8000
       - CEA_SERVICE_URL=http://localhost:8001
+      - OPENFOAM_URL=http://openfoam-cfd:8001
+    networks:
+      - sith-network
+    depends_on:
+      openfoam-cfd:
+        condition: service_healthy
     restart: unless-stopped
+
+  # ==============================================
+  # OpenFOAM CFD Solver (Isolated Container)
+  # ==============================================
+  openfoam-cfd:
+    build:
+      context: ./openfoam-cfd
+      dockerfile: Dockerfile
+    container_name: sith-openfoam
+    volumes:
+      - cfd-cases:/app/cases
+      - cfd-results:/app/results
+    environment:
+      - WM_PROJECT_DIR=/usr/lib/openfoam/openfoam2312
+      - NUM_PROCS=4
+      - PYTHONUNBUFFERED=1
+    networks:
+      - sith-network
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 8G
+        reservations:
+          cpus: '2'
+          memory: 4G
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8001/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+volumes:
+  cfd-cases:
+    driver: local
+  cfd-results:
+    driver: local
+
+networks:
+  sith-network:
+    driver: bridge

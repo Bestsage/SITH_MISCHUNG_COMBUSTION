@@ -290,7 +290,15 @@ export default function CFDPage() {
     const runSimulation = useCallback(async () => {
         setLoading(true);
         setError(null);
-        setProgress(null);
+        setProgress({
+            iteration: 0,
+            max_iter: params.max_iter,
+            residual: 0,
+            dt: 0,
+            max_mach: 0,
+            converged: false,
+            phase: "Envoi à OpenFOAM..."
+        });
 
         // Abort any existing request
         if (abortControllerRef.current) {
@@ -299,66 +307,40 @@ export default function CFDPage() {
         abortControllerRef.current = new AbortController();
 
         try {
-            // Use streaming endpoint for progress updates
-            // Use relative path for proxying
-            const response = await fetch("/api/cfd/stream", {
+            // Call the external OpenFOAM endpoint
+            // The backend handles job polling internally
+            setProgress(prev => prev ? { ...prev, phase: "Simulation OpenFOAM en cours..." } : null);
+
+            const response = await fetch("/api/cfd/external", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(params),
+                body: JSON.stringify({
+                    ...params,
+                    solver: "openfoam"
+                }),
                 signal: abortControllerRef.current.signal,
             });
 
             if (!response.ok) {
                 const text = await response.text();
-                throw new Error(`HTTP ${response.status}: ${text || 'Erreur serveur'}`);
+                throw new Error(`HTTP ${response.status}: ${text || 'Erreur serveur OpenFOAM'}`);
             }
 
-            if (!response.body) {
-                throw new Error("Pas de stream disponible");
-            }
+            // OpenFOAM returns JSON directly (backend handles polling)
+            const data = await response.json();
 
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder();
-            let buffer = "";
-
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-
-                buffer += decoder.decode(value, { stream: true });
-                const lines = buffer.split("\n");
-                buffer = lines.pop() || "";
-
-                for (const line of lines) {
-                    if (line.startsWith("event:")) {
-                        const eventType = line.slice(6).trim();
-                        continue;
-                    }
-                    if (line.startsWith("data:")) {
-                        const data = line.slice(5).trim();
-                        if (!data || data === "complete") continue;
-
-                        try {
-                            const parsed = JSON.parse(data);
-
-                            // Check if it's a progress update or final result
-                            if ('iteration' in parsed && 'max_iter' in parsed) {
-                                setProgress(parsed as ProgressUpdate);
-                            } else if ('mach' in parsed) {
-                                setResult(parsed as CFDResult);
-                            }
-                        } catch (e) {
-                            // Ignore parse errors for non-JSON data
-                        }
-                    }
-                }
+            if (data.mach) {
+                setResult(data as CFDResult);
+                setProgress(prev => prev ? { ...prev, phase: "Simulation terminée!", converged: true } : null);
+            } else {
+                throw new Error("Résultat invalide - pas de données Mach");
             }
         } catch (err) {
             if (err instanceof Error) {
                 if (err.name === 'AbortError') {
                     setError("Simulation annulée");
-                } else if (err.message.includes('fetch')) {
-                    setError("Impossible de contacter le serveur. Lancez: cargo run dans rocket_server/");
+                } else if (err.message.includes('fetch') || err.message.includes('Failed to fetch')) {
+                    setError("OpenFOAM indisponible. Vérifiez que le container est lancé.");
                 } else {
                     setError(err.message);
                 }
@@ -367,7 +349,6 @@ export default function CFDPage() {
             }
         } finally {
             setLoading(false);
-            setProgress(null);
         }
     }, [params]);
 
