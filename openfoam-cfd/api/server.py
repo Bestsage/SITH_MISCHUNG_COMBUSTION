@@ -264,37 +264,37 @@ def generate_openfoam_case(params: dict, case_dir: Path):
     # blockMeshDict - Axisymmetric wedge mesh
     # ================================
     total_length = l_chamber + l_nozzle
-    wedge_angle = 2.5  # degrees
+    wedge_angle = 2.5  # degrees (total 5 degrees)
     wedge_rad = math.radians(wedge_angle)
     
     # Compute cell counts
-    nx_conv = max(1, nx // 3)
-    nx_div = max(1, 2 * nx // 3)
+    nx_conv = max(5, nx // 3)
+    nx_div = max(10, 2 * nx // 3)
+    ny_cells = max(5, ny)
     
-    # Calculate vertex coordinates
-    # Front face (positive z)
-    y3 = r_chamber
-    z3 = 0.0
-    y4 = r_throat
-    z4 = 0.0
-    y5 = r_exit
-    z5 = 0.0
+    # For proper wedge geometry, we need vertices at the outer radius
+    # rotated by ±wedge_angle around the x-axis
+    # Back face (z > 0, positive rotation)
+    def rotate_y(r, angle):
+        return r * math.cos(angle)
+    def rotate_z(r, angle):
+        return r * math.sin(angle)
     
-    # Back face (rotated by wedge angle around x-axis)
-    y9 = r_chamber * math.cos(wedge_rad)
-    z9 = r_chamber * math.sin(wedge_rad)
-    y10 = r_throat * math.cos(wedge_rad)
-    z10 = r_throat * math.sin(wedge_rad)
-    y11 = r_exit * math.cos(wedge_rad)
-    z11 = r_exit * math.sin(wedge_rad)
+    # Back wedge vertices (positive z)
+    y_chamber_back = rotate_y(r_chamber, wedge_rad)
+    z_chamber_back = rotate_z(r_chamber, wedge_rad)
+    y_throat_back = rotate_y(r_throat, wedge_rad)
+    z_throat_back = rotate_z(r_throat, wedge_rad)
+    y_exit_back = rotate_y(r_exit, wedge_rad)
+    z_exit_back = rotate_z(r_exit, wedge_rad)
     
-    # Front face negative rotation
-    y3f = r_chamber * math.cos(-wedge_rad)
-    z3f = r_chamber * math.sin(-wedge_rad)
-    y4f = r_throat * math.cos(-wedge_rad)
-    z4f = r_throat * math.sin(-wedge_rad)
-    y5f = r_exit * math.cos(-wedge_rad)
-    z5f = r_exit * math.sin(-wedge_rad)
+    # Front wedge vertices (negative z)
+    y_chamber_front = rotate_y(r_chamber, -wedge_rad)
+    z_chamber_front = rotate_z(r_chamber, -wedge_rad)
+    y_throat_front = rotate_y(r_throat, -wedge_rad)
+    z_throat_front = rotate_z(r_throat, -wedge_rad)
+    y_exit_front = rotate_y(r_exit, -wedge_rad)
+    z_exit_front = rotate_z(r_exit, -wedge_rad)
     
     blockmesh = f"""FoamFile
 {{
@@ -308,30 +308,38 @@ scale 1;
 
 vertices
 (
-    // Front face (z < 0)
-    (0 0 0)                              // 0 - axis at inlet
-    ({l_chamber} 0 0)                    // 1 - axis at throat
-    ({total_length} 0 0)                 // 2 - axis at exit
-    (0 {y3f} {z3f})                      // 3 - wall at inlet front
-    ({l_chamber} {y4f} {z4f})            // 4 - wall at throat front
-    ({total_length} {y5f} {z5f})         // 5 - wall at exit front
+    // Block 1: Converging section (inlet to throat)
+    // Front wedge face (z < 0)
+    (0 0 0)                                                           // 0 - axis inlet
+    ({l_chamber:.8f} 0 0)                                             // 1 - axis throat
+    ({l_chamber:.8f} {y_throat_front:.8f} {z_throat_front:.8f})       // 2 - wall throat front
+    (0 {y_chamber_front:.8f} {z_chamber_front:.8f})                   // 3 - wall inlet front
+    // Back wedge face (z > 0)  
+    (0 0 0)                                                           // 4 - axis inlet (=0)
+    ({l_chamber:.8f} 0 0)                                             // 5 - axis throat (=1)
+    ({l_chamber:.8f} {y_throat_back:.8f} {z_throat_back:.8f})         // 6 - wall throat back
+    (0 {y_chamber_back:.8f} {z_chamber_back:.8f})                     // 7 - wall inlet back
     
-    // Back face (z > 0)
-    (0 0 0)                              // 6 - axis at inlet (same as 0)
-    ({l_chamber} 0 0)                    // 7 - axis at throat (same as 1)
-    ({total_length} 0 0)                 // 8 - axis at exit (same as 2)
-    (0 {y9} {z9})                        // 9 - wall at inlet back
-    ({l_chamber} {y10} {z10})            // 10 - wall at throat back
-    ({total_length} {y11} {z11})         // 11 - wall at exit back
+    // Block 2: Diverging section (throat to exit)
+    // Front wedge face (z < 0)
+    ({l_chamber:.8f} 0 0)                                             // 8 - axis throat (=1)
+    ({total_length:.8f} 0 0)                                          // 9 - axis exit
+    ({total_length:.8f} {y_exit_front:.8f} {z_exit_front:.8f})        // 10 - wall exit front
+    ({l_chamber:.8f} {y_throat_front:.8f} {z_throat_front:.8f})       // 11 - wall throat front (=2)
+    // Back wedge face (z > 0)
+    ({l_chamber:.8f} 0 0)                                             // 12 - axis throat (=5)
+    ({total_length:.8f} 0 0)                                          // 13 - axis exit
+    ({total_length:.8f} {y_exit_back:.8f} {z_exit_back:.8f})          // 14 - wall exit back
+    ({l_chamber:.8f} {y_throat_back:.8f} {z_throat_back:.8f})         // 15 - wall throat back (=6)
 );
 
 blocks
 (
-    // Chamber to throat (converging)
-    hex (0 1 4 3 6 7 10 9) ({nx_conv} {ny} 1) simpleGrading (1 1 1)
+    // Converging section
+    hex (0 1 2 3 4 5 6 7) ({nx_conv} {ny_cells} 1) simpleGrading (1 1 1)
     
-    // Throat to exit (diverging)  
-    hex (1 2 5 4 7 8 11 10) ({nx_div} {ny} 1) simpleGrading (1 1 1)
+    // Diverging section
+    hex (8 9 10 11 12 13 14 15) ({nx_div} {ny_cells} 1) simpleGrading (1 1 1)
 );
 
 edges
@@ -345,7 +353,7 @@ boundary
         type patch;
         faces
         (
-            (0 3 9 6)
+            (0 4 7 3)
         );
     }}
     outlet
@@ -353,7 +361,7 @@ boundary
         type patch;
         faces
         (
-            (2 5 11 8)
+            (9 10 14 13)
         );
     }}
     wall
@@ -361,8 +369,8 @@ boundary
         type wall;
         faces
         (
-            (3 4 10 9)
-            (4 5 11 10)
+            (3 7 6 2)
+            (11 15 14 10)
         );
     }}
     axis
@@ -370,8 +378,8 @@ boundary
         type empty;
         faces
         (
-            (0 1 7 6)
-            (1 2 8 7)
+            (0 1 5 4)
+            (8 9 13 12)
         );
     }}
     front
@@ -379,8 +387,8 @@ boundary
         type wedge;
         faces
         (
-            (0 1 4 3)
-            (1 2 5 4)
+            (0 3 2 1)
+            (8 11 10 9)
         );
     }}
     back
@@ -388,8 +396,8 @@ boundary
         type wedge;
         faces
         (
-            (6 7 10 9)
-            (7 8 11 10)
+            (4 5 6 7)
+            (12 13 14 15)
         );
     }}
 );

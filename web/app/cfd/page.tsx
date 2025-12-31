@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useMemo, useCallback, useRef } from "react";
+import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import AppLayout from "@/components/AppLayout";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, Html, Line } from "@react-three/drei";
 import * as THREE from "three";
+import { useCalculation } from "@/contexts/CalculationContext";
 
 // Types matching Rust backend
 interface CFDRequest {
@@ -14,6 +15,7 @@ interface CFDRequest {
     l_chamber: number;
     l_nozzle: number;
     p_chamber: number;
+    p_ambient: number;
     t_chamber: number;
     gamma: number;
     molar_mass: number;
@@ -263,6 +265,10 @@ function ColorBar({ min, max, field, colormap }: { min: number; max: number; fie
 }
 
 export default function CFDPage() {
+    // Get values from shared calculation context
+    const { results, config: mainConfig } = useCalculation();
+
+    // Default params - will be overwritten by context values
     const [params, setParams] = useState<CFDRequest>({
         r_throat: 0.02,
         r_chamber: 0.04,
@@ -270,6 +276,7 @@ export default function CFDPage() {
         l_chamber: 0.1,
         l_nozzle: 0.15,
         p_chamber: 1_000_000,
+        p_ambient: 101325,
         t_chamber: 3000,
         gamma: 1.2,
         molar_mass: 0.025,
@@ -279,6 +286,25 @@ export default function CFDPage() {
         tolerance: 1e-5,
         mode: 0,
     });
+
+    // Sync with calculation context when results are available
+    useEffect(() => {
+        if (results) {
+            setParams(prev => ({
+                ...prev,
+                r_throat: results.r_throat,
+                r_chamber: results.r_chamber,
+                r_exit: results.r_exit,
+                l_chamber: results.l_chamber,
+                l_nozzle: results.l_nozzle,
+                p_chamber: mainConfig.pc * 1e5, // bar to Pa
+                p_ambient: mainConfig.pe * 1e5, // bar to Pa
+                t_chamber: results.t_chamber,
+                gamma: results.gamma,
+                molar_mass: results.mw / 1000, // g/mol to kg/mol
+            }));
+        }
+    }, [results, mainConfig]);
 
     const [result, setResult] = useState<CFDResult | null>(null);
     const [loading, setLoading] = useState(false);
@@ -358,6 +384,25 @@ export default function CFDPage() {
         }
     }, []);
 
+    // Force sync with mainTab values
+    const syncFromMainTab = useCallback(() => {
+        if (results) {
+            setParams(prev => ({
+                ...prev,
+                r_throat: results.r_throat,
+                r_chamber: results.r_chamber,
+                r_exit: results.r_exit,
+                l_chamber: results.l_chamber,
+                l_nozzle: results.l_nozzle,
+                p_chamber: mainConfig.pc * 1e5,
+                p_ambient: mainConfig.pe * 1e5,
+                t_chamber: results.t_chamber,
+                gamma: results.gamma,
+                molar_mass: results.mw / 1000,
+            }));
+        }
+    }, [results, mainConfig]);
+
     const fieldData = result ? result[selectedField] : [];
     const minVal = fieldData.length > 0 ? Math.min(...fieldData) : 0;
     const maxVal = fieldData.length > 0 ? Math.max(...fieldData) : 1;
@@ -369,7 +414,29 @@ export default function CFDPage() {
                 <div className="w-80 bg-[#12121a] border-r border-[#27272a] flex flex-col flex-shrink-0 overflow-y-auto">
                     <div className="p-4 border-b border-[#27272a]">
                         <h1 className="text-xl font-bold text-white mb-1">🌊 CFD 2D</h1>
-                        <p className="text-xs text-gray-500">Simulation Euler Axisymétrique</p>
+                        <p className="text-xs text-gray-500">Simulation OpenFOAM - rhoCentralFoam</p>
+
+                        {/* Sync indicator */}
+                        {results ? (
+                            <div className="mt-2 flex items-center gap-2">
+                                <span className="text-xs text-green-400 flex items-center gap-1">
+                                    <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
+                                    Synchronisé avec MainTab
+                                </span>
+                                <button
+                                    onClick={syncFromMainTab}
+                                    className="text-xs text-cyan-400 hover:text-cyan-300 underline"
+                                    title="Recharger les valeurs depuis MainTab"
+                                >
+                                    ↻ Resync
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="mt-2 text-xs text-orange-400 flex items-center gap-1">
+                                <span className="w-2 h-2 bg-orange-400 rounded-full"></span>
+                                Calculez d'abord la tuyère dans MainTab
+                            </div>
+                        )}
                     </div>
 
                     {/* Geometry */}
