@@ -9,7 +9,7 @@ services:
       - "8000:8000"
       - "8001:8001"
     environment:
-      # NEXT_PUBLIC_API_URL not needed anymore (using rewrites)
+      - NEXT_PUBLIC_API_URL=https://api.mischungcombustor.uk
       - RUST_BACKEND_URL=http://localhost:8000
       - CEA_SERVICE_URL=http://localhost:8001
     restart: unless-stopped
