@@ -154,13 +154,16 @@ async def run_cfd(request: CFDRequest, background_tasks: BackgroundTasks):
     )
 async def run_openfoam_simulation(job_id: str, params: dict, case_dir: Path, result_dir: Path):
     """Run OpenFOAM rhoCentralFoam simulation"""
+    import traceback
     try:
+        print(f"[Job {job_id}] Starting OpenFOAM simulation...")
         jobs[job_id]["status"] = "running"
         jobs[job_id]["message"] = "Generating case files..."
         jobs[job_id]["progress"] = 0.05
         
         # Generate OpenFOAM case
         generate_openfoam_case(params, case_dir)
+        print(f"[Job {job_id}] Case files generated")
         
         jobs[job_id]["message"] = "Running blockMesh..."
         jobs[job_id]["progress"] = 0.1
@@ -169,12 +172,16 @@ async def run_openfoam_simulation(job_id: str, params: dict, case_dir: Path, res
         returncode, output = await run_openfoam_command("blockMesh", case_dir)
         if returncode != 0:
             raise Exception(f"blockMesh failed:\n{output[-500:]}")
+        print(f"[Job {job_id}] blockMesh completed successfully")
         
         jobs[job_id]["message"] = "Running rhoCentralFoam solver..."
         jobs[job_id]["progress"] = 0.2
         
         # Run solver
+        print(f"[Job {job_id}] Starting rhoCentralFoam...")
         returncode, output = await run_openfoam_command("rhoCentralFoam", case_dir, job_id)
+        print(f"[Job {job_id}] rhoCentralFoam finished with return code: {returncode}")
+        
         if returncode != 0:
             raise Exception(f"rhoCentralFoam failed:\n{output[-500:]}")
         
@@ -182,14 +189,19 @@ async def run_openfoam_simulation(job_id: str, params: dict, case_dir: Path, res
         jobs[job_id]["progress"] = 0.9
         
         # Post-process and convert to JSON
+        print(f"[Job {job_id}] Extracting results...")
         extract_openfoam_results(params, case_dir, result_dir)
+        print(f"[Job {job_id}] Results extracted successfully")
         
         jobs[job_id]["status"] = "completed"
         jobs[job_id]["progress"] = 1.0
         jobs[job_id]["message"] = "Simulation completed"
         jobs[job_id]["result_url"] = f"/api/cfd/result/{job_id}"
+        print(f"[Job {job_id}] Simulation completed successfully!")
         
     except Exception as e:
+        print(f"[Job {job_id}] ERROR: {str(e)}")
+        print(f"[Job {job_id}] Traceback:\n{traceback.format_exc()}")
         jobs[job_id]["status"] = "failed"
         jobs[job_id]["message"] = f"Error: {str(e)}"
 
@@ -781,15 +793,28 @@ boundaryField
 def extract_openfoam_results(params: dict, case_dir: Path, result_dir: Path):
     """Extract OpenFOAM results to JSON format"""
     import numpy as np
+    import re
     
-    # Find latest time directory
-    time_dirs = [d for d in case_dir.iterdir() 
-                 if d.is_dir() and d.name.replace('.', '').replace('e', '').replace('-', '').isdigit()]
+    # Find time directories (can be integers, floats, or scientific notation like 1e-05)
+    def is_time_dir(name):
+        try:
+            if name in ['0', 'constant', 'system', 'postProcessing']:
+                return name == '0'  # 0 is a valid time dir but others are not
+            float(name)
+            return True
+        except ValueError:
+            return False
+    
+    time_dirs = [d for d in case_dir.iterdir() if d.is_dir() and is_time_dir(d.name)]
+    
+    print(f"[extract_openfoam_results] Found time directories: {[d.name for d in time_dirs]}")
     
     if not time_dirs:
         raise Exception("No result time directories found")
     
+    # Get latest time (exclude 0 unless it's the only one)
     latest_time = max(time_dirs, key=lambda d: float(d.name) if d.name != "0" else -1)
+    print(f"[extract_openfoam_results] Using time directory: {latest_time.name}")
     
     # Parse field files (simplified - in production use paraview or foamToVTK)
     nx = params["nx"]
