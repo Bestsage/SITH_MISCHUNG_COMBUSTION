@@ -31,6 +31,10 @@ export interface MotorConfig {
     custom_tcrit: number;
     custom_hvap: number;
     jacket_fos: number;
+    // Visualization Options
+    view_inner?: boolean;
+    view_channels?: boolean;
+    view_outer?: boolean;
 }
 
 export interface GeometryProfile {

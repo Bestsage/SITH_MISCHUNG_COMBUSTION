@@ -1,13 +1,15 @@
 "use client";
 
-import { useRef, useMemo } from "react";
+import { useRef, useMemo, useEffect } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { OrbitControls, Environment, MeshTransmissionMaterial, Text, Line } from "@react-three/drei";
+import { OrbitControls, Environment } from "@react-three/drei";
 import * as THREE from "three";
 
 interface MotorMeshProps {
     profile: { x: number[]; r: number[] } | null;
+    showInner?: boolean;
     showChannels?: boolean;
+    showOuter?: boolean;
     nChannels?: number;
     rotate?: boolean;
     wallColor?: string;
@@ -18,16 +20,19 @@ interface MotorMeshProps {
 
 function MotorMesh({
     profile,
+    showInner = true,
     showChannels = false,
-    nChannels = 48,
+    showOuter = false,
+    nChannels = 60,
     rotate = true,
     wallColor = "#cc7733",
     outerShellColor = "#71717a",
-    wallThickness = 2,
-    outerShellThickness = 0
+    wallThickness = 2, // Liner thickness
+    outerShellThickness = 2 // Jacket thickness
 }: MotorMeshProps) {
     const meshRef = useRef<THREE.Mesh>(null);
     const groupRef = useRef<THREE.Group>(null);
+    const ribsRef = useRef<THREE.InstancedMesh>(null);
 
     useFrame((state) => {
         if (groupRef.current && rotate) {
@@ -57,114 +62,198 @@ function MotorMesh({
         }
     };
 
-    const geometry = useMemo(() => {
+    // 1. Inner Liner Geometry
+    const innerGeometry = useMemo(() => {
+        let points: THREE.Vector2[] = [];
+
         if (!profile || !profile.x || !profile.r) {
-            const points: THREE.Vector2[] = [];
             for (let i = 0; i <= 50; i++) {
                 const t = i / 50;
                 const x = t * 0.35;
                 const r = getDefaultRadius(t);
                 points.push(new THREE.Vector2(r, x - 0.175));
             }
-            return new THREE.LatheGeometry(points, 64);
+        } else {
+            points = profile.x.map((x, i) =>
+                new THREE.Vector2(profile.r[i], x - profile.x[profile.x.length - 1] / 2)
+            );
         }
-        const points = profile.x.map((x, i) =>
-            new THREE.Vector2(profile.r[i], x - profile.x[profile.x.length - 1] / 2)
-        );
+        // LatheGeometry expects points to be Vector2(r, y) where axis of rotation is Y
         return new THREE.LatheGeometry(points, 64);
     }, [profile]);
 
-    // Outer Shell Geometry (Jacket)
+    // 2. Outer Jacket Geometry
     const outerGeometry = useMemo(() => {
-        const t_total = (wallThickness + (showChannels ? 6 : 0) + outerShellThickness) / 1000;
+        // The jacket sits on top of the ribs.
+        // Radius = Inner Radius + Liner Thickness + Channel Height + Jacket Thickness/2 ?
+        // Usually Jacket starts AFTER the channels.
+        // So R_Jacket_Inner = R_Inner + Liner + ChannelHeight.
+        const channelHeight = 0.005; // 5mm fixed channel height for viz
+        const t_offset = (wallThickness / 1000) + channelHeight;
+
+        // We want the jacket mesh to represent the THICKNESS of the jacket?
+        // Or just the surface? Let's give it thickness by using standard Lathe but potentially with backface?
+        // Or just a single shell at the outer radius.
+
+        let points: THREE.Vector2[] = [];
         if (!profile || !profile.x || !profile.r) {
-            const points: THREE.Vector2[] = [];
             for (let i = 0; i <= 50; i++) {
                 const t = i / 50;
                 const x = t * 0.35;
-                const r = getDefaultRadius(t) + t_total;
+                const r = getDefaultRadius(t) + t_offset;
                 points.push(new THREE.Vector2(r, x - 0.175));
             }
-            return new THREE.LatheGeometry(points, 64);
+        } else {
+            points = profile.x.map((x, i) =>
+                new THREE.Vector2(profile.r[i] + t_offset, x - profile.x[profile.x.length - 1] / 2)
+            );
         }
-        const points = profile.x.map((x, i) =>
-            new THREE.Vector2(profile.r[i] + t_total, x - profile.x[profile.x.length - 1] / 2)
-        );
         return new THREE.LatheGeometry(points, 64);
-    }, [profile, wallThickness, outerShellThickness, showChannels]);
+    }, [profile, wallThickness]);
 
-    // Calculate paths for each channel
-    const channelPaths = useMemo(() => {
-        if (!showChannels) return [];
-        const paths: THREE.Vector3[][] = [];
-        const lengthSteps = 40; // Smoother lines
+    // 3. Rib (Separator) Geometry
+    // We create a SINGLE rib geometry that follows the profile, then instance it.
+    const ribGeometry = useMemo(() => {
+        // Custom BufferGeometry
+        // We create a strip of quads following the profile.
+        // Width of rib = 1.5mm?
+        const ribWidth = 0.0015;
+        const channelHeight = 0.005; // 5mm
 
-        for (let c = 0; c < nChannels; c++) {
-            const angle = (c / nChannels) * Math.PI * 2;
-            const points: THREE.Vector3[] = [];
+        // Get profile points
+        let xs: number[] = [];
+        let rs: number[] = [];
 
-            for (let i = 0; i <= lengthSteps; i++) {
-                const t = i / lengthSteps;
-                const xPos = t * 0.35 - 0.175;
-
-                let nozzleRadius: number;
-                if (profile && profile.x && profile.r) {
-                    const idx = Math.floor(t * (profile.x.length - 1));
-                    nozzleRadius = profile.r[Math.min(idx, profile.r.length - 1)];
-                } else {
-                    nozzleRadius = getDefaultRadius(t);
-                }
-
-                const outerRadius = nozzleRadius + (wallThickness / 1000) + 0.003;
-                points.push(new THREE.Vector3(
-                    Math.cos(angle) * outerRadius,
-                    xPos,
-                    Math.sin(angle) * outerRadius
-                ));
+        if (!profile || !profile.x || !profile.r) {
+            for (let i = 0; i <= 50; i++) {
+                const t = i / 50;
+                xs.push(t * 0.35 - 0.175);
+                rs.push(getDefaultRadius(t));
             }
-            paths.push(points);
+        } else {
+            xs = profile.x.map(x => x - profile.x[profile.x.length - 1] / 2);
+            rs = [...profile.r];
         }
-        return paths;
-    }, [showChannels, nChannels, profile, wallThickness]);
+
+        // Build vertices and indices
+        const vertices: number[] = [];
+        const indices: number[] = [];
+        const normals: number[] = [];
+
+        // For each segment i to i+1
+        for (let i = 0; i < xs.length; i++) {
+            const x = xs[i];
+            const r = rs[i] + wallThickness / 1000; // Start on top of liner
+
+            // We define a cross section at this x,r
+            // 4 vertices per profile point:
+            // 0: Bottom-Left (-width/2)
+            // 1: Bottom-Right (+width/2)
+            // 2: Top-Left (-width/2)
+            // 3: Top-Right (+width/2)
+
+            // Vertices
+            // y is along the axis (x in our data), z/x are radial in Threejs frame if we rotate?
+            // Wait, we are building this in a canonical frame where we will rotate Y.
+            // So we build it at Angle 0.
+            // X is radial (r), Y is axial (x), Z is tangential width.
+
+            // BL
+            vertices.push(r, x, -ribWidth / 2);
+            // BR
+            vertices.push(r, x, ribWidth / 2);
+            // TL
+            vertices.push(r + channelHeight, x, -ribWidth / 2);
+            // TR
+            vertices.push(r + channelHeight, x, ribWidth / 2);
+
+            // Normals (approximate, pointing out)
+            // Just simple box normals? We need smooth shading? Flat is fine for ribs.
+            normals.push(1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0);
+        }
+
+        // Indices
+        for (let i = 0; i < xs.length - 1; i++) {
+            const base = i * 4;
+            // Face Side 1 (Left) - BL, TL, NextTL, NextBL
+            indices.push(base + 0, base + 4, base + 2);
+            indices.push(base + 2, base + 4, base + 6);
+
+            // Face Side 2 (Right) - BR, NextBR, NextTR, TR
+            indices.push(base + 1, base + 3, base + 5);
+            indices.push(base + 3, base + 7, base + 5);
+
+            // Face Top - TL, TR, NextTR, NextTL
+            indices.push(base + 2, base + 6, base + 3);
+            indices.push(base + 3, base + 6, base + 7);
+
+            // Face Bottom? (Hidden by liner, usually) - Skip to save tris
+        }
+
+        const geom = new THREE.BufferGeometry();
+        geom.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+        geom.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+        geom.setIndex(indices);
+        geom.computeVertexNormals(); // Smooth it out
+
+        return geom;
+    }, [profile, wallThickness]);
+
+    // Update instances
+    useEffect(() => {
+        if (!ribsRef.current || !showChannels) return;
+
+        const tempObject = new THREE.Object3D();
+
+        for (let i = 0; i < nChannels; i++) {
+            const angle = (i / nChannels) * Math.PI * 2;
+            tempObject.rotation.set(0, angle, 0);
+            // We rotate around Y axis because our geometry was built with Y as axis, X as radius.
+            tempObject.updateMatrix();
+            ribsRef.current.setMatrixAt(i, tempObject.matrix);
+        }
+        ribsRef.current.instanceMatrix.needsUpdate = true;
+    }, [nChannels, showChannels]);
 
     return (
         <group ref={groupRef}>
             {/* Inner Liner */}
-            <mesh ref={meshRef} geometry={geometry}>
-                <meshStandardMaterial
-                    color={wallColor}
-                    metalness={0.8}
-                    roughness={0.2}
-                    side={THREE.DoubleSide}
-                />
-            </mesh>
-
-            {/* If we have an outer shell, render it with some transparency to see channels */}
-            {outerShellThickness > 0 && (
-                <mesh geometry={outerGeometry}>
+            {showInner && (
+                <mesh ref={meshRef} geometry={innerGeometry}>
                     <meshStandardMaterial
-                        color={outerShellColor}
-                        metalness={0.9}
-                        roughness={0.1}
-                        transparent
-                        opacity={0.3}
+                        color={wallColor}
+                        metalness={0.6}
+                        roughness={0.3}
                         side={THREE.DoubleSide}
-                        depthWrite={false} // Better transparency
                     />
                 </mesh>
             )}
 
-            {/* Coolant Channels (Lines) */}
-            {showChannels && channelPaths.map((path, i) => (
-                <Line
-                    key={i}
-                    points={path}
-                    color="#00d4ff"
-                    lineWidth={1}
-                    opacity={0.6}
-                    transparent
-                />
-            ))}
+            {/* Separators (Ribs) */}
+            {showChannels && (
+                <instancedMesh ref={ribsRef} args={[ribGeometry, undefined, nChannels]}>
+                    <meshStandardMaterial
+                        color={wallColor}
+                        metalness={0.6}
+                        roughness={0.3}
+                    />
+                </instancedMesh>
+            )}
+
+            {/* Outer Jacket */}
+            {showOuter && (
+                <mesh geometry={outerGeometry}>
+                    <meshStandardMaterial
+                        color={outerShellColor}
+                        metalness={0.5}
+                        roughness={0.5}
+                        transparent
+                        opacity={0.3} // Semi-transparent to see ribs
+                        side={THREE.DoubleSide}
+                        depthWrite={false}
+                    />
+                </mesh>
+            )}
         </group>
     );
 }
@@ -191,7 +280,12 @@ interface Motor3DViewerProps {
     profile?: { x: number[]; r: number[] } | null;
     height?: number;
     showFlames?: boolean;
+
+    // Viz Toggles
+    showInner?: boolean;
     showChannels?: boolean;
+    showOuter?: boolean;
+
     nChannels?: number;
     wallColor?: string;
     outerShellColor?: string;
@@ -203,23 +297,35 @@ export default function Motor3DViewer({
     profile = null,
     height = 400,
     showFlames = false,
-    showChannels = false,
-    nChannels = 48,
-    wallColor = "#cc7733",
-    outerShellColor = "#71717a",
+
+    // Toggles defaults
+    showInner = true,
+    showChannels = true, // Default to showing channels as requested "vrais channels"
+    showOuter = true,
+
+    nChannels = 60, // Increased for "realism"
+    wallColor = "#b87333", // Copper-ish
+    outerShellColor = "#71717a", // Steel-ish
     wallThickness = 2,
-    outerShellThickness = 0
+    outerShellThickness = 2
 }: Motor3DViewerProps) {
     return (
-        <div style={{ height, width: "100%", background: "#0a0a10", borderRadius: 12, overflow: "hidden" }}>
-            <Canvas camera={{ position: [0.3, 0.2, 0.3], fov: 45 }}>
+        <div style={{ height, width: "100%", background: "#09090b", borderRadius: 12, overflow: "hidden", position: "relative" }}>
+            {/* Simple Overlay for controls could go here, but user asked for toggles in the tab? 
+                 We will stick to passing props and letting parent control. */}
+            <Canvas camera={{ position: [0.3, 0.2, 0.3], fov: 50 }}>
                 <ambientLight intensity={0.5} />
-                <directionalLight position={[5, 5, 5]} intensity={1} />
-                <pointLight position={[-3, 2, -2]} intensity={0.5} color="#00d4ff" />
+                <directionalLight position={[5, 2, 5]} intensity={1.5} />
+                <directionalLight position={[-5, 2, -5]} intensity={0.5} />
+
+                {/* Environment reflection */}
+                <Environment preset="city" />
 
                 <MotorMesh
                     profile={profile}
+                    showInner={showInner}
                     showChannels={showChannels}
+                    showOuter={showOuter}
                     nChannels={nChannels}
                     wallColor={wallColor}
                     outerShellColor={outerShellColor}
@@ -233,13 +339,15 @@ export default function Motor3DViewer({
                     enablePan={true}
                     enableZoom={true}
                     enableRotate={true}
-                    autoRotate={false}
-                    minDistance={0.2}
+                    autoRotate={true}
+                    autoRotateSpeed={0.5}
+                    minDistance={0.1}
                     maxDistance={2}
                 />
 
-                <gridHelper args={[1, 10, "#27272a", "#1a1a25"]} rotation={[Math.PI / 2, 0, 0]} />
+                <gridHelper args={[2, 20, "#3f3f46", "#18181b"]} position={[0, -0.3, 0]} />
             </Canvas>
         </div>
     );
 }
+

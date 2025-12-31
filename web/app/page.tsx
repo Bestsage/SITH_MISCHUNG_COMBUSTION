@@ -336,21 +336,52 @@ export default function Home() {
                 {/* 3D TAB */}
                 {resultTab === "3d" && (
                   <div className="space-y-6">
-                    <h2 className="text-2xl font-bold text-white">💻 Visualisation 3D</h2>
+                    <div className="flex justify-between items-center">
+                      <h2 className="text-2xl font-bold text-white">💻 Visualisation 3D</h2>
+
+                      {/* Visualization Toggles */}
+                      <div className="flex bg-[#15151f] rounded-lg p-1 gap-1">
+                        <button
+                          onClick={() => updateConfig("view_inner", !config.view_inner)}
+                          className={`px-3 py-1 text-xs rounded transition-colors ${config.view_inner !== false ? "bg-[#00d4ff] text-black font-bold" : "text-[#71717a] hover:bg-[#27272a]"}`}
+                        >
+                          Paroi
+                        </button>
+                        <button
+                          onClick={() => updateConfig("view_channels", !config.view_channels)}
+                          className={`px-3 py-1 text-xs rounded transition-colors ${config.view_channels !== false ? "bg-[#8b5cf6] text-white font-bold" : "text-[#71717a] hover:bg-[#27272a]"}`}
+                        >
+                          Canaux
+                        </button>
+                        <button
+                          onClick={() => updateConfig("view_outer", !config.view_outer)}
+                          className={`px-3 py-1 text-xs rounded transition-colors ${config.view_outer !== false ? "bg-[#71717a] text-white font-bold" : "text-[#71717a] hover:bg-[#27272a]"}`}
+                        >
+                          Jacket
+                        </button>
+                      </div>
+                    </div>
 
                     <div className="card">
-                      <h3 className="card-header">🚀 Modèle 3D du Moteur</h3>
-                      <p className="text-xs text-[#71717a] mb-4">Cliquez et faites glisser pour tourner • Molette pour zoomer</p>
-                      <Motor3DViewer
-                        profile={results.geometry_profile}
-                        height={500}
-                        showFlames={false}
-                        showChannels={true}
-                        wallColor={materials?.[config.material_name]?.color || "#cc7733"}
-                        outerShellColor={materials?.[config.material_name]?.color || "#71717a"}
-                        wallThickness={config.wall_thickness}
-                        outerShellThickness={stressData.tOuterShell}
-                      />
+                      <div className="h-[500px]">
+                        <Motor3DViewer
+                          profile={results.geometry_profile}
+                          height={500}
+                          showFlames={false}
+                          // Pass visibility states (default to true if undefined)
+                          showInner={config.view_inner !== false}
+                          showChannels={config.view_channels !== false}
+                          showOuter={config.view_outer !== false}
+
+                          wallColor={materials?.[config.material_name]?.color || "#cc7733"}
+                          outerShellColor={materials?.[config.material_name]?.color || "#71717a"}
+                          wallThickness={config.wall_thickness}
+                          outerShellThickness={stressData.tOuterShell || 2}
+                        />
+                      </div>
+                      <div className="p-3 text-center">
+                        <p className="text-xs text-[#71717a]">Cliquez et faites glisser pour tourner • Molette pour zoomer • Shift+Drag pour déplacer</p>
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-3 gap-4">
