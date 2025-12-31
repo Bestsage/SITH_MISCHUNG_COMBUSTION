@@ -119,9 +119,7 @@ async fn run_cfd_stream(
         // Progress callback that sends SSE events
         let progress_callback = move |update: ProgressUpdate| {
             let event_data = serde_json::to_string(&update).unwrap_or_default();
-            let event = Event::default()
-                .event("progress")
-                .data(event_data);
+            let event = Event::default().event("progress").data(event_data);
             let _ = tx_clone.blocking_send(Ok(event));
         };
 
@@ -134,13 +132,14 @@ async fn run_cfd_stream(
         match result {
             Ok(cfd_result) => {
                 // Check for valid result
-                let is_valid = !cfd_result.mach.iter().any(|v| v.is_nan() || v.is_infinite());
-                
+                let is_valid = !cfd_result
+                    .mach
+                    .iter()
+                    .any(|v| v.is_nan() || v.is_infinite());
+
                 if is_valid {
                     let result_data = serde_json::to_string(&cfd_result).unwrap_or_default();
-                    let event = Event::default()
-                        .event("result")
-                        .data(result_data);
+                    let event = Event::default().event("result").data(result_data);
                     let _ = tx.blocking_send(Ok(event));
                 } else {
                     let event = Event::default()
@@ -150,9 +149,7 @@ async fn run_cfd_stream(
                 }
             }
             Err(_) => {
-                let event = Event::default()
-                    .event("error")
-                    .data("CFD solver panicked");
+                let event = Event::default().event("error").data("CFD solver panicked");
                 let _ = tx.blocking_send(Ok(event));
             }
         }
@@ -162,8 +159,7 @@ async fn run_cfd_stream(
         let _ = tx.blocking_send(Ok(event));
     });
 
-    Sse::new(ReceiverStream::new(rx))
-        .keep_alive(axum::response::sse::KeepAlive::default())
+    Sse::new(ReceiverStream::new(rx)).keep_alive(axum::response::sse::KeepAlive::default())
 }
 
 async fn run_solver(
@@ -406,13 +402,64 @@ async fn calculate_full(
             // Cylindrical chamber
             r_chamber
         } else if x <= throat_x {
-            // Convergent section (smooth cosine transition)
-            // t goes from 0 (start of convergent) to 1 (at throat)
-            let t = (x - (throat_x - l_conv)) / l_conv;
-            let t = t.clamp(0.0, 1.0);
-            // Cosine blend: smooth transition from r_chamber to r_throat
-            let blend = (1.0 - (t * std::f64::consts::PI).cos()) / 2.0;
-            r_chamber - (r_chamber - r_throat) * blend
+            // ARC-LINE-ARC Convergent Section
+            // 1. Arc from chamber to cone (R1 = 1.5 * Rt)
+            // 2. Straight line at theta_n
+            // 3. Arc from cone to throat (R2 = 0.382 * Rt)
+
+            let r_u = 1.5 * r_throat; // Upstream radius (chamber side)
+            let r_d = 0.382 * r_throat; // Downstream radius (throat side)
+            let theta = motor.theta_n.to_radians();
+
+            // Length of the convergent section (calculated backwards from throat)
+            // Total L = R_d * sin(theta) + (Rc - Rt - R_u*(1-cos(theta)) - R_d*(1-cos(theta))) / tan(theta) + R_u * sin(theta)
+
+            // Normalized position in convergent section (0 at start, 1 at throat)
+            // We need to map x (which is in global coords) to local coords relative to throat
+            let dist_to_throat = throat_x - x;
+
+            // Geometric points relative to throat (x=0 at throat, growing negative upstream)
+            // Point A: Throat tangent (-R_d*sin(theta), Rt + R_d*(1-cos(theta)))
+            // Point B: Chamber tangent (start of curve)
+
+            let x_throat_arc_start = -r_d * theta.sin();
+            let y_throat_arc_start = r_throat + r_d * (1.0 - theta.cos());
+
+            let h_cone =
+                r_chamber - r_throat - r_u * (1.0 - theta.cos()) - r_d * (1.0 - theta.cos());
+            let l_cone = h_cone / theta.tan();
+
+            let x_cone_start = x_throat_arc_start - l_cone;
+            let y_cone_start = r_chamber - r_u * (1.0 - theta.cos());
+
+            let x_chamber_arc_start = x_cone_start - r_u * theta.sin();
+
+            // Current position relative to throat (negative)
+            let x_local = -dist_to_throat;
+
+            if x_local > x_throat_arc_start {
+                // In throat arc region (near throat)
+                // Circle equation centered at (0, Rt + Rd)
+                let y_center = r_throat + r_d;
+                // x^2 + (y - y_center)^2 = Rd^2
+                // y = y_center - sqrt(Rd^2 - x^2)
+                y_center - (r_d * r_d - x_local * x_local).max(0.0).sqrt()
+            } else if x_local > x_cone_start {
+                // In straight cone region
+                // Line equation passing through (x_throat_arc_start, y_throat_arc_start) with slope -tan(theta)
+                y_throat_arc_start + (x_throat_arc_start - x_local) * theta.tan()
+            } else if x_local > x_chamber_arc_start {
+                // In chamber arc region
+                // Circle centered at (x_chamber_arc_start, Rc - Ru)
+                let x_center = x_chamber_arc_start;
+                let y_center = r_chamber - r_u;
+                // (x - x_center)^2 + (y - y_center)^2 = Ru^2
+                let dx = x_local - x_center;
+                y_center + (r_u * r_u - dx * dx).max(0.0).sqrt()
+            } else {
+                // Fully in chamber (should be covered by first if, but just in case)
+                r_chamber
+            }
         } else {
             // Divergent section (80% parabolic bell)
             let t = (x - throat_x) / l_nozzle;
@@ -420,6 +467,7 @@ async fn calculate_full(
             // Parabolic profile
             r_throat + (r_exit - r_throat) * (2.0 * t - t * t).powf(0.85)
         };
+
         r_profile.push(r);
 
         let area = std::f64::consts::PI * r * r;
@@ -497,7 +545,7 @@ async fn get_wiki() -> Result<String, StatusCode> {
 struct ExternalCFDRequest {
     #[serde(flatten)]
     params: CFDRequest,
-    solver: Option<String>,  // "openfoam" or "python"
+    solver: Option<String>, // "openfoam" or "python"
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -513,11 +561,11 @@ async fn run_cfd_external(
     Json(payload): Json<ExternalCFDRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     // Get the external CFD API URL from environment or use default
-    let cfd_api_url = std::env::var("CFD_API_URL")
-        .unwrap_or_else(|_| "http://localhost:8001".to_string());
-    
+    let cfd_api_url =
+        std::env::var("CFD_API_URL").unwrap_or_else(|_| "http://localhost:8001".to_string());
+
     let client = reqwest::Client::new();
-    
+
     // Start the job
     let response = client
         .post(format!("{}/api/cfd/run", cfd_api_url))
@@ -539,47 +587,61 @@ async fn run_cfd_external(
         }))
         .send()
         .await
-        .map_err(|e| (StatusCode::BAD_GATEWAY, format!("Failed to connect to CFD API: {}", e)))?;
-    
+        .map_err(|e| {
+            (
+                StatusCode::BAD_GATEWAY,
+                format!("Failed to connect to CFD API: {}", e),
+            )
+        })?;
+
     if !response.status().is_success() {
         return Err((
             StatusCode::BAD_GATEWAY,
-            format!("CFD API error: {}", response.status())
+            format!("CFD API error: {}", response.status()),
         ));
     }
-    
-    let job: ExternalJobResponse = response
-        .json()
-        .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to parse response: {}", e)))?;
-    
+
+    let job: ExternalJobResponse = response.json().await.map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Failed to parse response: {}", e),
+        )
+    })?;
+
     // Poll for completion (with timeout)
     let job_id = job.job_id;
     let max_wait = 600; // 10 minutes max
     let mut elapsed = 0;
-    
+
     loop {
         tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
         elapsed += 2;
-        
+
         if elapsed > max_wait {
             return Err((
                 StatusCode::GATEWAY_TIMEOUT,
-                "CFD simulation timed out".to_string()
+                "CFD simulation timed out".to_string(),
             ));
         }
-        
+
         let status_response = client
             .get(format!("{}/api/cfd/status/{}", cfd_api_url, job_id))
             .send()
             .await
-            .map_err(|e| (StatusCode::BAD_GATEWAY, format!("Failed to get status: {}", e)))?;
-        
-        let status: ExternalJobResponse = status_response
-            .json()
-            .await
-            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to parse status: {}", e)))?;
-        
+            .map_err(|e| {
+                (
+                    StatusCode::BAD_GATEWAY,
+                    format!("Failed to get status: {}", e),
+                )
+            })?;
+
+        let status: ExternalJobResponse = status_response.json().await.map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to parse status: {}", e),
+            )
+        })?;
+
         match status.status.as_str() {
             "completed" => {
                 // Get the result
@@ -587,19 +649,26 @@ async fn run_cfd_external(
                     .get(format!("{}/api/cfd/result/{}", cfd_api_url, job_id))
                     .send()
                     .await
-                    .map_err(|e| (StatusCode::BAD_GATEWAY, format!("Failed to get result: {}", e)))?;
-                
-                let result: serde_json::Value = result_response
-                    .json()
-                    .await
-                    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to parse result: {}", e)))?;
-                
+                    .map_err(|e| {
+                        (
+                            StatusCode::BAD_GATEWAY,
+                            format!("Failed to get result: {}", e),
+                        )
+                    })?;
+
+                let result: serde_json::Value = result_response.json().await.map_err(|e| {
+                    (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        format!("Failed to parse result: {}", e),
+                    )
+                })?;
+
                 return Ok(Json(result));
             }
             "failed" => {
                 return Err((
                     StatusCode::INTERNAL_SERVER_ERROR,
-                    format!("CFD simulation failed: {}", status.message)
+                    format!("CFD simulation failed: {}", status.message),
                 ));
             }
             _ => {
@@ -612,31 +681,27 @@ async fn run_cfd_external(
 
 /// Check if external CFD solver is available
 async fn check_external_cfd() -> Json<serde_json::Value> {
-    let cfd_api_url = std::env::var("CFD_API_URL")
-        .unwrap_or_else(|_| "http://localhost:8001".to_string());
-    
+    let cfd_api_url =
+        std::env::var("CFD_API_URL").unwrap_or_else(|_| "http://localhost:8001".to_string());
+
     let client = reqwest::Client::new();
-    
+
     match client
         .get(format!("{}/health", cfd_api_url))
         .timeout(std::time::Duration::from_secs(5))
         .send()
         .await
     {
-        Ok(response) if response.status().is_success() => {
-            Json(serde_json::json!({
-                "available": true,
-                "url": cfd_api_url,
-                "message": "External CFD solver is available"
-            }))
-        }
-        _ => {
-            Json(serde_json::json!({
-                "available": false,
-                "url": cfd_api_url,
-                "message": "External CFD solver is not available - using local solver"
-            }))
-        }
+        Ok(response) if response.status().is_success() => Json(serde_json::json!({
+            "available": true,
+            "url": cfd_api_url,
+            "message": "External CFD solver is available"
+        })),
+        _ => Json(serde_json::json!({
+            "available": false,
+            "url": cfd_api_url,
+            "message": "External CFD solver is not available - using local solver"
+        })),
     }
 }
 
