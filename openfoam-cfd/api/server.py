@@ -253,12 +253,26 @@ def generate_openfoam_case(params: dict, case_dir: Path):
     p_ambient = params.get("p_ambient", 101325.0)
     t_chamber = params["t_chamber"]
     gamma = params["gamma"]
-    molar_mass = params["molar_mass"]
+    molar_mass = params["molar_mass"]  # kg/mol (e.g., 0.022 for combustion products)
     nx = params["nx"]
     ny = params["ny"]
     
+    # Validate and clamp parameters to safe ranges
+    gamma = max(1.1, min(1.67, gamma))  # Physical bounds for gamma
+    molar_mass = max(0.002, min(0.1, molar_mass))  # 2-100 g/mol
+    t_chamber = max(500, min(5000, t_chamber))  # 500-5000 K
+    p_chamber = max(1e5, min(1e8, p_chamber))  # 1-1000 bar
+    
     # Calculate gas properties
-    R_specific = 8314.0 / (molar_mass * 1000)  # J/(kg·K)
+    # molar_mass is in kg/mol, convert to g/mol for molWeight
+    mol_weight_gmol = molar_mass * 1000  # g/mol
+    R_specific = 8314.0 / mol_weight_gmol  # J/(kg·K)
+    
+    # Calculate Cp for ideal gas: Cp = gamma * R / (gamma - 1)
+    Cp = R_specific * gamma / (gamma - 1)
+    
+    # Validate Cp is reasonable (typically 1000-5000 J/(kg·K) for combustion gases)
+    Cp = max(800, min(6000, Cp))
     
     # ================================
     # blockMeshDict - Axisymmetric wedge mesh
@@ -590,11 +604,11 @@ mixture
 {{
     specie
     {{
-        molWeight   {molar_mass * 1000};  // g/mol
+        molWeight   {mol_weight_gmol:.2f};
     }}
     thermodynamics
     {{
-        Cp          {R_specific * gamma / (gamma - 1)};
+        Cp          {Cp:.1f};
         Hf          0;
     }}
     transport
@@ -634,6 +648,26 @@ simulationType  laminar;
     a_chamber = math.sqrt(gamma * R_specific * t_chamber)
     u_inlet = 0.1 * a_chamber  # 10% of sound speed
     
+    # Log computed values for debugging
+    print(f"[OpenFOAM Case] Thermophysical properties:")
+    print(f"  gamma = {gamma:.3f}")
+    print(f"  molWeight = {mol_weight_gmol:.2f} g/mol")
+    print(f"  R_specific = {R_specific:.1f} J/(kg·K)")
+    print(f"  Cp = {Cp:.1f} J/(kg·K)")
+    print(f"  p_chamber = {p_chamber:.0f} Pa")
+    print(f"  t_chamber = {t_chamber:.0f} K")
+    print(f"  p_ambient = {p_ambient:.0f} Pa")
+    print(f"  rho_chamber = {rho_chamber:.3f} kg/m³")
+    print(f"  a_chamber = {a_chamber:.1f} m/s")
+    print(f"  u_inlet = {u_inlet:.1f} m/s")
+    
+    # Format numbers explicitly to avoid scientific notation issues
+    p_chamber_str = f"{p_chamber:.1f}"
+    t_chamber_str = f"{t_chamber:.1f}"
+    p_ambient_str = f"{p_ambient:.1f}"
+    u_inlet_str = f"{u_inlet:.1f}"
+    gamma_str = f"{gamma:.4f}"
+    
     # Pressure field
     p_file = f"""FoamFile
 {{
@@ -645,24 +679,24 @@ simulationType  laminar;
 
 dimensions      [1 -1 -2 0 0 0 0];
 
-internalField   uniform {p_chamber};
+internalField   uniform {p_chamber_str};
 
 boundaryField
 {{
     inlet
     {{
         type            fixedValue;
-        value           uniform {p_chamber};
+        value           uniform {p_chamber_str};
     }}
     outlet
     {{
         type            waveTransmissive;
         field           p;
         psi             thermo:psi;
-        gamma           {gamma};
-        fieldInf        {p_ambient};
+        gamma           {gamma_str};
+        fieldInf        {p_ambient_str};
         lInf            1;
-        value           uniform {p_ambient};
+        value           uniform {p_ambient_str};
     }}
     wall
     {{
@@ -697,14 +731,14 @@ boundaryField
 
 dimensions      [0 0 0 1 0 0 0];
 
-internalField   uniform {t_chamber};
+internalField   uniform {t_chamber_str};
 
 boundaryField
 {{
     inlet
     {{
         type            fixedValue;
-        value           uniform {t_chamber};
+        value           uniform {t_chamber_str};
     }}
     outlet
     {{
@@ -743,14 +777,14 @@ boundaryField
 
 dimensions      [0 1 -1 0 0 0 0];
 
-internalField   uniform ({u_inlet} 0 0);
+internalField   uniform ({u_inlet_str} 0 0);
 
 boundaryField
 {{
     inlet
     {{
         type            fixedValue;
-        value           uniform ({u_inlet} 0 0);
+        value           uniform ({u_inlet_str} 0 0);
     }}
     outlet
     {{
