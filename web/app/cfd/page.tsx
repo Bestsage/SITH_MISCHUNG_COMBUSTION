@@ -312,10 +312,15 @@ export default function CFDPage() {
     const [selectedField, setSelectedField] = useState<FieldType>("mach");
     const [progress, setProgress] = useState<ProgressUpdate | null>(null);
     const abortControllerRef = useRef<AbortController | null>(null);
+    const pollingRef = useRef<boolean>(false);
+
+    // OpenFOAM CFD API URL (direct connection to avoid proxy timeout)
+    const OPENFOAM_API = process.env.NEXT_PUBLIC_OPENFOAM_URL || "/api/cfd";
 
     const runSimulation = useCallback(async () => {
         setLoading(true);
         setError(null);
+        pollingRef.current = true;
         setProgress({
             iteration: 0,
             max_iter: params.max_iter,
@@ -333,11 +338,10 @@ export default function CFDPage() {
         abortControllerRef.current = new AbortController();
 
         try {
-            // Call the external OpenFOAM endpoint
-            // The backend handles job polling internally
-            setProgress(prev => prev ? { ...prev, phase: "Simulation OpenFOAM en cours..." } : null);
+            // Step 1: Start the job on OpenFOAM server
+            setProgress(prev => prev ? { ...prev, phase: "Démarrage du job OpenFOAM..." } : null);
 
-            const response = await fetch("/api/cfd/external", {
+            const startResponse = await fetch(`${OPENFOAM_API}/run`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -347,20 +351,75 @@ export default function CFDPage() {
                 signal: abortControllerRef.current.signal,
             });
 
-            if (!response.ok) {
-                const text = await response.text();
-                throw new Error(`HTTP ${response.status}: ${text || 'Erreur serveur OpenFOAM'}`);
+            if (!startResponse.ok) {
+                const text = await startResponse.text();
+                throw new Error(`Échec démarrage: ${text}`);
             }
 
-            // OpenFOAM returns JSON directly (backend handles polling)
-            const data = await response.json();
+            const jobInfo = await startResponse.json();
+            const jobId = jobInfo.job_id;
 
-            if (data.mach) {
-                setResult(data as CFDResult);
-                setProgress(prev => prev ? { ...prev, phase: "Simulation terminée!", converged: true } : null);
-            } else {
-                throw new Error("Résultat invalide - pas de données Mach");
+            // Step 2: Poll for status until completed or failed
+            setProgress(prev => prev ? { ...prev, phase: "Simulation OpenFOAM en cours..." } : null);
+
+            let completed = false;
+            let attempts = 0;
+            const maxAttempts = 300; // 10 minutes max (2s intervals)
+
+            while (!completed && attempts < maxAttempts && pollingRef.current) {
+                await new Promise(resolve => setTimeout(resolve, 2000)); // Poll every 2s
+                attempts++;
+
+                const statusResponse = await fetch(`${OPENFOAM_API}/status/${jobId}`, {
+                    signal: abortControllerRef.current.signal,
+                });
+
+                if (!statusResponse.ok) {
+                    throw new Error("Échec récupération status");
+                }
+
+                const status = await statusResponse.json();
+
+                // Update progress display
+                setProgress(prev => prev ? {
+                    ...prev,
+                    phase: status.message || "Simulation en cours...",
+                    iteration: Math.round(status.progress * params.max_iter),
+                } : null);
+
+                if (status.status === "completed") {
+                    completed = true;
+
+                    // Step 3: Fetch the result
+                    setProgress(prev => prev ? { ...prev, phase: "Récupération des résultats..." } : null);
+
+                    const resultResponse = await fetch(`${OPENFOAM_API}/result/${jobId}`, {
+                        signal: abortControllerRef.current.signal,
+                    });
+
+                    if (!resultResponse.ok) {
+                        throw new Error("Échec récupération résultats");
+                    }
+
+                    const data = await resultResponse.json();
+
+                    if (data.mach) {
+                        setResult(data as CFDResult);
+                        setProgress(prev => prev ? { ...prev, phase: "Simulation terminée!", converged: true } : null);
+                    } else {
+                        throw new Error("Résultat invalide - pas de données Mach");
+                    }
+
+                } else if (status.status === "failed") {
+                    throw new Error(status.message || "Simulation échouée");
+                }
+                // Otherwise still running, continue polling
             }
+
+            if (!completed && pollingRef.current) {
+                throw new Error("Timeout: simulation trop longue");
+            }
+
         } catch (err) {
             if (err instanceof Error) {
                 if (err.name === 'AbortError') {
@@ -375,8 +434,10 @@ export default function CFDPage() {
             }
         } finally {
             setLoading(false);
+            pollingRef.current = false;
         }
-    }, [params]);
+    }, [params, OPENFOAM_API]);
+
 
     const cancelSimulation = useCallback(() => {
         if (abortControllerRef.current) {
