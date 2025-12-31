@@ -257,11 +257,11 @@ def generate_openfoam_case(params: dict, case_dir: Path):
     nx = params["nx"]
     ny = params["ny"]
     
-    # Validate and clamp parameters to safe ranges
-    gamma = max(1.1, min(1.67, gamma))  # Physical bounds for gamma
-    molar_mass = max(0.002, min(0.1, molar_mass))  # 2-100 g/mol
-    t_chamber = max(500, min(5000, t_chamber))  # 500-5000 K
-    p_chamber = max(1e5, min(1e8, p_chamber))  # 1-1000 bar
+    # Validate and clamp parameters to safe ranges, round to avoid floating point issues
+    gamma = round(max(1.1, min(1.67, gamma)), 4)  # Physical bounds for gamma
+    molar_mass = round(max(0.002, min(0.1, molar_mass)), 6)  # 2-100 g/mol
+    t_chamber = round(max(500, min(6000, t_chamber)), 1)  # 500-6000 K, round to 1 decimal
+    p_chamber = round(max(1e5, min(1e8, p_chamber)), 0)  # 1-1000 bar, round to integer
     
     # Calculate gas properties
     # molar_mass is in kg/mol, convert to g/mol for molWeight
@@ -408,14 +408,14 @@ startFrom       startTime;
 startTime       0;
 
 stopAt          endTime;
-endTime         0.0005;
+endTime         1e-5;
 
-deltaT          1e-9;
+deltaT          1e-8;
 
 writeControl    adjustableRunTime;
-writeInterval   0.0001;
+writeInterval   2e-6;
 
-purgeWrite      5;
+purgeWrite      3;
 
 writeFormat     ascii;
 writePrecision  8;
@@ -427,7 +427,7 @@ timePrecision   6;
 runTimeModifiable true;
 
 adjustTimeStep  yes;
-maxCo           0.2;
+maxCo           0.3;
 
 functions
 {{
