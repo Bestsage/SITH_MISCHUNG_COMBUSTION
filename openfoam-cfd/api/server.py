@@ -601,6 +601,23 @@ mixture
         f.write(thermoprops)
     
     # ================================
+    # turbulenceProperties
+    # ================================
+    turbprops = """FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      turbulenceProperties;
+}
+
+simulationType  laminar;
+"""
+    
+    with open(case_dir / "constant" / "turbulenceProperties", 'w') as f:
+        f.write(turbprops)
+    
+    # ================================
     # Initial conditions (0/)
     # ================================
     
