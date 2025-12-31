@@ -113,12 +113,26 @@ function CFDHeatmap({ result, request, field, colormap }: { result: CFDResult; r
         const fieldData = result[field];
         const exit_x = request.l_chamber + request.l_nozzle;
 
-        // Find min/max for normalization
+        // Find min/max for normalization (ignoring NaNs/Inf)
         let min = Infinity, max = -Infinity;
+        let hasValidData = false;
+
         for (const v of fieldData) {
-            if (v < min) min = v;
-            if (v > max) max = v;
+            if (Number.isFinite(v)) {
+                if (v < min) min = v;
+                if (v > max) max = v;
+                hasValidData = true;
+            }
         }
+
+        // Fallback if no valid data
+        if (!hasValidData) {
+            min = 0;
+            max = 1;
+        }
+
+        // Ensure max > min to avoid division by zero
+        if (max <= min) max = min + 1.0;
 
         // Create heatmap geometry
         const positions = new Float32Array(nx * ny * 3);
@@ -143,8 +157,8 @@ function CFDHeatmap({ result, request, field, colormap }: { result: CFDResult; r
                 positions[idx * 3 + 2] = 0;
 
                 const val = fieldData[idx];
-                // Check for NaN or Inf
-                const safeVal = (isNaN(val) || !isFinite(val)) ? min : val;
+                // Check for NaN or Inf and clamp
+                const safeVal = Number.isFinite(val) ? val : min;
 
                 const t = (safeVal - min) / (max - min || 1);
                 const color = getColorForValue(t, colormap);
