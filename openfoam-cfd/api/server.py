@@ -275,40 +275,27 @@ def generate_openfoam_case(params: dict, case_dir: Path):
     Cp = max(800, min(6000, Cp))
     
     # ================================
-    # blockMeshDict - Axisymmetric wedge mesh
+    # blockMeshDict - Simple rectangular domain for nozzle
     # ================================
+    # For stability, we use a simple rectangular domain covering the nozzle
+    # without complex wedge geometry that can cause numerical issues
     total_length = l_chamber + l_nozzle
-    wedge_angle = 2.5  # degrees (total 5 degrees)
-    wedge_rad = math.radians(wedge_angle)
+    max_radius = max(r_chamber, r_exit)
     
-    # Compute cell counts
-    nx_conv = max(5, nx // 3)
-    nx_div = max(10, 2 * nx // 3)
-    ny_cells = max(5, ny)
+    # Use total cell count directly
+    nx_total = max(20, nx)
+    ny_total = max(10, ny)
     
-    # For proper wedge geometry, we need vertices at the outer radius
-    # rotated by ±wedge_angle around the x-axis
-    # Back face (z > 0, positive rotation)
-    def rotate_y(r, angle):
-        return r * math.cos(angle)
-    def rotate_z(r, angle):
-        return r * math.sin(angle)
+    # Wedge angle for axisymmetric (5 degrees total = +/- 2.5 degrees)
+    wedge_angle = 2.5  # degrees
+    theta = math.radians(wedge_angle)
     
-    # Back wedge vertices (positive z)
-    y_chamber_back = rotate_y(r_chamber, wedge_rad)
-    z_chamber_back = rotate_z(r_chamber, wedge_rad)
-    y_throat_back = rotate_y(r_throat, wedge_rad)
-    z_throat_back = rotate_z(r_throat, wedge_rad)
-    y_exit_back = rotate_y(r_exit, wedge_rad)
-    z_exit_back = rotate_z(r_exit, wedge_rad)
-    
-    # Front wedge vertices (negative z)
-    y_chamber_front = rotate_y(r_chamber, -wedge_rad)
-    z_chamber_front = rotate_z(r_chamber, -wedge_rad)
-    y_throat_front = rotate_y(r_throat, -wedge_rad)
-    z_throat_front = rotate_z(r_throat, -wedge_rad)
-    y_exit_front = rotate_y(r_exit, -wedge_rad)
-    z_exit_front = rotate_z(r_exit, -wedge_rad)
+    # Vertices for a single wedge block
+    # The domain is from x=0 to x=total_length, r=0 to r=max_radius
+    y_max_front = max_radius * math.cos(theta)
+    z_max_front = -max_radius * math.sin(theta)
+    y_max_back = max_radius * math.cos(theta)
+    z_max_back = max_radius * math.sin(theta)
     
     blockmesh = f"""FoamFile
 {{
@@ -322,38 +309,22 @@ scale 1;
 
 vertices
 (
-    // Block 1: Converging section (inlet to throat)
-    // Front wedge face (z < 0)
-    (0 0 0)                                                           // 0 - axis inlet
-    ({l_chamber:.8f} 0 0)                                             // 1 - axis throat
-    ({l_chamber:.8f} {y_throat_front:.8f} {z_throat_front:.8f})       // 2 - wall throat front
-    (0 {y_chamber_front:.8f} {z_chamber_front:.8f})                   // 3 - wall inlet front
-    // Back wedge face (z > 0)  
-    (0 0 0)                                                           // 4 - axis inlet (=0)
-    ({l_chamber:.8f} 0 0)                                             // 5 - axis throat (=1)
-    ({l_chamber:.8f} {y_throat_back:.8f} {z_throat_back:.8f})         // 6 - wall throat back
-    (0 {y_chamber_back:.8f} {z_chamber_back:.8f})                     // 7 - wall inlet back
+    // Front face (z < 0)
+    (0 0 0)                                              // 0 - axis at inlet
+    ({total_length:.8f} 0 0)                             // 1 - axis at exit
+    ({total_length:.8f} {y_max_front:.8f} {z_max_front:.8f})  // 2 - wall at exit
+    (0 {y_max_front:.8f} {z_max_front:.8f})              // 3 - wall at inlet
     
-    // Block 2: Diverging section (throat to exit)
-    // Front wedge face (z < 0)
-    ({l_chamber:.8f} 0 0)                                             // 8 - axis throat (=1)
-    ({total_length:.8f} 0 0)                                          // 9 - axis exit
-    ({total_length:.8f} {y_exit_front:.8f} {z_exit_front:.8f})        // 10 - wall exit front
-    ({l_chamber:.8f} {y_throat_front:.8f} {z_throat_front:.8f})       // 11 - wall throat front (=2)
-    // Back wedge face (z > 0)
-    ({l_chamber:.8f} 0 0)                                             // 12 - axis throat (=5)
-    ({total_length:.8f} 0 0)                                          // 13 - axis exit
-    ({total_length:.8f} {y_exit_back:.8f} {z_exit_back:.8f})          // 14 - wall exit back
-    ({l_chamber:.8f} {y_throat_back:.8f} {z_throat_back:.8f})         // 15 - wall throat back (=6)
+    // Back face (z > 0)
+    (0 0 0)                                              // 4 - axis at inlet (same point as 0)
+    ({total_length:.8f} 0 0)                             // 5 - axis at exit (same point as 1)
+    ({total_length:.8f} {y_max_back:.8f} {z_max_back:.8f})    // 6 - wall at exit
+    (0 {y_max_back:.8f} {z_max_back:.8f})                // 7 - wall at inlet
 );
 
 blocks
 (
-    // Converging section
-    hex (0 1 2 3 4 5 6 7) ({nx_conv} {ny_cells} 1) simpleGrading (1 1 1)
-    
-    // Diverging section
-    hex (8 9 10 11 12 13 14 15) ({nx_div} {ny_cells} 1) simpleGrading (1 1 1)
+    hex (0 1 2 3 4 5 6 7) ({nx_total} {ny_total} 1) simpleGrading (1 1 1)
 );
 
 edges
@@ -375,7 +346,7 @@ boundary
         type patch;
         faces
         (
-            (9 10 14 13)
+            (1 2 6 5)
         );
     }}
     wall
@@ -384,7 +355,6 @@ boundary
         faces
         (
             (3 7 6 2)
-            (11 15 14 10)
         );
     }}
     axis
@@ -393,7 +363,6 @@ boundary
         faces
         (
             (0 1 5 4)
-            (8 9 13 12)
         );
     }}
     front
@@ -402,7 +371,6 @@ boundary
         faces
         (
             (0 3 2 1)
-            (8 11 10 9)
         );
     }}
     back
@@ -411,7 +379,6 @@ boundary
         faces
         (
             (4 5 6 7)
-            (12 13 14 15)
         );
     }}
 );
@@ -566,7 +533,7 @@ solvers
         relTol          0.1;
     }
 
-    e
+    h
     {
         $U;
         tolerance       1e-06;
