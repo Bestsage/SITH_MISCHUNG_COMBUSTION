@@ -82,7 +82,7 @@ export default function Home() {
     <div className="flex items-center justify-between gap-2 py-1">
       <label className="text-xs text-[#a1a1aa]">{label}</label>
       <div className="flex items-center gap-1">
-        <input type={type} value={config[configKey]} onChange={(e) => updateConfig(configKey, type === "number" ? parseFloat(e.target.value) || 0 : e.target.value)} className="input-field text-xs w-20 text-right py-1" />
+        <input type={type} value={config[configKey] as any} onChange={(e) => updateConfig(configKey, type === "number" ? parseFloat(e.target.value) || 0 : e.target.value)} className="input-field text-xs w-20 text-right py-1" />
         {unit && <span className="text-[10px] text-[#71717a] w-10">{unit}</span>}
       </div>
     </div>
