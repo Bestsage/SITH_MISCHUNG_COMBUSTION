@@ -90,12 +90,6 @@ struct FlowState {
     mach: f64,
 }
 
-impl FlowState {
-    fn speed_of_sound(&self, gamma: f64) -> f64 {
-        (gamma * self.p / self.rho.max(1e-10)).sqrt()
-    }
-}
-
 pub struct CFDSolver {
     nx: usize,
     ny: usize,
@@ -179,7 +173,7 @@ impl CFDSolver {
     }
 
     /// Enhanced Quasi-1D solver with boundary layer effects and 2D visualization
-    fn solve_quasi_1d_enhanced(&mut self, max_iter: usize, _tolerance: f64) -> CFDResult {
+    fn solve_quasi_1d_enhanced(&mut self, _max_iter: usize, _tolerance: f64) -> CFDResult {
         let gamma = self.gamma;
         let p_chamber = self.p_chamber;
         let t_chamber = self.t_chamber;
@@ -190,14 +184,14 @@ impl CFDSolver {
         let mut residual_history = Vec::new();
 
         for i in 0..self.nx {
-            let xi = self.x[i];
+            let _xi = self.x[i];
             let r_local = self.r_wall[i];
             let a_local = std::f64::consts::PI * r_local * r_local;
             let area_ratio = (a_local / a_star).max(1.0);
 
             // Determine if we're in subsonic or supersonic region
             let is_supersonic = i > self.throat_cell_index;
-            
+
             // Check if we're in the plume region (past nozzle exit)
             let is_plume = i > self.exit_cell_index;
 
@@ -205,9 +199,12 @@ impl CFDSolver {
                 // In plume: use exit Mach as base, add expansion effects
                 let exit_area_ratio = (self.r_wall[self.exit_cell_index] / r_throat_min).powi(2);
                 let mach_exit = solve_mach_area_ratio(exit_area_ratio.max(1.0), gamma, true);
-                
+
                 // Prandtl-Meyer expansion in plume (simplified)
-                let expansion_factor = 1.0 + 0.1 * ((i - self.exit_cell_index) as f64 / (self.nx - self.exit_cell_index) as f64);
+                let expansion_factor = 1.0
+                    + 0.1
+                        * ((i - self.exit_cell_index) as f64
+                            / (self.nx - self.exit_cell_index) as f64);
                 (mach_exit * expansion_factor).min(5.0)
             } else {
                 solve_mach_area_ratio(area_ratio, gamma, is_supersonic)
@@ -218,7 +215,8 @@ impl CFDSolver {
             let t_local = t_chamber / temp_ratio;
             let p_local = if is_plume {
                 // Pressure in plume: expand towards ambient
-                let p_exit_calc = p_chamber * (1.0 + 0.5 * (gamma - 1.0) * mach * mach).powf(-gamma / (gamma - 1.0));
+                let p_exit_calc = p_chamber
+                    * (1.0 + 0.5 * (gamma - 1.0) * mach * mach).powf(-gamma / (gamma - 1.0));
                 p_exit_calc.max(self.p_exit * 0.1)
             } else {
                 p_chamber * temp_ratio.powf(-gamma / (gamma - 1.0))
@@ -306,10 +304,10 @@ impl CFDSolver {
     /// Smooth solution to remove numerical artifacts
     fn smooth_solution(&mut self) {
         let gamma = self.gamma;
-        
+
         for _ in 0..2 {
             let old_flow = self.flow.clone();
-            
+
             for j in 1..self.ny - 1 {
                 for i in 1..self.nx - 1 {
                     // Don't smooth near throat (sharp gradients expected)
@@ -318,25 +316,48 @@ impl CFDSolver {
                     }
 
                     let f = &old_flow;
-                    
+
                     // Simple 5-point averaging with center weight
                     let w_center = 0.6;
                     let w_neighbor = 0.1;
 
                     let rho = w_center * f[[j, i]].rho
-                        + w_neighbor * (f[[j-1, i]].rho + f[[j+1, i]].rho + f[[j, i-1]].rho + f[[j, i+1]].rho);
+                        + w_neighbor
+                            * (f[[j - 1, i]].rho
+                                + f[[j + 1, i]].rho
+                                + f[[j, i - 1]].rho
+                                + f[[j, i + 1]].rho);
                     let u = w_center * f[[j, i]].u
-                        + w_neighbor * (f[[j-1, i]].u + f[[j+1, i]].u + f[[j, i-1]].u + f[[j, i+1]].u);
+                        + w_neighbor
+                            * (f[[j - 1, i]].u
+                                + f[[j + 1, i]].u
+                                + f[[j, i - 1]].u
+                                + f[[j, i + 1]].u);
                     let v = w_center * f[[j, i]].v
-                        + w_neighbor * (f[[j-1, i]].v + f[[j+1, i]].v + f[[j, i-1]].v + f[[j, i+1]].v);
+                        + w_neighbor
+                            * (f[[j - 1, i]].v
+                                + f[[j + 1, i]].v
+                                + f[[j, i - 1]].v
+                                + f[[j, i + 1]].v);
                     let p = w_center * f[[j, i]].p
-                        + w_neighbor * (f[[j-1, i]].p + f[[j+1, i]].p + f[[j, i-1]].p + f[[j, i+1]].p);
+                        + w_neighbor
+                            * (f[[j - 1, i]].p
+                                + f[[j + 1, i]].p
+                                + f[[j, i - 1]].p
+                                + f[[j, i + 1]].p);
 
                     let t = p / (rho * self.r_gas);
                     let c = (gamma * p / rho).sqrt();
                     let mach = (u * u + v * v).sqrt() / c;
 
-                    self.flow[[j, i]] = FlowState { rho, u, v, p, t, mach };
+                    self.flow[[j, i]] = FlowState {
+                        rho,
+                        u,
+                        v,
+                        p,
+                        t,
+                        mach,
+                    };
                 }
             }
         }
@@ -347,7 +368,7 @@ impl CFDSolver {
     fn add_shock_diamonds(&mut self) {
         let gamma = self.gamma;
         let pi = std::f64::consts::PI;
-        
+
         // Only add if we have a plume region
         if self.exit_cell_index >= self.nx - 5 {
             return;
@@ -358,32 +379,32 @@ impl CFDSolver {
         let exit_p = self.flow[[self.ny / 2, self.exit_cell_index]].p;
         let exit_rho = self.flow[[self.ny / 2, self.exit_cell_index]].rho;
         let exit_t = self.flow[[self.ny / 2, self.exit_cell_index]].t;
-        
+
         // Approximate ambient pressure (vacuum/low pressure for rocket)
         let p_ambient = self.p_exit * 0.05;
-        
+
         // Pressure ratio determines shock pattern intensity
         let pressure_ratio = exit_p / p_ambient.max(1000.0);
-        
+
         if pressure_ratio < 1.2 || exit_mach < 1.1 {
             return; // No significant shock diamonds
         }
 
         let exit_radius = self.r_wall[self.exit_cell_index];
-        
+
         // Prandtl-Meyer angle at exit
-        let nu_exit = prandtl_meyer_angle(exit_mach, gamma);
-        
+        let _nu_exit = prandtl_meyer_angle(exit_mach, gamma);
+
         // Expansion angle (how much the flow turns at the lip)
         let expansion_angle = ((pressure_ratio.ln() / gamma).min(0.5)).max(0.1);
-        
+
         // Mach angle at exit
         let mu_exit = (1.0 / exit_mach).asin();
-        
+
         // First shock cell length (distance to first Mach disk)
         let cell_length = exit_radius * 1.5 / mu_exit.tan().max(0.3);
         let cell_length_cells = (cell_length / self.dx).max(5.0);
-        
+
         // Number of shock cells that fit in the domain
         let plume_length = (self.nx - self.exit_cell_index) as f64 * self.dx;
         let num_cells = (plume_length / cell_length).ceil() as usize;
@@ -394,25 +415,25 @@ impl CFDSolver {
         for i in (self.exit_cell_index + 1)..self.nx {
             let plume_dist = (i - self.exit_cell_index) as f64;
             let x_norm = plume_dist / cell_length_cells; // Normalized by cell length
-            
+
             // Which shock cell are we in?
             let cell_number = (x_norm.floor() as usize).min(num_cells);
             let x_in_cell = x_norm.fract(); // Position within current cell [0, 1]
-            
+
             // Damping factor - shock diamonds decay downstream
             let damping = (-(cell_number as f64) * 0.3).exp();
-            
+
             // Core jet radius shrinks downstream
             let core_radius_ratio = (-plume_dist * core_decay_rate / cell_length_cells).exp();
-            
+
             for j in 0..self.ny {
                 // Radial position normalized to exit radius
                 let r_physical = (j as f64 + 0.5) / self.ny as f64 * self.r_wall[i];
                 let r_norm = r_physical / exit_radius;
-                
+
                 // Is this point inside the jet core?
                 let in_core = r_norm < core_radius_ratio * 1.2;
-                
+
                 if !in_core {
                     // Outside jet - ambient conditions (very low density/pressure)
                     let ambient_rho = exit_rho * 0.01;
@@ -427,21 +448,21 @@ impl CFDSolver {
                     };
                     continue;
                 }
-                
+
                 // Radial position within core [0, 1]
                 let eta = (r_norm / core_radius_ratio.max(0.1)).min(1.0);
-                
+
                 // === Diamond pattern calculation ===
                 // The shock diamonds form from oblique shocks reflecting off axis
-                
+
                 // Axial oscillation (compression/expansion waves)
                 let axial_phase = x_in_cell * 2.0 * pi;
                 let axial_wave = axial_phase.cos();
-                
+
                 // Radial structure - characteristic lines form X pattern
                 // At compression (axial_wave > 0): max at center
                 // At expansion (axial_wave < 0): max at edges
-                
+
                 // Diamond shape function
                 let diamond_x = x_in_cell * 2.0 - 1.0; // [-1, 1] within cell
                 let diamond_shape = if diamond_x.abs() < 0.5 {
@@ -461,33 +482,35 @@ impl CFDSolver {
                         (0.7 * (1.0 - (eta - cone_radius) / (1.0 - cone_radius).max(0.01))).max(0.0)
                     }
                 };
-                
+
                 // Intensity of the pattern
                 let intensity = damping * diamond_shape * 0.4;
-                
+
                 // Base Mach number (decays downstream)
                 let base_mach = exit_mach * (1.0 - cell_number as f64 * 0.08).max(0.5);
-                
+
                 // Mach variation: high in bright regions, low in dark
                 let mach_variation = intensity * base_mach * 0.5;
-                let new_mach = (base_mach - 0.3 * base_mach * (1.0 - diamond_shape) * damping 
-                               + mach_variation * axial_wave).max(0.5).min(exit_mach * 1.3);
-                
+                let new_mach = (base_mach - 0.3 * base_mach * (1.0 - diamond_shape) * damping
+                    + mach_variation * axial_wave)
+                    .max(0.5)
+                    .min(exit_mach * 1.3);
+
                 // Pressure anti-correlated with Mach (isentropic)
-                let p_ratio = (1.0 + 0.5 * (gamma - 1.0) * exit_mach * exit_mach) 
-                            / (1.0 + 0.5 * (gamma - 1.0) * new_mach * new_mach);
+                let p_ratio = (1.0 + 0.5 * (gamma - 1.0) * exit_mach * exit_mach)
+                    / (1.0 + 0.5 * (gamma - 1.0) * new_mach * new_mach);
                 let new_p = (exit_p * p_ratio.powf(gamma / (gamma - 1.0))).max(p_ambient);
-                
+
                 // Density from isentropic relation
                 let new_rho = exit_rho * p_ratio.powf(1.0 / (gamma - 1.0));
-                
+
                 // Temperature
                 let new_t = new_p / (new_rho * self.r_gas);
-                
+
                 // Speed of sound and velocity
                 let c = (gamma * new_p / new_rho.max(1e-6)).sqrt();
                 let vel_mag = new_mach * c;
-                
+
                 // Slight radial velocity from expansion fans
                 let v_ratio = expansion_angle * (1.0 - 2.0 * x_in_cell).sin() * damping * 0.3;
                 let new_v = vel_mag * v_ratio * (1.0 - eta);
@@ -503,45 +526,52 @@ impl CFDSolver {
                 };
             }
         }
-        
+
         // Smooth the plume region to remove sharp discontinuities
         self.smooth_plume();
     }
-    
+
     /// Smooth only the plume region
     fn smooth_plume(&mut self) {
         let gamma = self.gamma;
-        
+
         for _ in 0..3 {
             let old_flow = self.flow.clone();
-            
+
             for j in 1..self.ny - 1 {
                 for i in (self.exit_cell_index + 2)..(self.nx - 1) {
                     let f = &old_flow;
-                    
+
                     // Gaussian-weighted 5-point stencil
                     let w_center = 0.5;
                     let w_axial = 0.15;
                     let w_radial = 0.1;
 
                     let rho = w_center * f[[j, i]].rho
-                        + w_radial * (f[[j-1, i]].rho + f[[j+1, i]].rho)
-                        + w_axial * (f[[j, i-1]].rho + f[[j, i+1]].rho);
+                        + w_radial * (f[[j - 1, i]].rho + f[[j + 1, i]].rho)
+                        + w_axial * (f[[j, i - 1]].rho + f[[j, i + 1]].rho);
                     let u = w_center * f[[j, i]].u
-                        + w_radial * (f[[j-1, i]].u + f[[j+1, i]].u)
-                        + w_axial * (f[[j, i-1]].u + f[[j, i+1]].u);
+                        + w_radial * (f[[j - 1, i]].u + f[[j + 1, i]].u)
+                        + w_axial * (f[[j, i - 1]].u + f[[j, i + 1]].u);
                     let v = w_center * f[[j, i]].v
-                        + w_radial * (f[[j-1, i]].v + f[[j+1, i]].v)
-                        + w_axial * (f[[j, i-1]].v + f[[j, i+1]].v);
+                        + w_radial * (f[[j - 1, i]].v + f[[j + 1, i]].v)
+                        + w_axial * (f[[j, i - 1]].v + f[[j, i + 1]].v);
                     let p = w_center * f[[j, i]].p
-                        + w_radial * (f[[j-1, i]].p + f[[j+1, i]].p)
-                        + w_axial * (f[[j, i-1]].p + f[[j, i+1]].p);
+                        + w_radial * (f[[j - 1, i]].p + f[[j + 1, i]].p)
+                        + w_axial * (f[[j, i - 1]].p + f[[j, i + 1]].p);
 
                     let t = p / (rho.max(1e-6) * self.r_gas);
                     let c = (gamma * p / rho.max(1e-6)).sqrt();
                     let mach = (u * u + v * v).sqrt() / c;
 
-                    self.flow[[j, i]] = FlowState { rho, u, v, p, t, mach };
+                    self.flow[[j, i]] = FlowState {
+                        rho,
+                        u,
+                        v,
+                        p,
+                        t,
+                        mach,
+                    };
                 }
             }
         }
@@ -574,7 +604,7 @@ impl CFDSolver {
                 r_out.push(ri);
 
                 let f = &self.flow[[j, i]];
-                
+
                 density.push(f.rho);
                 velocity_x.push(f.u);
                 velocity_r.push(f.v);
@@ -660,15 +690,15 @@ fn prandtl_meyer_angle(mach: f64, gamma: f64) -> f64 {
     if mach <= 1.0 {
         return 0.0;
     }
-    
+
     let gp1 = gamma + 1.0;
     let gm1 = gamma - 1.0;
     let m2_minus_1 = mach * mach - 1.0;
-    
+
     let term1 = (gp1 / gm1).sqrt();
     let term2 = (gm1 / gp1 * m2_minus_1).sqrt().atan();
     let term3 = m2_minus_1.sqrt().atan();
-    
+
     term1 * term2 - term3
 }
 
@@ -677,10 +707,7 @@ pub fn run_cfd_simulation(request: CFDRequest) -> CFDResult {
     solver.solve(request.max_iter, request.tolerance)
 }
 
-pub fn run_cfd_simulation_with_progress<F>(
-    request: CFDRequest,
-    progress_callback: F,
-) -> CFDResult
+pub fn run_cfd_simulation_with_progress<F>(request: CFDRequest, progress_callback: F) -> CFDResult
 where
     F: Fn(ProgressUpdate) + Send + Sync,
 {
@@ -695,7 +722,7 @@ where
     });
 
     let mut solver = CFDSolver::new(&request);
-    
+
     progress_callback(ProgressUpdate {
         iteration: 1,
         max_iter: 1,
