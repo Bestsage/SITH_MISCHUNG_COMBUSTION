@@ -1,868 +1,248 @@
 "use client";
 
-import { useState, useMemo, useCallback, useRef, useEffect } from "react";
+import { useState, useRef, useEffect } from "react";
 import AppLayout from "@/components/AppLayout";
-import { Canvas } from "@react-three/fiber";
-import { OrbitControls, Html, Line } from "@react-three/drei";
-import * as THREE from "three";
 import { useCalculation } from "@/contexts/CalculationContext";
 
 // Types matching Rust backend
-interface CFDRequest {
-    r_throat: number;
-    r_chamber: number;
-    r_exit: number;
-    l_chamber: number;
-    l_nozzle: number;
-    p_chamber: number;
-    p_ambient: number;
-    t_chamber: number;
-    gamma: number;
-    molar_mass: number;
-    nx: number;
-    ny: number;
-    max_iter: number;
-    tolerance: number;
-    mode: number;
-}
-
 interface CFDResult {
-    x: number[];
-    r: number[];
-    pressure: number[];
-    temperature: number[];
-    mach: number[];
-    velocity_x: number[];
-    velocity_r: number[];
-    density: number[];
-    nx: number;
-    ny: number;
-    residual_history: number[];
     converged: boolean;
     iterations: number;
-}
-
-interface ProgressUpdate {
-    iteration: number;
-    max_iter: number;
-    residual: number;
-    dt: number;
-    max_mach: number;
-    converged: boolean;
-    phase: string;
-}
-
-type FieldType = "mach" | "pressure" | "temperature" | "velocity_x" | "density";
-
-const FIELD_CONFIG: Record<FieldType, { name: string; unit: string; colormap: string }> = {
-    mach: { name: "Nombre de Mach", unit: "", colormap: "plasma" },
-    pressure: { name: "Pression", unit: "Pa", colormap: "viridis" },
-    temperature: { name: "Température", unit: "K", colormap: "inferno" },
-    velocity_x: { name: "Vitesse Axiale", unit: "m/s", colormap: "coolwarm" },
-    density: { name: "Densité", unit: "kg/m³", colormap: "magma" },
-};
-
-// Color map functions
-function plasmaColor(t: number): [number, number, number] {
-    // Plasma colormap approximation
-    const r = Math.min(1, 0.05 + 3.5 * t - 2.5 * t * t);
-    const g = Math.min(1, Math.max(0, 1.5 * t - 0.5));
-    const b = Math.min(1, 0.5 + t * 0.5 - t * t * 0.5);
-    return [
-        Math.max(0.1, 0.13 + 0.85 * t + 0.5 * Math.sin(t * 3.14)),
-        Math.max(0, 0.1 * t + 0.6 * t * t),
-        Math.max(0.3, 0.53 - 0.4 * t + 0.9 * t * t)
-    ];
-}
-
-function getColorForValue(t: number, colormap: string): THREE.Color {
-    const color = new THREE.Color();
-    t = Math.max(0, Math.min(1, t));
-
-    switch (colormap) {
-        case "plasma":
-            color.setHSL(0.75 - t * 0.75, 1, 0.3 + t * 0.4);
-            break;
-        case "viridis":
-            color.setHSL(0.75 - t * 0.5, 0.8, 0.25 + t * 0.35);
-            break;
-        case "inferno":
-            color.setHSL(0.08 * t, 1, 0.15 + t * 0.5);
-            break;
-        case "coolwarm":
-            if (t < 0.5) {
-                color.setHSL(0.6, 0.8, 0.4 + (0.5 - t) * 0.4);
-            } else {
-                color.setHSL(0.0, 0.8, 0.4 + (t - 0.5) * 0.4);
-            }
-            break;
-        case "magma":
-            color.setHSL(0.85 - t * 0.15, 0.9, 0.1 + t * 0.6);
-            break;
-        default:
-            color.setHSL(0.7 - t * 0.7, 1, 0.5);
-    }
-    return color;
-}
-
-// 2D Heatmap visualization using Three.js
-function CFDHeatmap({ result, request, field, colormap }: { result: CFDResult; request: CFDRequest; field: FieldType; colormap: string }) {
-    const { geometry, wallPoints, minVal, maxVal } = useMemo(() => {
-        const nx = result.nx;
-        const ny = result.ny;
-        const fieldData = result[field];
-        const exit_x = request.l_chamber + request.l_nozzle;
-
-        // Find min/max for normalization (ignoring NaNs/Inf)
-        let min = Infinity, max = -Infinity;
-        let hasValidData = false;
-
-        for (const v of fieldData) {
-            if (Number.isFinite(v)) {
-                if (v < min) min = v;
-                if (v > max) max = v;
-                hasValidData = true;
-            }
-        }
-
-        // Fallback if no valid data
-        if (!hasValidData) {
-            min = 0;
-            max = 1;
-        }
-
-        // Ensure max > min to avoid division by zero
-        if (max <= min) max = min + 1.0;
-
-        // Create heatmap geometry
-        const positions = new Float32Array(nx * ny * 3);
-        const colors = new Float32Array(nx * ny * 3);
-
-        // Scale factors to fit in view [-10, 10]
-        const max_x = Math.max(...result.x);
-        const xScale = 20 / max_x;
-        const rScale = xScale; // Keep aspect ratio 1:1
-
-        // Wall points for contour
-        const wallPoints = [];
-
-        for (let j = 0; j < ny; j++) {
-            for (let i = 0; i < nx; i++) {
-                const idx = j * nx + i;
-                const x = result.x[idx] * xScale - 10;
-                const r = result.r[idx] * rScale;
-
-                positions[idx * 3] = x;
-                positions[idx * 3 + 1] = r;
-                positions[idx * 3 + 2] = 0;
-
-                const val = fieldData[idx];
-                // Check for NaN or Inf and clamp
-                const safeVal = Number.isFinite(val) ? val : min;
-
-                const t = (safeVal - min) / (max - min || 1);
-                const color = getColorForValue(t, colormap);
-
-                colors[idx * 3] = color.r;
-                colors[idx * 3 + 1] = color.g;
-                colors[idx * 3 + 2] = color.b;
-
-                // Capture wall points (top row) - ONLY up to nozzle exit
-                if (j === ny - 1 && result.x[idx] <= exit_x * 1.01) { // 1% tolerance
-                    wallPoints.push(new THREE.Vector3(x, r, 0.01)); // Slightly offset Z to be consistent
-                }
-            }
-        }
-
-        // Sort wall points by x (just in case)
-        wallPoints.sort((a, b) => a.x - b.x);
-
-        // Create indices for triangles (quad -> 2 triangles)
-        const indices: number[] = [];
-        for (let j = 0; j < ny - 1; j++) {
-            for (let i = 0; i < nx - 1; i++) {
-                const a = j * nx + i;
-                const b = j * nx + (i + 1);
-                const c = (j + 1) * nx + i;
-                const d = (j + 1) * nx + (i + 1);
-
-                indices.push(a, b, d);
-                indices.push(a, d, c);
-            }
-        }
-
-        const geo = new THREE.BufferGeometry();
-        geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-        geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-        geo.setIndex(indices);
-        geo.computeVertexNormals();
-
-        return { geometry: geo, wallPoints, minVal: min, maxVal: max };
-    }, [result, request, field, colormap]);
-
-    return (
-        <group>
-            {/* Standard XY Plane View */}
-            <OrbitControls enableRotate={false} enablePan={true} enableZoom={true} />
-            <ambientLight intensity={1} />
-
-            {/* Upper half (Positive Y) */}
-            <mesh geometry={geometry}>
-                <meshBasicMaterial vertexColors side={THREE.DoubleSide} />
-            </mesh>
-
-            {/* Mirror for lower half (Negative Y) */}
-            <mesh geometry={geometry} scale={[1, -1, 1]}>
-                <meshBasicMaterial vertexColors side={THREE.DoubleSide} />
-            </mesh>
-
-            {/* Wall Contour (White Line) - Upper */}
-            <Line
-                points={wallPoints}
-                color="white"
-                lineWidth={2}
-            />
-
-            {/* Wall Contour - Lower */}
-            <Line
-                points={wallPoints}
-                color="white"
-                lineWidth={2}
-                scale={[1, -1, 1]}
-            />
-
-            {/* Centerline */}
-            <Line
-                points={[[-15, 0, 0], [15, 0, 0]]}
-                color="white"
-                opacity={0.3}
-                transparent
-                dashed
-                dashSize={0.5}
-                gapSize={0.5}
-                lineWidth={1}
-            />
-        </group>
-    );
-}
-
-// Color bar component
-function ColorBar({ min, max, field, colormap }: { min: number; max: number; field: FieldType; colormap: string }) {
-    const gradientStops = useMemo(() => {
-        const stops = [];
-        for (let i = 0; i <= 10; i++) {
-            const t = i / 10;
-            const color = getColorForValue(t, colormap);
-            stops.push(`rgb(${Math.round(color.r * 255)}, ${Math.round(color.g * 255)}, ${Math.round(color.b * 255)})`);
-        }
-        return stops.join(', ');
-    }, [colormap]);
-
-    const config = FIELD_CONFIG[field];
-
-    return (
-        <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2">
-            <div className="flex flex-col justify-between h-48 text-xs text-gray-300">
-                <span>{max.toExponential(2)}</span>
-                <span>{((max + min) / 2).toExponential(2)}</span>
-                <span>{min.toExponential(2)}</span>
-            </div>
-            <div
-                className="w-4 h-48 rounded"
-                style={{ background: `linear-gradient(to bottom, ${gradientStops})` }}
-            />
-            <div className="text-xs text-gray-400 rotate-90 origin-left translate-x-6">
-                {config.name} {config.unit && `(${config.unit})`}
-            </div>
-        </div>
-    );
+    mach: number[];
+    pressure: number[];
+    temperature: number[];
+    x: number[];
+    r: number[];
+    residual_history?: number[];
 }
 
 export default function CFDPage() {
-    // Get values from shared calculation context
-    const { results, config: mainConfig } = useCalculation();
-
-    // Default params - will be overwritten by context values
-    const [params, setParams] = useState<CFDRequest>({
-        r_throat: 0.02,
-        r_chamber: 0.04,
-        r_exit: 0.06,
-        l_chamber: 0.1,
-        l_nozzle: 0.15,
-        p_chamber: 1_000_000,
-        p_ambient: 101325,
-        t_chamber: 3000,
-        gamma: 1.2,
-        molar_mass: 0.025,
-        nx: 80,
-        ny: 40,
-        max_iter: 3000,
-        tolerance: 1e-5,
-        mode: 0,
-    });
-
-    // Sync with calculation context when results are available
-    useEffect(() => {
-        if (results) {
-            setParams(prev => ({
-                ...prev,
-                r_throat: results.r_throat,
-                r_chamber: results.r_chamber,
-                r_exit: results.r_exit,
-                l_chamber: results.l_chamber,
-                l_nozzle: results.l_nozzle,
-                p_chamber: mainConfig.pc * 1e5, // bar to Pa
-                p_ambient: mainConfig.pe * 1e5, // bar to Pa
-                t_chamber: results.t_chamber,
-                gamma: results.gamma,
-                molar_mass: results.mw / 1000, // g/mol to kg/mol
-            }));
-        }
-    }, [results, mainConfig]);
-
+    const { params: mainConfig } = useCalculation();
+    const [status, setStatus] = useState<"idle" | "running" | "completed" | "error">("idle");
+    const [logs, setLogs] = useState<string[]>([]);
     const [result, setResult] = useState<CFDResult | null>(null);
-    const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [selectedField, setSelectedField] = useState<FieldType>("mach");
-    const [progress, setProgress] = useState<ProgressUpdate | null>(null);
     const abortControllerRef = useRef<AbortController | null>(null);
-    const pollingRef = useRef<boolean>(false);
 
-    // OpenFOAM CFD API URL (direct connection to avoid proxy timeout)
+    // Direct access to OpenFOAM container (bypassing potentially slow Next.js proxy if needed/configured)
+    // Using the one from env or falling back to relative path which goes through Next.js rewrite
     const OPENFOAM_API = process.env.NEXT_PUBLIC_OPENFOAM_URL || "/api/cfd";
 
-    const runSimulation = useCallback(async () => {
-        setLoading(true);
-        setError(null);
-        pollingRef.current = true;
-        setProgress({
-            iteration: 0,
-            max_iter: params.max_iter,
-            residual: 0,
-            dt: 0,
-            max_mach: 0,
-            converged: false,
-            phase: "Envoi à OpenFOAM..."
-        });
+    const addLog = (message: string) => {
+        setLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] ${message}`]);
+    };
 
-        // Abort any existing request
+    const runSimulation = async () => {
+        if (status === "running") return;
+
+        setStatus("running");
+        setLogs([]); // Clear previous logs
+        setResult(null);
+        setError(null);
+
+        addLog("🚀 Initialisation de la simulation...");
+
+        // Cancel previous request if any
         if (abortControllerRef.current) {
             abortControllerRef.current.abort();
         }
         abortControllerRef.current = new AbortController();
 
         try {
-            // Step 1: Start the job on OpenFOAM server
-            setProgress(prev => prev ? { ...prev, phase: "Démarrage du job OpenFOAM..." } : null);
+            // 1. Prepare parameters from context
+            const simParams = {
+                r_throat: 0.025, // Default or from context if available
+                r_chamber: 0.05,
+                r_exit: 0.075,
+                l_chamber: 0.1,
+                l_nozzle: 0.2,
+                p_chamber: mainConfig.pc * 1e5, // bar -> Pa
+                p_ambient: mainConfig.pe * 1e5, // bar -> Pa
+                t_chamber: 3000,
+                gamma: 1.2,
+                molar_mass: 0.02,
+                nx: 100,
+                ny: 50,
+                max_iter: 5000,
+                mode: 1, // Quick mode by default
+                solver: "openfoam"
+            };
 
+            addLog(`📝 Paramètres: Pc=${(simParams.p_chamber / 1e5).toFixed(1)}bar, Tc=${simParams.t_chamber}K`);
+            addLog("📡 Envoi de la demande au serveur...");
+
+            // 2. Start Simulation
             const startResponse = await fetch(`${OPENFOAM_API}/run`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    ...params,
-                    solver: "openfoam"
-                }),
+                body: JSON.stringify(simParams),
                 signal: abortControllerRef.current.signal,
             });
 
             if (!startResponse.ok) {
                 const text = await startResponse.text();
-                throw new Error(`Échec démarrage: ${text}`);
+                throw new Error(`Erreur démarrage (${startResponse.status}): ${text}`);
             }
 
             const jobInfo = await startResponse.json();
             const jobId = jobInfo.job_id;
+            addLog(`✅ Job créé: ID ${jobId}`);
 
-            // Step 2: Poll for status until completed or failed
-            setProgress(prev => prev ? { ...prev, phase: "Simulation OpenFOAM en cours..." } : null);
-
+            // 3. Poll Status
             let completed = false;
             let attempts = 0;
-            const maxAttempts = 300; // 10 minutes max (2s intervals)
+            const maxAttempts = 600; // 20 minutes (2s interval)
 
-            while (!completed && attempts < maxAttempts && pollingRef.current) {
-                await new Promise(resolve => setTimeout(resolve, 2000)); // Poll every 2s
+            while (!completed && attempts < maxAttempts) {
+                await new Promise(r => setTimeout(r, 2000));
                 attempts++;
 
-                const statusResponse = await fetch(`${OPENFOAM_API}/status/${jobId}`, {
-                    signal: abortControllerRef.current.signal,
+                const statusRes = await fetch(`${OPENFOAM_API}/status/${jobId}`, {
+                    signal: abortControllerRef.current.signal
                 });
 
-                if (!statusResponse.ok) {
-                    throw new Error("Échec récupération status");
-                }
+                if (!statusRes.ok) throw new Error("Erreur vérification status");
 
-                const status = await statusResponse.json();
+                const statusData = await statusRes.json();
 
-                // Update progress display
-                setProgress(prev => prev ? {
-                    ...prev,
-                    phase: status.message || "Simulation en cours...",
-                    iteration: Math.round(status.progress * params.max_iter),
-                } : null);
-
-                if (status.status === "completed") {
+                // Show progress
+                if (statusData.status === "running") {
+                    const progress = (statusData.progress * 100).toFixed(1);
+                    // Only log every 10% or so to avoid spamming? Or just update last log line?
+                    // For now, simple log
+                    if (attempts % 5 === 0) { // Log every 10s
+                        addLog(`⏳ En cours... ${progress}% (${statusData.message})`);
+                    }
+                } else if (statusData.status === "completed") {
                     completed = true;
-
-                    // Step 3: Fetch the result
-                    setProgress(prev => prev ? { ...prev, phase: "Récupération des résultats..." } : null);
-
-                    const resultResponse = await fetch(`${OPENFOAM_API}/result/${jobId}`, {
-                        signal: abortControllerRef.current.signal,
-                    });
-
-                    if (!resultResponse.ok) {
-                        throw new Error("Échec récupération résultats");
-                    }
-
-                    const data = await resultResponse.json();
-
-                    if (data.mach) {
-                        setResult(data as CFDResult);
-                        setProgress(prev => prev ? { ...prev, phase: "Simulation terminée!", converged: true } : null);
-                    } else {
-                        throw new Error("Résultat invalide - pas de données Mach");
-                    }
-
-                } else if (status.status === "failed") {
-                    throw new Error(status.message || "Simulation échouée");
+                    addLog("🏁 Simulation terminée avec succès !");
+                } else if (statusData.status === "failed") {
+                    throw new Error(`Simulation échouée: ${statusData.message}`);
                 }
-                // Otherwise still running, continue polling
             }
 
-            if (!completed && pollingRef.current) {
-                throw new Error("Timeout: simulation trop longue");
-            }
+            if (!completed) throw new Error("Timeout: La simulation prend trop de temps.");
 
-        } catch (err) {
-            if (err instanceof Error) {
-                if (err.name === 'AbortError') {
-                    setError("Simulation annulée");
-                } else if (err.message.includes('fetch') || err.message.includes('Failed to fetch')) {
-                    setError("OpenFOAM indisponible. Vérifiez que le container est lancé.");
-                } else {
-                    setError(err.message);
-                }
+            // 4. Get Results
+            addLog("📥 Téléchargement des résultats...");
+            const resultRes = await fetch(`${OPENFOAM_API}/result/${jobId}`, {
+                signal: abortControllerRef.current.signal
+            });
+
+            if (!resultRes.ok) throw new Error("Erreur récupération résultats");
+
+            const resultData = await resultRes.json();
+            setResult(resultData);
+            setStatus("completed");
+            addLog("✨ Résultats chargés !");
+
+        } catch (err: any) {
+            if (err.name === 'AbortError') {
+                addLog("🛑 Simulation annulée.");
+                setStatus("idle");
             } else {
-                setError("Erreur inconnue");
+                console.error(err);
+                setError(err.message || "Erreur inconnue");
+                addLog(`❌ Erreur: ${err.message}`);
+                setStatus("error");
             }
-        } finally {
-            setLoading(false);
-            pollingRef.current = false;
         }
-    }, [params, OPENFOAM_API]);
-
-
-    const cancelSimulation = useCallback(() => {
-        if (abortControllerRef.current) {
-            abortControllerRef.current.abort();
-        }
-    }, []);
-
-    // Force sync with mainTab values
-    const syncFromMainTab = useCallback(() => {
-        if (results) {
-            setParams(prev => ({
-                ...prev,
-                r_throat: results.r_throat,
-                r_chamber: results.r_chamber,
-                r_exit: results.r_exit,
-                l_chamber: results.l_chamber,
-                l_nozzle: results.l_nozzle,
-                p_chamber: mainConfig.pc * 1e5,
-                p_ambient: mainConfig.pe * 1e5,
-                t_chamber: results.t_chamber,
-                gamma: results.gamma,
-                molar_mass: results.mw / 1000,
-            }));
-        }
-    }, [results, mainConfig]);
-
-    const fieldData = result ? result[selectedField] : [];
-    const minVal = fieldData.length > 0 ? Math.min(...fieldData) : 0;
-    const maxVal = fieldData.length > 0 ? Math.max(...fieldData) : 1;
+    };
 
     return (
         <AppLayout>
-            <div className="flex h-screen overflow-hidden w-full">
-                {/* Controls Panel */}
-                <div className="w-80 bg-[#12121a] border-r border-[#27272a] flex flex-col flex-shrink-0 overflow-y-auto">
-                    <div className="p-4 border-b border-[#27272a]">
-                        <h1 className="text-xl font-bold text-white mb-1">🌊 CFD 2D</h1>
-                        <p className="text-xs text-gray-500">Simulation OpenFOAM - rhoCentralFoam</p>
+            <div className="flex flex-col h-screen bg-[#0a0a0f] text-white p-6 gap-6">
+                <header>
+                    <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-blue-600">
+                        OpenFOAM Simulation Runner
+                    </h1>
+                    <p className="text-gray-400 text-sm">Interface de diagnostic simplifiée</p>
+                </header>
 
-                        {/* Sync indicator */}
-                        {results ? (
-                            <div className="mt-2 flex items-center gap-2">
-                                <span className="text-xs text-green-400 flex items-center gap-1">
-                                    <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
-                                    Synchronisé avec MainTab
-                                </span>
-                                <button
-                                    onClick={syncFromMainTab}
-                                    className="text-xs text-cyan-400 hover:text-cyan-300 underline"
-                                    title="Recharger les valeurs depuis MainTab"
-                                >
-                                    ↻ Resync
-                                </button>
-                            </div>
-                        ) : (
-                            <div className="mt-2 text-xs text-orange-400 flex items-center gap-1">
-                                <span className="w-2 h-2 bg-orange-400 rounded-full"></span>
-                                Calculez d'abord la tuyère dans MainTab
-                            </div>
-                        )}
-                    </div>
+                {/* Controls */}
+                <div className="flex gap-4 items-center">
+                    <button
+                        onClick={runSimulation}
+                        disabled={status === "running"}
+                        className={`px-6 py-3 rounded font-bold transition-all ${status === "running"
+                                ? "bg-gray-700 cursor-not-allowed text-gray-400"
+                                : "bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white shadow-lg shadow-cyan-500/20"
+                            }`}
+                    >
+                        {status === "running" ? "Simulation en cours..." : "🚀 Lancer Simulation"}
+                    </button>
 
-                    {/* Geometry */}
-                    <div className="p-4 border-b border-[#27272a]">
-                        <h3 className="text-xs text-gray-500 uppercase font-bold mb-3">Géométrie</h3>
-                        <div className="space-y-3">
-                            {[
-                                { key: "r_throat", label: "Rayon Col", unit: "mm", scale: 1000, min: 5, max: 50 },
-                                { key: "r_chamber", label: "Rayon Chambre", unit: "mm", scale: 1000, min: 10, max: 100 },
-                                { key: "r_exit", label: "Rayon Sortie", unit: "mm", scale: 1000, min: 20, max: 150 },
-                                { key: "l_chamber", label: "Longueur Chambre", unit: "mm", scale: 1000, min: 50, max: 300 },
-                                { key: "l_nozzle", label: "Longueur Tuyère", unit: "mm", scale: 1000, min: 50, max: 400 },
-                            ].map(({ key, label, unit, scale, min, max }) => (
-                                <div key={key}>
-                                    <div className="flex justify-between text-xs mb-1">
-                                        <span className="text-gray-300">{label}</span>
-                                        <span className="text-cyan-400">
-                                            {((params as any)[key] * scale).toFixed(0)} {unit}
-                                        </span>
-                                    </div>
-                                    <input
-                                        type="range"
-                                        min={min}
-                                        max={max}
-                                        step={1}
-                                        value={(params as any)[key] * scale}
-                                        onChange={(e) => setParams(p => ({ ...p, [key]: parseFloat(e.target.value) / scale }))}
-                                        className="w-full accent-cyan-500"
-                                    />
-                                </div>
+                    {status === "running" && (
+                        <div className="animate-spin h-5 w-5 border-2 border-cyan-500 border-t-transparent rounded-full"></div>
+                    )}
+                </div>
+
+                {/* Main Content Area */}
+                <div className="flex flex-1 gap-6 min-h-0">
+                    {/* Logs Console */}
+                    <div className="flex-1 bg-[#1a1a25] rounded-lg border border-[#27272a] p-4 flex flex-col font-mono text-xs">
+                        <h2 className="text-gray-400 font-bold mb-2 uppercase border-b border-[#27272a] pb-2">Logs de Simulation</h2>
+                        <div className="flex-1 overflow-y-auto space-y-1">
+                            {logs.length === 0 && <span className="text-gray-600 italic">En attente de démarrage...</span>}
+                            {logs.map((log, i) => (
+                                <div key={i} className="text-gray-300 border-b border-[#27272a]/30 pb-0.5">{log}</div>
                             ))}
                         </div>
                     </div>
 
-                    {/* Conditions */}
-                    <div className="p-4 border-b border-[#27272a]">
-                        <h3 className="text-xs text-gray-500 uppercase font-bold mb-3">Conditions</h3>
-                        <div className="space-y-3">
-                            <div>
-                                <div className="flex justify-between text-xs mb-1">
-                                    <span className="text-gray-300">Pression Chambre</span>
-                                    <span className="text-orange-400">{(params.p_chamber / 1e5).toFixed(1)} bar</span>
-                                </div>
-                                <input
-                                    type="range"
-                                    min={5}
-                                    max={100}
-                                    step={1}
-                                    value={params.p_chamber / 1e5}
-                                    onChange={(e) => setParams(p => ({ ...p, p_chamber: parseFloat(e.target.value) * 1e5 }))}
-                                    className="w-full accent-orange-500"
-                                />
+                    {/* Results Panel */}
+                    <div className="w-96 bg-[#1a1a25] rounded-lg border border-[#27272a] p-4 flex flex-col">
+                        <h2 className="text-gray-400 font-bold mb-2 uppercase border-b border-[#27272a] pb-2">Résultats</h2>
+
+                        {error && (
+                            <div className="p-3 bg-red-900/30 border border-red-500/50 rounded text-red-300 text-sm mb-4">
+                                {error}
                             </div>
-                            <div>
-                                <div className="flex justify-between text-xs mb-1">
-                                    <span className="text-gray-300">Température Chambre</span>
-                                    <span className="text-red-400">{params.t_chamber} K</span>
-                                </div>
-                                <input
-                                    type="range"
-                                    min={2000}
-                                    max={4000}
-                                    step={100}
-                                    value={params.t_chamber}
-                                    onChange={(e) => setParams(p => ({ ...p, t_chamber: parseFloat(e.target.value) }))}
-                                    className="w-full accent-red-500"
-                                />
-                            </div>
-                            <div>
-                                <div className="flex justify-between text-xs mb-1">
-                                    <span className="text-gray-300">Gamma (γ)</span>
-                                    <span className="text-purple-400">{params.gamma.toFixed(2)}</span>
-                                </div>
-                                <input
-                                    type="range"
-                                    min={1.1}
-                                    max={1.4}
-                                    step={0.01}
-                                    value={params.gamma}
-                                    onChange={(e) => setParams(p => ({ ...p, gamma: parseFloat(e.target.value) }))}
-                                    className="w-full accent-purple-500"
-                                />
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Solver settings */}
-                    <div className="p-4 border-b border-[#27272a]">
-                        <h3 className="text-xs text-gray-500 uppercase font-bold mb-3">Solveur</h3>
-
-                        <div className="mb-3">
-                            <label className="text-gray-400 text-xs block mb-1">Mode de Simulation</label>
-                            <div className="flex bg-[#1a1a25] rounded p-1 border border-[#27272a]">
-                                <button
-                                    className={`flex-1 text-xs py-1 rounded ${params.mode === 0 ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'}`}
-                                    onClick={() => setParams(p => ({ ...p, mode: 0 }))}
-                                >
-                                    Euler 2D (Lent)
-                                </button>
-                                <button
-                                    className={`flex-1 text-xs py-1 rounded ${params.mode === 1 ? 'bg-green-600 text-white' : 'text-gray-400 hover:text-white'}`}
-                                    onClick={() => setParams(p => ({ ...p, mode: 1 }))}
-                                >
-                                    Quasi-1D (Rapide)
-                                </button>
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-2 text-xs">
-                            <div>
-                                <label className="text-gray-400">Grille X</label>
-                                <input
-                                    type="number"
-                                    value={params.nx}
-                                    min={20}
-                                    max={200}
-                                    onChange={(e) => setParams(p => ({ ...p, nx: parseInt(e.target.value) || 50 }))}
-                                    className="w-full mt-1 px-2 py-1 bg-[#1a1a25] border border-[#27272a] rounded text-white"
-                                />
-                            </div>
-                            <div>
-                                <label className="text-gray-400">Grille Y</label>
-                                <input
-                                    type="number"
-                                    value={params.ny}
-                                    min={10}
-                                    max={100}
-                                    onChange={(e) => setParams(p => ({ ...p, ny: parseInt(e.target.value) || 20 }))}
-                                    className="w-full mt-1 px-2 py-1 bg-[#1a1a25] border border-[#27272a] rounded text-white"
-                                />
-                            </div>
-                            <div className="col-span-2">
-                                <label className="text-gray-400">Max Iterations</label>
-                                <input
-                                    type="number"
-                                    value={params.max_iter}
-                                    min={100}
-                                    max={10000}
-                                    step={100}
-                                    onChange={(e) => setParams(p => ({ ...p, max_iter: parseInt(e.target.value) || 1000 }))}
-                                    className="w-full mt-1 px-2 py-1 bg-[#1a1a25] border border-[#27272a] rounded text-white"
-                                />
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Run button */}
-                    <div className="p-4 space-y-3">
-                        {loading ? (
-                            <>
-                                <button
-                                    onClick={cancelSimulation}
-                                    className="w-full py-3 rounded-lg font-bold text-white bg-red-600 hover:bg-red-500 transition-all"
-                                >
-                                    ⏹ Annuler
-                                </button>
-
-                                {/* Progress bar */}
-                                {progress && (
-                                    <div className="bg-[#1a1a25] rounded-lg p-3 border border-[#27272a]">
-                                        <div className="flex justify-between text-xs mb-2">
-                                            <span className="text-cyan-400 font-semibold">{progress.phase}</span>
-                                            <span className="text-gray-400">
-                                                {progress.iteration} / {progress.max_iter}
-                                            </span>
-                                        </div>
-
-                                        {/* Progress bar */}
-                                        <div className="h-2 bg-[#0a0a0f] rounded-full overflow-hidden mb-2">
-                                            <div
-                                                className="h-full bg-gradient-to-r from-cyan-500 to-blue-500 transition-all duration-300 ease-out"
-                                                style={{ width: `${(progress.iteration / progress.max_iter) * 100}%` }}
-                                            />
-                                        </div>
-
-                                        {/* Stats */}
-                                        <div className="grid grid-cols-2 gap-2 text-xs">
-                                            <div className="flex justify-between">
-                                                <span className="text-gray-500">Résidu:</span>
-                                                <span className="text-orange-400 font-mono">
-                                                    {progress.residual.toExponential(2)}
-                                                </span>
-                                            </div>
-                                            <div className="flex justify-between">
-                                                <span className="text-gray-500">Δt:</span>
-                                                <span className="text-green-400 font-mono">
-                                                    {progress.dt.toExponential(2)}
-                                                </span>
-                                            </div>
-                                            <div className="flex justify-between">
-                                                <span className="text-gray-500">Mach max:</span>
-                                                <span className="text-purple-400 font-mono">
-                                                    {progress.max_mach.toFixed(2)}
-                                                </span>
-                                            </div>
-                                            <div className="flex justify-between">
-                                                <span className="text-gray-500">Progression:</span>
-                                                <span className="text-cyan-400 font-mono">
-                                                    {((progress.iteration / progress.max_iter) * 100).toFixed(1)}%
-                                                </span>
-                                            </div>
-                                        </div>
-
-                                        {/* Convergence indicator */}
-                                        {progress.converged && (
-                                            <div className="mt-2 text-center text-green-400 text-xs font-bold">
-                                                ✓ Convergé!
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
-
-                                {!progress && (
-                                    <div className="bg-[#1a1a25] rounded-lg p-3 border border-[#27272a] text-center">
-                                        <div className="flex items-center justify-center gap-2 text-gray-400 text-sm">
-                                            <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                                            </svg>
-                                            Initialisation du solveur...
-                                        </div>
-                                    </div>
-                                )}
-                            </>
-                        ) : (
-                            <button
-                                onClick={runSimulation}
-                                className="w-full py-3 rounded-lg font-bold text-white bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 shadow-lg shadow-cyan-500/30 transition-all"
-                            >
-                                🚀 Lancer Simulation
-                            </button>
                         )}
-                    </div>
 
-                    {/* Results summary */}
-                    {result && (
-                        <div className="p-4 bg-[#0d0d12] border-t border-[#27272a]">
-                            <h3 className="text-xs text-gray-500 uppercase font-bold mb-2">Résultats</h3>
-                            <div className="grid grid-cols-2 gap-2 text-xs">
-                                <div className="bg-[#1a1a25] p-2 rounded">
-                                    <span className="text-gray-400">Convergé</span>
-                                    <div className={`font-bold ${result.converged ? "text-green-400" : "text-red-400"}`}>
-                                        {result.converged ? "✓ Oui" : "✗ Non"}
-                                    </div>
-                                </div>
-                                <div className="bg-[#1a1a25] p-2 rounded">
-                                    <span className="text-gray-400">Itérations</span>
-                                    <div className="font-bold text-cyan-400">{result.iterations}</div>
-                                </div>
-                                <div className="bg-[#1a1a25] p-2 rounded">
-                                    <span className="text-gray-400">Mach Max</span>
-                                    <div className="font-bold text-orange-400">
-                                        {Math.max(...result.mach).toFixed(2)}
-                                    </div>
-                                </div>
-                                <div className="bg-[#1a1a25] p-2 rounded">
-                                    <span className="text-gray-400">P Min</span>
-                                    <div className="font-bold text-purple-400">
-                                        {(Math.min(...result.pressure) / 1e5).toFixed(2)} bar
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {error && (
-                        <div className="p-4 bg-red-900/30 border-t border-red-500/50">
-                            <p className="text-red-400 text-sm">❌ {error}</p>
-                        </div>
-                    )}
-                </div>
-
-                {/* Visualization Area */}
-                <div className="flex-1 bg-[#0a0a0f] relative overflow-hidden flex flex-col">
-                    {/* Field selector */}
-                    <div className="absolute top-4 left-4 z-10 flex gap-2">
-                        {(Object.keys(FIELD_CONFIG) as FieldType[]).map((f) => (
-                            <button
-                                key={f}
-                                onClick={() => setSelectedField(f)}
-                                className={`px-3 py-1 rounded text-xs font-bold transition-all ${selectedField === f
-                                    ? "bg-cyan-600 text-white"
-                                    : "bg-[#1a1a25] text-gray-400 hover:bg-[#27272a]"
-                                    }`}
-                            >
-                                {FIELD_CONFIG[f].name}
-                            </button>
-                        ))}
-                    </div>
-
-                    {/* Canvas */}
-                    <div className="flex-1">
                         {result ? (
-                            <>
-                                <Canvas orthographic camera={{ zoom: 20, position: [0, 0, 50] }}>
-                                    <CFDHeatmap
-                                        result={result}
-                                        request={params}
-                                        field={selectedField}
-                                        colormap={FIELD_CONFIG[selectedField].colormap}
-                                    />
-                                </Canvas>
-                                <ColorBar
-                                    min={minVal}
-                                    max={maxVal}
-                                    field={selectedField}
-                                    colormap={FIELD_CONFIG[selectedField].colormap}
-                                />
-                            </>
-                        ) : (
-                            <div className="flex items-center justify-center h-full text-gray-500">
-                                <div className="text-center">
-                                    <div className="text-6xl mb-4">🌊</div>
-                                    <p className="text-lg">Lancez une simulation pour voir les résultats</p>
-                                    <p className="text-sm text-gray-600 mt-2">
-                                        Le solveur CFD 2D calcule l'écoulement dans la tuyère
-                                    </p>
+                            <div className="space-y-4 text-sm">
+                                <div className="grid grid-cols-2 gap-2">
+                                    <div className="p-2 bg-[#0a0a0f] rounded">
+                                        <div className="text-gray-500 text-xs">Itérations</div>
+                                        <div className="text-cyan-400 font-bold">{result.iterations}</div>
+                                    </div>
+                                    <div className="p-2 bg-[#0a0a0f] rounded">
+                                        <div className="text-gray-500 text-xs">Convergé</div>
+                                        <div className={result.converged ? "text-green-400 font-bold" : "text-orange-400 font-bold"}>
+                                            {result.converged ? "OUI" : "NON"}
+                                        </div>
+                                    </div>
                                 </div>
+
+                                <div className="p-3 bg-[#0a0a0f] rounded border border-[#27272a]">
+                                    <h3 className="text-gray-400 text-xs uppercase mb-2">Données Max / Min</h3>
+                                    <ul className="space-y-1">
+                                        <li className="flex justify-between">
+                                            <span>Mach Max:</span>
+                                            <span className="text-purple-400">{Math.max(...(result.mach || [0])).toFixed(2)}</span>
+                                        </li>
+                                        <li className="flex justify-between">
+                                            <span>Pression Min:</span>
+                                            <span className="text-orange-400">{(Math.min(...(result.pressure || [0])) / 1e5).toFixed(2)} bar</span>
+                                        </li>
+                                        <li className="flex justify-between">
+                                            <span>Temp Max:</span>
+                                            <span className="text-red-400">{Math.max(...(result.temperature || [0])).toFixed(0)} K</span>
+                                        </li>
+                                    </ul>
+                                </div>
+
+                                <div className="text-xs text-gray-500 mt-4 text-center">
+                                    Les données brutes sont disponibles dans la console du navigateur.
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="flex-1 flex items-center justify-center text-gray-600 text-sm italic">
+                                Aucun résultat disponible
                             </div>
                         )}
                     </div>
-
-                    {/* Convergence plot */}
-                    {result && result.residual_history.length > 0 && (
-                        <div className="absolute bottom-4 left-4 w-64 h-32 bg-[#12121a]/90 rounded-lg p-2 border border-[#27272a]">
-                            <h4 className="text-xs text-gray-500 mb-1">Convergence</h4>
-                            <svg viewBox="0 0 200 80" className="w-full h-full">
-                                {/* Grid lines */}
-                                <line x1="20" y1="10" x2="20" y2="70" stroke="#27272a" strokeWidth="0.5" />
-                                <line x1="20" y1="70" x2="195" y2="70" stroke="#27272a" strokeWidth="0.5" />
-
-                                {/* Residual curve */}
-                                <polyline
-                                    fill="none"
-                                    stroke="#00d4ff"
-                                    strokeWidth="1.5"
-                                    points={result.residual_history
-                                        .filter((_, i) => i % Math.ceil(result.residual_history.length / 100) === 0)
-                                        .map((r, i, arr) => {
-                                            const x = 20 + (i / arr.length) * 175;
-                                            const logR = Math.log10(Math.max(r, 1e-12));
-                                            const minLog = -12;
-                                            const maxLog = 0;
-                                            const y = 70 - ((logR - minLog) / (maxLog - minLog)) * 60;
-                                            return `${x},${y}`;
-                                        })
-                                        .join(' ')}
-                                />
-                            </svg>
-                        </div>
-                    )}
                 </div>
             </div>
         </AppLayout>
