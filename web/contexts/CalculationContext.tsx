@@ -173,7 +173,8 @@ const defaultConfig: MotorConfig = {
     jacket_fos: 1.25,
 };
 
-const API_BASE = "http://localhost:8000";
+// Use relative path - Next.js rewrites will proxy to http://localhost:8000
+const API_BASE = "";
 
 const CalculationContext = createContext<CalculationContextType | null>(null);
 
