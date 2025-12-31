@@ -17,7 +17,7 @@ interface CFDResult {
 }
 
 export default function CFDPage() {
-    const { params: mainConfig } = useCalculation();
+    const { config: mainConfig } = useCalculation();
     const [status, setStatus] = useState<"idle" | "running" | "completed" | "error">("idle");
     const [logs, setLogs] = useState<string[]>([]);
     const [result, setResult] = useState<CFDResult | null>(null);
@@ -165,8 +165,8 @@ export default function CFDPage() {
                         onClick={runSimulation}
                         disabled={status === "running"}
                         className={`px-6 py-3 rounded font-bold transition-all ${status === "running"
-                                ? "bg-gray-700 cursor-not-allowed text-gray-400"
-                                : "bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white shadow-lg shadow-cyan-500/20"
+                            ? "bg-gray-700 cursor-not-allowed text-gray-400"
+                            : "bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white shadow-lg shadow-cyan-500/20"
                             }`}
                     >
                         {status === "running" ? "Simulation en cours..." : "🚀 Lancer Simulation"}
