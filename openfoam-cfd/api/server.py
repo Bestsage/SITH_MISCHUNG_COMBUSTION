@@ -408,9 +408,9 @@ startFrom       startTime;
 startTime       0;
 
 stopAt          endTime;
-endTime         0.001;
+endTime         0.0005;
 
-deltaT          1e-8;
+deltaT          1e-9;
 
 writeControl    adjustableRunTime;
 writeInterval   0.0001;
@@ -427,7 +427,7 @@ timePrecision   6;
 runTimeModifiable true;
 
 adjustTimeStep  yes;
-maxCo           0.5;
+maxCo           0.2;
 
 functions
 {{
@@ -637,7 +637,7 @@ simulationType  laminar;
     u_inlet_str = f"{u_inlet:.1f}"
     gamma_str = f"{gamma:.4f}"
     
-    # Pressure field
+    # Pressure field - use simpler BCs for stability
     p_file = f"""FoamFile
 {{
     version     2.0;
@@ -659,13 +659,7 @@ boundaryField
     }}
     outlet
     {{
-        type            waveTransmissive;
-        field           p;
-        psi             thermo:psi;
-        gamma           {gamma_str};
-        fieldInf        {p_ambient_str};
-        lInf            1;
-        value           uniform {p_ambient_str};
+        type            zeroGradient;
     }}
     wall
     {{
