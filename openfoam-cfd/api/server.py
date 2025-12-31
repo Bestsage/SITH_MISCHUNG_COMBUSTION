@@ -166,17 +166,17 @@ async def run_openfoam_simulation(job_id: str, params: dict, case_dir: Path, res
         jobs[job_id]["progress"] = 0.1
         
         # Run blockMesh
-        result = await run_openfoam_command("blockMesh", case_dir)
-        if result != 0:
-            raise Exception("blockMesh failed")
+        returncode, output = await run_openfoam_command("blockMesh", case_dir)
+        if returncode != 0:
+            raise Exception(f"blockMesh failed:\n{output[-500:]}")
         
         jobs[job_id]["message"] = "Running rhoCentralFoam solver..."
         jobs[job_id]["progress"] = 0.2
         
         # Run solver
-        result = await run_openfoam_command("rhoCentralFoam", case_dir, job_id)
-        if result != 0:
-            raise Exception("rhoCentralFoam failed")
+        returncode, output = await run_openfoam_command("rhoCentralFoam", case_dir, job_id)
+        if returncode != 0:
+            raise Exception(f"rhoCentralFoam failed:\n{output[-500:]}")
         
         jobs[job_id]["message"] = "Post-processing results..."
         jobs[job_id]["progress"] = 0.9
@@ -194,8 +194,8 @@ async def run_openfoam_simulation(job_id: str, params: dict, case_dir: Path, res
         jobs[job_id]["message"] = f"Error: {str(e)}"
 
 
-async def run_openfoam_command(command: str, case_dir: Path, job_id: str = None) -> int:
-    """Run an OpenFOAM command with proper environment"""
+async def run_openfoam_command(command: str, case_dir: Path, job_id: str = None) -> tuple:
+    """Run an OpenFOAM command with proper environment. Returns (returncode, output)"""
     cmd = f"source /usr/lib/openfoam/openfoam2312/etc/bashrc && cd {case_dir} && {command}"
     
     process = await asyncio.create_subprocess_shell(
@@ -205,24 +205,34 @@ async def run_openfoam_command(command: str, case_dir: Path, job_id: str = None)
         executable="/bin/bash"
     )
     
-    # Monitor output for progress
-    if job_id and command == "rhoCentralFoam":
-        while True:
-            line = await process.stdout.readline()
-            if not line:
-                break
-            line_str = line.decode().strip()
-            if "Time =" in line_str:
-                try:
-                    time_val = float(line_str.split("=")[1].strip())
-                    # Estimate progress based on time
-                    progress = min(0.85, 0.2 + 0.65 * (time_val / 0.001))
-                    jobs[job_id]["progress"] = progress
-                except:
-                    pass
+    output_lines = []
+    
+    # Read all output
+    while True:
+        line = await process.stdout.readline()
+        if not line:
+            break
+        line_str = line.decode().strip()
+        output_lines.append(line_str)
+        
+        # Update progress for solver
+        if job_id and command == "rhoCentralFoam" and "Time =" in line_str:
+            try:
+                time_val = float(line_str.split("=")[1].strip())
+                progress = min(0.85, 0.2 + 0.65 * (time_val / 0.001))
+                jobs[job_id]["progress"] = progress
+            except:
+                pass
     
     await process.wait()
-    return process.returncode
+    
+    # Log output for debugging
+    output_text = "\n".join(output_lines[-50:])  # Last 50 lines
+    print(f"[{command}] Exit code: {process.returncode}")
+    if process.returncode != 0:
+        print(f"[{command}] Output:\n{output_text}")
+    
+    return process.returncode, output_text
 
 
 def generate_openfoam_case(params: dict, case_dir: Path):
