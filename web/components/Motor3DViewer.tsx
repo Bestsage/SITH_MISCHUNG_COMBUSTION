@@ -2,7 +2,7 @@
 
 import { useRef, useMemo } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { OrbitControls, Environment, MeshTransmissionMaterial, Text } from "@react-three/drei";
+import { OrbitControls, Environment, MeshTransmissionMaterial, Text, Line } from "@react-three/drei";
 import * as THREE from "three";
 
 interface MotorMeshProps {
@@ -35,7 +35,6 @@ function MotorMesh({
         }
     });
 
-    // ... (getDefaultRadius remains same)
     const getDefaultRadius = (t: number) => {
         const rThroat = 0.020;
         const contractionRatio = 3.5;
@@ -94,16 +93,20 @@ function MotorMesh({
         return new THREE.LatheGeometry(points, 64);
     }, [profile, wallThickness, outerShellThickness, showChannels]);
 
-    // ... (channelPositions remains mostly same, but uses wallThickness)
-    const channelPositions = useMemo(() => {
+    // Calculate paths for each channel
+    const channelPaths = useMemo(() => {
         if (!showChannels) return [];
-        const positions: Array<{ x: number, y: number, z: number }> = [];
-        const lengthSteps = 25;
+        const paths: THREE.Vector3[][] = [];
+        const lengthSteps = 40; // Smoother lines
+
         for (let c = 0; c < nChannels; c++) {
             const angle = (c / nChannels) * Math.PI * 2;
+            const points: THREE.Vector3[] = [];
+
             for (let i = 0; i <= lengthSteps; i++) {
                 const t = i / lengthSteps;
                 const xPos = t * 0.35 - 0.175;
+
                 let nozzleRadius: number;
                 if (profile && profile.x && profile.r) {
                     const idx = Math.floor(t * (profile.x.length - 1));
@@ -111,15 +114,17 @@ function MotorMesh({
                 } else {
                     nozzleRadius = getDefaultRadius(t);
                 }
+
                 const outerRadius = nozzleRadius + (wallThickness / 1000) + 0.003;
-                positions.push({
-                    x: Math.cos(angle) * outerRadius,
-                    y: xPos,
-                    z: Math.sin(angle) * outerRadius
-                });
+                points.push(new THREE.Vector3(
+                    Math.cos(angle) * outerRadius,
+                    xPos,
+                    Math.sin(angle) * outerRadius
+                ));
             }
+            paths.push(points);
         }
-        return positions;
+        return paths;
     }, [showChannels, nChannels, profile, wallThickness]);
 
     return (
@@ -142,24 +147,23 @@ function MotorMesh({
                         metalness={0.9}
                         roughness={0.1}
                         transparent
-                        opacity={0.4}
+                        opacity={0.3}
                         side={THREE.DoubleSide}
+                        depthWrite={false} // Better transparency
                     />
                 </mesh>
             )}
 
-            {/* Coolant Channels */}
-            {showChannels && channelPositions.map((pos, i) => (
-                <mesh key={i} position={[pos.x, pos.y, pos.z]}>
-                    <sphereGeometry args={[0.002, 6, 6]} />
-                    <meshStandardMaterial
-                        color="#00d4ff"
-                        emissive="#00d4ff"
-                        emissiveIntensity={0.5}
-                        metalness={0.8}
-                        roughness={0.2}
-                    />
-                </mesh>
+            {/* Coolant Channels (Lines) */}
+            {showChannels && channelPaths.map((path, i) => (
+                <Line
+                    key={i}
+                    points={path}
+                    color="#00d4ff"
+                    lineWidth={1}
+                    opacity={0.6}
+                    transparent
+                />
             ))}
         </group>
     );
