@@ -581,6 +581,8 @@ solvers
     # ================================
     # thermophysicalProperties
     # ================================
+    # Using sensibleEnthalpy is more stable than sensibleInternalEnergy
+    # for high-temperature combustion gases
     thermoprops = f"""FoamFile
 {{
     version     2.0;
@@ -597,7 +599,7 @@ thermoType
     thermo          hConst;
     equationOfState perfectGas;
     specie          specie;
-    energy          sensibleInternalEnergy;
+    energy          sensibleEnthalpy;
 }}
 
 mixture
@@ -812,59 +814,7 @@ boundaryField
     with open(case_dir / "0" / "U", 'w') as f:
         f.write(u_file)
     
-    # Internal energy field (e) - required for rhoCentralFoam with sensibleInternalEnergy
-    # e = Cv * T where Cv = Cp - R = Cp * (1 - 1/gamma)
-    Cv = Cp - R_specific
-    e_initial = Cv * t_chamber  # Internal energy at chamber temperature
-    e_initial_str = f"{e_initial:.1f}"
-    
-    print(f"  Cv = {Cv:.1f} J/(kg·K)")
-    print(f"  e_initial = {e_initial:.1f} J/kg")
-    
-    e_file = f"""FoamFile
-{{
-    version     2.0;
-    format      ascii;
-    class       volScalarField;
-    object      e;
-}}
-
-dimensions      [0 2 -2 0 0 0 0];
-
-internalField   uniform {e_initial_str};
-
-boundaryField
-{{
-    inlet
-    {{
-        type            fixedValue;
-        value           uniform {e_initial_str};
-    }}
-    outlet
-    {{
-        type            zeroGradient;
-    }}
-    wall
-    {{
-        type            zeroGradient;
-    }}
-    axis
-    {{
-        type            empty;
-    }}
-    front
-    {{
-        type            wedge;
-    }}
-    back
-    {{
-        type            wedge;
-    }}
-}}
-"""
-    
-    with open(case_dir / "0" / "e", 'w') as f:
-        f.write(e_file)
+    # NOTE: Do NOT create explicit 'e' file - rhoCentralFoam computes it from T and p
 
 
 def extract_openfoam_results(params: dict, case_dir: Path, result_dir: Path):
