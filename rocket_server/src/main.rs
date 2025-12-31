@@ -391,81 +391,83 @@ async fn calculate_full(
     let total_length = l_chamber + l_nozzle;
     let throat_x = l_chamber;
 
-    // Convergent section length (typically 0.2 * l_chamber)
-    let l_conv = l_chamber * 0.25;
+    // === Pre-Calculate Convergent Geometry ===
+    let r_u = 1.5 * r_throat; // Chamber-to-Cone radius
+    let r_d_conv = 1.5 * r_throat; // Cone-to-Throat radius (Standard Rao is 1.5 for convergent side)
+    let theta_conv = motor.theta_n.to_radians();
+
+    // Geometric points relative to throat (x=0 at throat, growing negative upstream)
+    let x_throat_arc_start = -r_d_conv * theta_conv.sin();
+    let y_throat_arc_start = r_throat + r_d_conv * (1.0 - theta_conv.cos());
+
+    let h_cone =
+        r_chamber - r_throat - r_u * (1.0 - theta_conv.cos()) - r_d_conv * (1.0 - theta_conv.cos());
+    let h_cone = h_cone.max(0.0);
+
+    let l_cone = h_cone / theta_conv.tan();
+
+    let x_cone_start = x_throat_arc_start - l_cone;
+    let x_chamber_arc_start = x_cone_start - r_u * theta_conv.sin();
+
+    let l_conv_geometric = -x_chamber_arc_start;
+
+    // === Pre-Calculate Divergent Geometry (Initial Arc) ===
+    let r_d_div = 0.382 * r_throat; // Throat-to-Parabola radius (Standard Rao)
+                                    // Initial parabolic angle (approximate, usually 20-30 deg depending on expansion)
+                                    // We'll calculate the angle where the arc matches the average parabola slope or just use a fixed small angle
+                                    // For simplicity and smoothness, let's use a fixed transition angle or finding where parabola starts
+    let theta_div_start = 28.0_f64.to_radians(); // Typical start angle for parabola
+    let x_div_arc_end = r_d_div * theta_div_start.sin();
+
+    // Parabola parameters
+    // We need to fit a parabola from (x_div_arc_end, y_div_arc_end) to (l_nozzle, r_exit)
+    // This is complex to splice perfectly.
+    // Simplified approach: Use arc for x < x_div_arc_end, then blend/switch to parabola.
+    // Better simplified approach for this tool:
+    // Just enforce the divergent arc for a small distance, then standard bell curve shifted.
 
     for i in 0..n_points {
         let x = (i as f64 / (n_points - 1) as f64) * total_length;
         x_profile.push(x);
 
-        let r = if x < throat_x - l_conv {
-            // Cylindrical chamber
+        let r = if x < throat_x - l_conv_geometric {
             r_chamber
         } else if x <= throat_x {
             // ARC-LINE-ARC Convergent Section
-            // 1. Arc from chamber to cone (R1 = 1.5 * Rt)
-            // 2. Straight line at theta_n
-            // 3. Arc from cone to throat (R2 = 0.382 * Rt)
-
-            let r_u = 1.5 * r_throat; // Upstream radius (chamber side)
-            let r_d = 0.382 * r_throat; // Downstream radius (throat side)
-            let theta = motor.theta_n.to_radians();
-
-            // Length of the convergent section (calculated backwards from throat)
-            // Total L = R_d * sin(theta) + (Rc - Rt - R_u*(1-cos(theta)) - R_d*(1-cos(theta))) / tan(theta) + R_u * sin(theta)
-
-            // Normalized position in convergent section (0 at start, 1 at throat)
-            // We need to map x (which is in global coords) to local coords relative to throat
-            let dist_to_throat = throat_x - x;
-
-            // Geometric points relative to throat (x=0 at throat, growing negative upstream)
-            // Point A: Throat tangent (-R_d*sin(theta), Rt + R_d*(1-cos(theta)))
-            // Point B: Chamber tangent (start of curve)
-
-            let x_throat_arc_start = -r_d * theta.sin();
-            let y_throat_arc_start = r_throat + r_d * (1.0 - theta.cos());
-
-            let h_cone =
-                r_chamber - r_throat - r_u * (1.0 - theta.cos()) - r_d * (1.0 - theta.cos());
-            let l_cone = h_cone / theta.tan();
-
-            let x_cone_start = x_throat_arc_start - l_cone;
-            let y_cone_start = r_chamber - r_u * (1.0 - theta.cos());
-
-            let x_chamber_arc_start = x_cone_start - r_u * theta.sin();
-
-            // Current position relative to throat (negative)
-            let x_local = -dist_to_throat;
+            let x_local = -(throat_x - x);
 
             if x_local > x_throat_arc_start {
-                // In throat arc region (near throat)
-                // Circle equation centered at (0, Rt + Rd)
-                let y_center = r_throat + r_d;
-                // x^2 + (y - y_center)^2 = Rd^2
-                // y = y_center - sqrt(Rd^2 - x^2)
-                y_center - (r_d * r_d - x_local * x_local).max(0.0).sqrt()
+                // Convergent Throat Arc (Radius 1.5 Rt)
+                let y_center = r_throat + r_d_conv;
+                y_center - (r_d_conv * r_d_conv - x_local * x_local).max(0.0).sqrt()
             } else if x_local > x_cone_start {
-                // In straight cone region
-                // Line equation passing through (x_throat_arc_start, y_throat_arc_start) with slope -tan(theta)
-                y_throat_arc_start + (x_throat_arc_start - x_local) * theta.tan()
+                // Straight Cone
+                y_throat_arc_start + (x_throat_arc_start - x_local) * theta_conv.tan()
             } else if x_local > x_chamber_arc_start {
-                // In chamber arc region
-                // Circle centered at (x_chamber_arc_start, Rc - Ru)
+                // Chamber Arc
                 let x_center = x_chamber_arc_start;
                 let y_center = r_chamber - r_u;
-                // (x - x_center)^2 + (y - y_center)^2 = Ru^2
                 let dx = x_local - x_center;
                 y_center + (r_u * r_u - dx * dx).max(0.0).sqrt()
             } else {
-                // Fully in chamber (should be covered by first if, but just in case)
                 r_chamber
             }
         } else {
-            // Divergent section (80% parabolic bell)
-            let t = (x - throat_x) / l_nozzle;
-            let t = t.clamp(0.0, 1.0);
-            // Parabolic profile
-            r_throat + (r_exit - r_throat) * (2.0 * t - t * t).powf(0.85)
+            // Divergent Section
+            let x_local = x - throat_x;
+
+            if x_local < x_div_arc_end {
+                // Divergent Throat Arc (Radius 0.382 Rt)
+                // Circle centered at (0, Rt + 0.382Rt)
+                let y_center = r_throat + r_d_div;
+                y_center - (r_d_div * r_d_div - x_local * x_local).max(0.0).sqrt()
+            } else {
+                // Parabolic Bell (Simplified)
+                // We maintain the 80% bell generic shape but blend it from the arc
+                let t = x_local / l_nozzle;
+                let t = t.clamp(0.0, 1.0);
+                r_throat + (r_exit - r_throat) * (2.0 * t - t * t).powf(0.85)
+            }
         };
 
         r_profile.push(r);
