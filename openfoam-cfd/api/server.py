@@ -122,7 +122,7 @@ async def run_cfd(request: CFDRequest, background_tasks: BackgroundTasks):
     result_dir.mkdir(parents=True, exist_ok=True)
     
     # Save parameters
-    params = request.dict()
+    params = request.model_dump()
     params["job_id"] = job_id
     
     with open(case_dir / "params.json", 'w') as f:
@@ -257,8 +257,35 @@ def generate_openfoam_case(params: dict, case_dir: Path):
     wedge_angle = 2.5  # degrees
     wedge_rad = math.radians(wedge_angle)
     
-    # Vertices for axisymmetric nozzle (wedge geometry)
-    # Chamber section + converging section + diverging section
+    # Compute cell counts
+    nx_conv = max(1, nx // 3)
+    nx_div = max(1, 2 * nx // 3)
+    
+    # Calculate vertex coordinates
+    # Front face (positive z)
+    y3 = r_chamber
+    z3 = 0.0
+    y4 = r_throat
+    z4 = 0.0
+    y5 = r_exit
+    z5 = 0.0
+    
+    # Back face (rotated by wedge angle around x-axis)
+    y9 = r_chamber * math.cos(wedge_rad)
+    z9 = r_chamber * math.sin(wedge_rad)
+    y10 = r_throat * math.cos(wedge_rad)
+    z10 = r_throat * math.sin(wedge_rad)
+    y11 = r_exit * math.cos(wedge_rad)
+    z11 = r_exit * math.sin(wedge_rad)
+    
+    # Front face negative rotation
+    y3f = r_chamber * math.cos(-wedge_rad)
+    z3f = r_chamber * math.sin(-wedge_rad)
+    y4f = r_throat * math.cos(-wedge_rad)
+    z4f = r_throat * math.sin(-wedge_rad)
+    y5f = r_exit * math.cos(-wedge_rad)
+    z5f = r_exit * math.sin(-wedge_rad)
+    
     blockmesh = f"""FoamFile
 {{
     version     2.0;
@@ -269,42 +296,32 @@ def generate_openfoam_case(params: dict, case_dir: Path):
 
 scale 1;
 
-// Geometry parameters
-r_chamber {r_chamber};
-r_throat {r_throat};
-r_exit {r_exit};
-l_chamber {l_chamber};
-l_nozzle {l_nozzle};
-
-// Wedge angle for axisymmetry
-wedgeAngle {wedge_angle};
-
 vertices
 (
-    // Front face (z = 0 plane, y > 0)
-    (0 0 0)                                          // 0 - axis at inlet
-    ({l_chamber} 0 0)                                // 1 - axis at throat
-    ({total_length} 0 0)                             // 2 - axis at exit
-    (0 {r_chamber} 0)                                // 3 - wall at inlet
-    ({l_chamber} {r_throat} 0)                       // 4 - wall at throat
-    ({total_length} {r_exit} 0)                      // 5 - wall at exit
+    // Front face (z < 0)
+    (0 0 0)                              // 0 - axis at inlet
+    ({l_chamber} 0 0)                    // 1 - axis at throat
+    ({total_length} 0 0)                 // 2 - axis at exit
+    (0 {y3f} {z3f})                      // 3 - wall at inlet front
+    ({l_chamber} {y4f} {z4f})            // 4 - wall at throat front
+    ({total_length} {y5f} {z5f})         // 5 - wall at exit front
     
-    // Back face (rotated by wedge angle)
-    (0 0 0)                                          // 6 - axis at inlet (same as 0)
-    ({l_chamber} 0 0)                                // 7 - axis at throat (same as 1)
-    ({total_length} 0 0)                             // 8 - axis at exit (same as 2)
-    (0 {r_chamber * math.cos(wedge_rad)} {r_chamber * math.sin(wedge_rad)})   // 9
-    ({l_chamber} {r_throat * math.cos(wedge_rad)} {r_throat * math.sin(wedge_rad)})  // 10
-    ({total_length} {r_exit * math.cos(wedge_rad)} {r_exit * math.sin(wedge_rad)})   // 11
+    // Back face (z > 0)
+    (0 0 0)                              // 6 - axis at inlet (same as 0)
+    ({l_chamber} 0 0)                    // 7 - axis at throat (same as 1)
+    ({total_length} 0 0)                 // 8 - axis at exit (same as 2)
+    (0 {y9} {z9})                        // 9 - wall at inlet back
+    ({l_chamber} {y10} {z10})            // 10 - wall at throat back
+    ({total_length} {y11} {z11})         // 11 - wall at exit back
 );
 
 blocks
 (
     // Chamber to throat (converging)
-    hex (0 1 4 3 6 7 10 9) ({nx // 3} {ny} 1) simpleGrading (1 1 1)
+    hex (0 1 4 3 6 7 10 9) ({nx_conv} {ny} 1) simpleGrading (1 1 1)
     
-    // Throat to exit (diverging)
-    hex (1 2 5 4 7 8 11 10) ({2 * nx // 3} {ny} 1) simpleGrading (1 1 1)
+    // Throat to exit (diverging)  
+    hex (1 2 5 4 7 8 11 10) ({nx_div} {ny} 1) simpleGrading (1 1 1)
 );
 
 edges
