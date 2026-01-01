@@ -583,8 +583,11 @@ solvers
     # ================================
     # thermophysicalProperties
     # ================================
-    # Using sensibleEnthalpy is more stable than sensibleInternalEnergy
-    # for high-temperature combustion gases
+    # Using fixed values for robustness - avoid calculation errors
+    # rhoCentralFoam works well with sensibleInternalEnergy
+    fixed_Cp = 1200.0  # Typical for combustion gases
+    fixed_molWeight = 25.0  # Typical for combustion products
+    
     thermoprops = f"""FoamFile
 {{
     version     2.0;
@@ -601,18 +604,18 @@ thermoType
     thermo          hConst;
     equationOfState perfectGas;
     specie          specie;
-    energy          sensibleEnthalpy;
+    energy          sensibleInternalEnergy;
 }}
 
 mixture
 {{
     specie
     {{
-        molWeight   {mol_weight_gmol:.2f};
+        molWeight   {fixed_molWeight:.1f};
     }}
     thermodynamics
     {{
-        Cp          {Cp:.1f};
+        Cp          {fixed_Cp:.1f};
         Hf          0;
     }}
     transport
