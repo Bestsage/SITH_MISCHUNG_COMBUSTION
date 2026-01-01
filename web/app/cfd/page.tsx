@@ -191,7 +191,7 @@ function ResidualPlot({ history }: { history: number[] }) {
 }
 
 export default function CFDPage() {
-    const { config: mainConfig } = useCalculation();
+    const { config: mainConfig, results } = useCalculation();
     const [status, setStatus] = useState<"idle" | "running" | "completed" | "error">("idle");
     const [logs, setLogs] = useState<string[]>([]);
     const [result, setResult] = useState<CFDResult | null>(null);
@@ -219,25 +219,27 @@ export default function CFDPage() {
         abortControllerRef.current = new AbortController();
 
         try {
+            // Use geometry from main calculation context, fallback to defaults
             const simParams = {
-                r_throat: 0.025,
-                r_chamber: 0.05,
-                r_exit: 0.075,
-                l_chamber: 0.1,
-                l_nozzle: 0.2,
+                r_throat: results?.r_throat || 0.025,
+                r_chamber: results?.r_chamber || 0.05,
+                r_exit: results?.r_exit || 0.075,
+                l_chamber: results?.l_chamber || 0.1,
+                l_nozzle: results?.l_nozzle || 0.2,
                 p_chamber: mainConfig.pc * 1e5,
                 p_ambient: mainConfig.pe * 1e5,
-                t_chamber: 3000,
-                gamma: 1.2,
-                molar_mass: 0.02,
-                nx: 100,
-                ny: 50,
+                t_chamber: results?.t_chamber || 3000,
+                gamma: results?.gamma || 1.2,
+                molar_mass: (results?.mw || 20) / 1000, // mw is in g/mol, convert to kg/mol
+                nx: 200,  // High resolution for solid mesh rendering
+                ny: 100,
                 max_iter: 5000,
                 mode: 1,
                 solver: "openfoam"
             };
 
-            addLog(`📝 Paramètres: Pc=${(simParams.p_chamber / 1e5).toFixed(1)}bar, Tc=${simParams.t_chamber}K`);
+            addLog(`📝 Géométrie: Rt=${(simParams.r_throat * 1000).toFixed(1)}mm, Rc=${(simParams.r_chamber * 1000).toFixed(1)}mm, Re=${(simParams.r_exit * 1000).toFixed(1)}mm`);
+            addLog(`📝 Longueurs: Lc=${(simParams.l_chamber * 1000).toFixed(0)}mm, Ln=${(simParams.l_nozzle * 1000).toFixed(0)}mm | Pc=${(simParams.p_chamber / 1e5).toFixed(1)}bar, Tc=${simParams.t_chamber.toFixed(0)}K`);
             addLog("📡 Envoi de la demande au serveur...");
 
             const startResponse = await fetch(`${OPENFOAM_API}/run`, {
@@ -327,8 +329,8 @@ export default function CFDPage() {
                             onClick={runSimulation}
                             disabled={status === "running"}
                             className={`px-6 py-2 rounded font-bold transition-all ${status === "running"
-                                    ? "bg-gray-700 cursor-not-allowed text-gray-400"
-                                    : "bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white shadow-lg shadow-cyan-500/20"
+                                ? "bg-gray-700 cursor-not-allowed text-gray-400"
+                                : "bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white shadow-lg shadow-cyan-500/20"
                                 }`}
                         >
                             {status === "running" ? "Simulation en cours..." : "🚀 Lancer Simulation"}
