@@ -946,43 +946,76 @@ def extract_openfoam_results(params: dict, case_dir: Path, result_dir: Path):
             temperature[idx] = t_chamber / T_ratio
             pressure[idx] = p_chamber / p_ratio
         else:
-            # Far-field: jet plume model
-            # Distance from nozzle exit
+            # Far-field: Improved jet plume model
             dx = xi - x_exit
+            dx_norm = dx / farfield_length  # Normalized downstream distance
             
-            # Jet core region (inside r_exit at any x)
-            if ri <= r_exit:
-                # Core flow - supersonic jet
-                M = M_exit * (1 - 0.1 * dx / farfield_length)  # Slight deceleration
+            # Jet core expands with distance (spreading rate ~0.1 for supersonic jets)
+            spreading_rate = 0.08
+            core_radius = r_exit * (1 + spreading_rate * dx / r_exit)
+            
+            # Shock cell wavelength (Prandtl-Meyer spacing)
+            shock_cell_length = 1.3 * r_exit  # Typical for M~3 jet
+            
+            if ri <= core_radius:
+                # Inside jet core - supersonic flow with shock cells
+                # Radial profile: Mach peaks at centerline, decreases toward edge
+                r_norm_core = ri / core_radius if core_radius > 0 else 0
+                radial_profile = 1 - 0.3 * (r_norm_core ** 2)  # Parabolic decay
                 
-                # Pressure oscillation (Mach diamonds) - simplified model
-                wavelength = r_exit * 2  # Characteristic length
-                phase = 2 * np.pi * dx / wavelength
-                p_osc = 0.2 * np.sin(phase) * np.exp(-dx / (2 * farfield_length))
+                # Axial decay of Mach number
+                axial_decay = np.exp(-0.5 * dx_norm)
+                M_local = M_exit * radial_profile * axial_decay
                 
+                # Shock cell oscillation (damped sine wave)
+                n_shocks = dx / shock_cell_length
+                shock_amplitude = 0.15 * np.exp(-0.3 * n_shocks)
+                shock_wave = shock_amplitude * np.sin(2 * np.pi * n_shocks)
+                
+                # Apply shock oscillation to Mach (creates diamond pattern)
+                M = M_local * (1 + shock_wave * (1 - r_norm_core))  # Stronger at center
+                M = max(0.3, min(M, M_exit * 1.1))
+                
+                # Temperature: cools as jet expands
                 T_ratio = 1 + (gamma - 1) / 2 * M * M
-                p_base = p_ambient * (1 + 0.5 * M)
+                T = T_exit + (t_ambient - T_exit) * (0.2 * dx_norm + 0.1 * r_norm_core)
+                T = max(t_ambient, min(T, T_exit))
                 
-                mach[idx] = max(0.5, M)
-                temperature[idx] = T_exit * (1 + 0.3 * dx / farfield_length)
-                pressure[idx] = p_base * (1 + p_osc)
+                # Pressure: oscillates with shock cells
+                p_base = p_ambient * (1 + 0.3 * M / M_exit)
+                P = p_base * (1 + shock_wave * 0.3)
+                
+                mach[idx] = M
+                temperature[idx] = T
+                pressure[idx] = P
+                
             else:
-                # Mixing/shear layer and ambient region
-                # Distance from jet core
-                dr = ri - r_exit
+                # Mixing layer / shear region
+                dr = ri - core_radius
                 
-                # Mixing layer thickness grows with distance
-                mix_width = 0.2 * r_exit + 0.3 * dx
+                # Mixing layer grows linearly with distance
+                mix_thickness = 0.15 * r_exit + 0.2 * dx
                 
-                if dr < mix_width:
-                    # Mixing layer - transition from jet to ambient
-                    mix_frac = dr / mix_width
-                    M = M_exit * (1 - mix_frac) * 0.5
-                    mach[idx] = max(0.1, M)
-                    temperature[idx] = t_ambient + (T_exit - t_ambient) * (1 - mix_frac)
-                    pressure[idx] = p_ambient * (1 + 0.1 * (1 - mix_frac))
+                if dr < mix_thickness:
+                    # Transition zone - smooth blending
+                    blend = dr / mix_thickness  # 0 at core edge, 1 at outer edge
+                    blend_smooth = 0.5 * (1 - np.cos(blend * np.pi))  # Smoother S-curve
+                    
+                    # Mach decays smoothly to near-zero
+                    M_edge = M_exit * 0.3 * np.exp(-0.5 * dx_norm)
+                    M = M_edge * (1 - blend_smooth)
+                    
+                    # Temperature blends to ambient
+                    T = T_exit + (t_ambient - T_exit) * blend_smooth
+                    
+                    # Pressure blends to ambient
+                    P = p_ambient * (1 + 0.1 * (1 - blend_smooth))
+                    
+                    mach[idx] = max(0.05, M)
+                    temperature[idx] = T
+                    pressure[idx] = P
                 else:
-                    # Ambient air
+                    # Ambient quiescent air
                     mach[idx] = 0.01
                     temperature[idx] = t_ambient
                     pressure[idx] = p_ambient
