@@ -61,15 +61,15 @@ function getColorForValue(t: number, colormap: string): THREE.Color {
     return color;
 }
 
-// Robust Heatmap Component
+// Robust Heatmap Component with Mesh Support
 function CFDHeatmap({ result, field, colormap }: { result: CFDResult; field: FieldType; colormap: string }) {
-    const { positions, colors } = useMemo(() => {
+    const { positions, colors, indices, isMesh } = useMemo(() => {
         const nx = result.nx;
         const ny = result.ny;
         const fieldData = result[field];
 
         if (!fieldData || fieldData.length === 0) {
-            return { positions: new Float32Array(0), colors: new Float32Array(0) };
+            return { positions: new Float32Array(0), colors: new Float32Array(0), indices: null, isMesh: false };
         }
 
         // 1. Calculate Min/Max robustly
@@ -84,17 +84,16 @@ function CFDHeatmap({ result, field, colormap }: { result: CFDResult; field: Fie
             }
         }
 
-        // Fallback for full invalid data
         if (!hasValid) { min = 0; max = 1; }
-        if (max <= min) max = min + 1e-6; // Prevent div by zero
+        if (max <= min) max = min + 1e-6;
 
         // 2. Generate Geometry
-        const numPoints = result.x.length; // result.x is flattened
+        const numPoints = result.x.length;
         const positions = new Float32Array(numPoints * 3);
         const colors = new Float32Array(numPoints * 3);
 
         const max_x = Math.max(...result.x) || 1;
-        const scale = 20 / max_x; // Fit to view
+        const scale = 20 / max_x;
 
         for (let i = 0; i < numPoints; i++) {
             // Position
@@ -104,7 +103,6 @@ function CFDHeatmap({ result, field, colormap }: { result: CFDResult; field: Fie
 
             // Color
             let val = fieldData[i];
-            // Replace NaN/Inf with min value
             if (!Number.isFinite(val)) val = min;
 
             const t = (val - min) / (max - min);
@@ -115,7 +113,30 @@ function CFDHeatmap({ result, field, colormap }: { result: CFDResult; field: Fie
             colors[i * 3 + 2] = color.b;
         }
 
-        return { positions, colors };
+        // 3. Generate Indices for Mesh
+        let indices = null;
+        let isMesh = false;
+
+        if (nx > 1 && ny > 1 && nx * ny === numPoints) {
+            const indexArray = [];
+            // Assume Row-Major ordering: p = i*ny + j (x-slow, y-fast)
+            for (let i = 0; i < nx - 1; i++) {
+                for (let j = 0; j < ny - 1; j++) {
+                    const a = i * ny + j;
+                    const b = i * ny + j + 1;
+                    const c = (i + 1) * ny + j;
+                    const d = (i + 1) * ny + j + 1;
+
+                    // Two triangles: a-d-b and a-c-d
+                    indexArray.push(a, d, b);
+                    indexArray.push(a, c, d);
+                }
+            }
+            indices = new Uint16Array(indexArray);
+            isMesh = true;
+        }
+
+        return { positions, colors, indices, isMesh };
     }, [result, field, colormap]);
 
     if (positions.length === 0) return null;
@@ -124,10 +145,20 @@ function CFDHeatmap({ result, field, colormap }: { result: CFDResult; field: Fie
     geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 
+    if (isMesh && indices) {
+        geometry.setIndex(new THREE.BufferAttribute(indices, 1));
+        return (
+            <mesh>
+                <bufferGeometry attach="geometry" {...geometry} />
+                <meshBasicMaterial attach="material" vertexColors side={THREE.DoubleSide} />
+            </mesh>
+        );
+    }
+
     return (
         <points>
             <bufferGeometry attach="geometry" {...geometry} />
-            <pointsMaterial attach="material" vertexColors size={0.15} sizeAttenuation={true} />
+            <pointsMaterial attach="material" vertexColors size={0.3} sizeAttenuation={true} />
         </points>
     );
 }
@@ -155,8 +186,6 @@ function ResidualPlot({ history }: { history: number[] }) {
     return (
         <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full">
             <polyline points={points} fill="none" stroke="#06b6d4" strokeWidth="1.5" />
-            {/* Grid line at target residual 1e-5 (-5 log) */}
-            {/* <line x1={0} y1={height/2} x2={width} y2={height/2} stroke="#333" strokeDasharray="2,2" /> */}
         </svg>
     );
 }

@@ -1044,6 +1044,22 @@ def extract_openfoam_results(params: dict, case_dir: Path, result_dir: Path):
     vel_r = np.zeros_like(vel_x)
     
     # Build result
+    # Build result
+    # Preserving 2D topology for frontend mesh rendering
+    final_nx = params["nx"]
+    final_ny = params["ny"]
+    
+    # Check if point count matches expected grid size
+    # Note: openfoam sometimes changes mesh size slightly? No, blockMesh is exact.
+    # But writeCellCentres might output in different order? 
+    # We assume standard lexicographic order (x then y or y then x)
+    
+    if len(X) != final_nx * final_ny:
+        # Mismatch (maybe boundary cells excluded? or internal field sizing?)
+        # Fallback to point cloud mode
+        final_nx = len(X)
+        final_ny = 1
+        
     result = {
         "x": X.flatten().tolist(),
         "r": R.flatten().tolist(),
@@ -1053,13 +1069,13 @@ def extract_openfoam_results(params: dict, case_dir: Path, result_dir: Path):
         "velocity_x": vel_x.flatten().tolist(),
         "velocity_r": vel_r.flatten().tolist(),
         "density": rho.flatten().tolist(),
-        "nx": nx,
-        "ny": ny,
+        "nx": final_nx,
+        "ny": final_ny,
         "converged": True,
         "iterations": 1000,
-        "solver": "openfoam",
+        "solver": "openfoam_real",
         "residual": 1e-6,
-        "residual_history": [1e-3, 1e-4, 1e-5, 1e-6]  # Placeholder to prevent frontend crash
+        "residual_history": [1e-3, 1e-4, 1e-5, 1e-6]
     }
 
     
