@@ -612,7 +612,7 @@ thermoType
     thermo          hConst;
     equationOfState perfectGas;
     specie          specie;
-    energy          sensibleInternalEnergy;
+    energy          sensibleEnthalpy;
 }}
 
 mixture
@@ -683,7 +683,7 @@ simulationType  laminar;
     u_inlet_str = f"{u_inlet:.1f}"
     gamma_str = f"{gamma:.4f}"
     
-    # Pressure field - chamber at inlet, ambient at top/outlet
+    # Pressure field - all initialized to chamber pressure for stable startup
     p_file = f"""FoamFile
 {{
     version     2.0;
@@ -694,7 +694,7 @@ simulationType  laminar;
 
 dimensions      [1 -1 -2 0 0 0 0];
 
-internalField   uniform {p_ambient_str};
+internalField   uniform {p_chamber_str};
 
 boundaryField
 {{
@@ -705,16 +705,11 @@ boundaryField
     }}
     outlet
     {{
-        type            waveTransmissive;
-        gamma           {gamma_str};
-        fieldInf        {p_ambient_str};
-        lInf            1;
-        value           uniform {p_ambient_str};
+        type            zeroGradient;
     }}
     top
     {{
-        type            fixedValue;
-        value           uniform {p_ambient_str};
+        type            zeroGradient;
     }}
     axis
     {{
