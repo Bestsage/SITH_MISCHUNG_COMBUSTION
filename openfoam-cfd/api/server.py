@@ -184,6 +184,11 @@ async def run_openfoam_simulation(job_id: str, params: dict, case_dir: Path, res
         
         if returncode != 0:
             raise Exception(f"rhoCentralFoam failed:\n{output[-500:]}")
+            
+        jobs[job_id]["message"] = "Post-processing (CellCentres)..."
+        returncode, output = await run_openfoam_command("postProcess -func writeCellCentres", case_dir, job_id)
+        if returncode != 0:
+             print(f"[Job {job_id}] warning: postProcess (writeCellCentres) failed, geometry might be inaccurate.")
         
         jobs[job_id]["message"] = "Post-processing results..."
         jobs[job_id]["progress"] = 0.9
@@ -299,15 +304,127 @@ def generate_openfoam_case(params: dict, case_dir: Path):
     ny_total = max(10, ny)
     
     # Wedge angle for axisymmetric (5 degrees total = +/- 2.5 degrees)
-    wedge_angle = 2.5  # degrees
-    theta = math.radians(wedge_angle)
+    # Calculate geometry points for spline
+    # Split into two blocks: Chamber (Cylinder) and Nozzle (Convergent-Divergent)
+    # Actually, let's keep it as one block for simplicity but use polyLine for the top edge
     
-    # Vertices for a single wedge block
-    # The domain is from x=0 to x=total_length, r=0 to r=max_radius
-    y_max_front = max_radius * math.cos(theta)
-    z_max_front = -max_radius * math.sin(theta)
-    y_max_back = max_radius * math.cos(theta)
-    z_max_back = max_radius * math.sin(theta)
+    # Define points for the nozzle top edge
+    # From x=l_chamber to x=total_length
+    # Curve goes from r_chamber -> r_throat -> r_exit
+    # We'll use a simple approach: chamber is straight constant R, then nozzle starts
+    
+    num_spline_points = 20
+    spline_points = []
+    
+    # Nozzle section (x from l_chamber to total_length)
+    dx_nozzle = params["l_nozzle"] / num_spline_points
+    
+    for i in range(1, num_spline_points): # Exclude start and end points
+        xi = params["l_chamber"] + i * dx_nozzle
+        t = (xi - params["l_chamber"]) / params["l_nozzle"]
+        # Linear approximation for now (Cone) - Spline is better but let's be robust
+        # Or better: use the user's defined throat/exit
+        # Use a COSINE curve or similar? Or just linear interpolation?
+        # User prompt implies "real CFD", so let's try a smooth curve if possible
+        # Or just linear for simplicity but changing radius
+        
+        # Quadratic approximation for convergent/divergent?
+        # Let's stick to linear interpolation between throat and exit for the divergent part?
+        # Wait, the block is ONE block from Inlet to Outlet.
+        # So we include the chamber part too.
+        
+        # Actually, let's just make it a Cone from Chamber Radius to Exit Radius?
+        # No, that's wrong. Chamber >= Throat <= Exit.
+        # Single block cannot capture the throat constriction easily without negative volume if not careful.
+        # BETTER STRATEGY: 2 Blocks.
+        # Block 1: Inlet to Throat (Convergent)
+        # Block 2: Throat to Outlet (Divergent)
+        pass # We will stick to 1 Block for robustness for now, but warp the top edge
+             # CAUTION: Single block 0->L with Chamber->Throat->Exit is hard because edges must be monotonic?
+             # No, edges can curve.
+    
+    # Let's use a simpler geometry for this attempt: Chamber + Divergent Nozzle (Cone)
+    # This avoids the complex throat constriction mesh issues in a single block for restarts.
+    # To do it properly we need multiple blocks.
+    # Let's write a Multi-Block blockMeshDict.
+    
+    x_inlet = 0
+    x_throat = params["l_chamber"]
+    x_exit = x_throat + params["l_nozzle"]
+    
+    r_inlet = params["r_chamber"]
+    r_throat = params["r_throat"]
+    r_exit = params["r_exit"]
+    
+    # Vertices
+    # 0-7: Chamber (Inlet -> Throat)
+    # 8-15: Nozzle (Throat -> Exit)
+    
+    def get_wedge_verts(x, r, offset_idx):
+        y = r * math.cos(theta)
+        z = r * math.sin(theta)
+        # 0: axis, 1: wall-front, 2: wall-back, 3: axis (duplicate for back) - standard order?
+        # blockMesh is hex (0 1 2 3 4 5 6 7)
+        # Let's follow standard wedge setup
+        # Axis: (x 0 0)
+        # Wall Front: (x y -z)
+        # Wall Back: (x y z)
+        return f"""
+    ({x:.6f} 0 0)                                      // {offset_idx} - axis
+    ({x:.6f} {y:.6f} {-z:.6f})                         // {offset_idx+1} - wall front
+    ({x:.6f} {y:.6f} {z:.6f})                          // {offset_idx+2} - wall back
+"""
+    
+    verts_str = ""
+    # Station 0: Inlet
+    verts_str += get_wedge_verts(x_inlet, r_inlet, 0) # 0,1,2
+    # Station 1: Throat
+    verts_str += get_wedge_verts(x_throat, r_throat, 3) # 3,4,5
+    # Station 2: Exit
+    verts_str += get_wedge_verts(x_exit, r_exit, 6) # 6,7,8
+    
+    # We need 8 points per block. Standard wedge usually has 6 points (prism) but OpenFOAM uses hex with collapsed edge?
+    # No, wedge type boundary handles it.
+    # Let's use the explicit 5-degree wedge block structure:
+    # vertices:
+    # 0 (0 0 0)
+    # 1 (L 0 0)
+    # 2 (L r cos -r sin)
+    # 3 (0 r cos -r sin)
+    # 4 (0 0 0)
+    # 5 (L 0 0)
+    # 6 (L r cos r sin)
+    # 7 (0 r cos r sin)
+    
+    # Multi-block approach:
+    # Block 1: 0->Throat
+    # Block 2: Throat->Exit
+    
+    # Vertices:
+    # Plane 0 (Inlet): 0(axis), 1(front), 2(back) -> Actually we need 4 points per plane for hex
+    # But for axis we collapse points? Or imply axis?
+    # Standard: Use 3 points per plane, axis is a line.
+    # Let's define 5 points per plane to be safe?
+    # 0: Axis
+    # 1: Wall Front
+    # 2: Wall Back
+    # Axis is line 0-0.
+    
+    # Let's stick to the structure that works:
+    # Plane 0: x=0
+    # v0: (0 0 0)
+    # v1: (0 R y -z)
+    # v2: (0 0 0) back ? No
+    # v3: (0 R y z)
+    
+    y_in = r_inlet * math.cos(theta)
+    z_in = r_inlet * math.sin(theta)
+    
+    y_th = r_throat * math.cos(theta)
+    z_th = r_throat * math.sin(theta)
+    
+    y_ex = r_exit * math.cos(theta)
+    z_ex = r_exit * math.sin(theta)
     
     blockmesh = f"""FoamFile
 {{
@@ -321,17 +438,115 @@ scale 1;
 
 vertices
 (
-    // Front face (z < 0)
-    (0 0 0)                                              // 0 - axis at inlet
-    ({total_length:.8f} 0 0)                             // 1 - axis at exit
-    ({total_length:.8f} {y_max_front:.8f} {z_max_front:.8f})  // 2 - wall at exit
-    (0 {y_max_front:.8f} {z_max_front:.8f})              // 3 - wall at inlet
+    // Plane 0: Inlet
+    ({x_inlet} 0 0)                  // 0
+    ({x_inlet} {y_in} {-z_in})       // 1
+    ({x_inlet} {y_in} {z_in})        // 2
     
-    // Back face (z > 0)
-    (0 0 0)                                              // 4 - axis at inlet (same point as 0)
-    ({total_length:.8f} 0 0)                             // 5 - axis at exit (same point as 1)
-    ({total_length:.8f} {y_max_back:.8f} {z_max_back:.8f})    // 6 - wall at exit
-    (0 {y_max_back:.8f} {z_max_back:.8f})                // 7 - wall at inlet
+    // Plane 1: Throat
+    ({x_throat} 0 0)                 // 3
+    ({x_throat} {y_th} {-z_th})      // 4
+    ({x_throat} {y_th} {z_th})       // 5
+    
+    // Plane 2: Exit
+    ({x_exit} 0 0)                   // 6
+    ({x_exit} {y_ex} {-z_ex})        // 7
+    ({x_exit} {y_ex} {z_ex})         // 8
+);
+
+blocks
+(
+    // Chamber Block (0-1-2 to 3-4-5)
+    // Hex ordering: 0 1 2 (missing) ... tricky with wedges.
+    // Let's use the explicit axis points
+    // Re-doing vertices to match standard hex topology (8 verts per block)
+);
+"""
+    # ... Wait this is getting complicated for a quick fix.
+    # REVERT to Single Block but with Spline Edge?
+    # If we define vertices 0(inlet), 1(exit), 2(exit_wall), 3(inlet_wall)...
+    # And we spline edge 3-2.
+    # The intermediate radius must allow for the throat neck.
+    # If r_throat < r_inlet and r_throat < r_exit, a single block edge 3->2 (Inlet->Exit)
+    # passing through (x_throat, r_throat) is valid as long as it's smooth-ish.
+    # Let's try PolyLine for edge 3-2.
+    
+    # Vertices (Single Block style again)
+    # Front Face (z < 0)
+    v0 = f"(0 0 0)"
+    v1 = f"({x_exit} 0 0)"
+    v2 = f"({x_exit} {y_ex} {-z_ex})"
+    v3 = f"(0 {y_in} {-z_in})"
+    
+    # Back Face (z > 0)
+    v4 = f"(0 0 0)"
+    v5 = f"({x_exit} 0 0)"
+    v6 = f"({x_exit} {y_ex} {z_ex})"
+    v7 = f"(0 {y_in} {z_in})"
+    
+    # PolyLine Points for Top Edge (3-2) and (7-6)
+    # We need intermediate points defining the nozzle contour
+    # 1. Chamber part (constant R)
+    # 2. Throat constrict
+    # 3. Divergent
+    
+    edge_pts_front = ""
+    edge_pts_back = ""
+    
+    # Generate ~10 points
+    n_pts = 10
+    total_len = x_exit
+    
+    for i in range(1, n_pts):
+        xi = (i / n_pts) * total_len
+        
+        # Radius logic
+        if xi <= x_throat: # Simplistic: Linear taper from Chamber to Throat? No, chamber is cylinder usually
+             # Real rocket: Cylinder -> Convergent -> Throat -> Divergent
+             # User params: l_chamber, l_nozzle.
+             # x_throat is end of chamber? No, l_chamber is length of cylindrical section + convergent?
+             # Let's assume params["l_chamber"] is the point where throat is located for this simple code
+             if xi < params["l_chamber"] * 0.8: # Cylinder
+                 ri = r_inlet
+             elif xi < params["l_chamber"]: # Convergent (Cosine)
+                 t = (xi - params["l_chamber"]*0.8) / (params["l_chamber"]*0.2)
+                 ri = r_throat + (r_inlet - r_throat) * (0.5 * (1 + math.cos(t * math.pi)))
+             else: # Divergent (Linear or Bell) -> Linear for robustness
+                 t = (xi - params["l_chamber"]) / params["l_nozzle"]
+                 ri = r_throat + (r_exit - r_throat) * t
+        else:
+             t = (xi - params["l_chamber"]) / params["l_nozzle"]
+             ri = r_throat + (r_exit - r_throat) * t
+        
+        yi = ri * math.cos(theta)
+        zi = ri * math.sin(theta)
+        
+        edge_pts_front += f"        ({xi:.6f} {yi:.6f} {-zi:.6f})\n"
+        edge_pts_back += f"        ({xi:.6f} {yi:.6f} {zi:.6f})\n"
+
+    blockmesh = f"""FoamFile
+{{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      blockMeshDict;
+}}
+
+scale 1;
+
+vertices
+(
+    // Front face
+    {v0} // 0
+    {v1} // 1
+    {v2} // 2
+    {v3} // 3
+    
+    // Back face
+    {v4} // 4
+    {v5} // 5
+    {v6} // 6
+    {v7} // 7
 );
 
 blocks
@@ -341,6 +556,12 @@ blocks
 
 edges
 (
+    polyLine 3 2
+    (
+{edge_pts_front}    )
+    polyLine 7 6
+    (
+{edge_pts_back}    )
 );
 
 boundary
@@ -348,58 +569,38 @@ boundary
     inlet
     {{
         type patch;
-        faces
-        (
-            (0 4 7 3)
-        );
+        faces ((0 4 7 3));
     }}
     outlet
     {{
         type patch;
-        faces
-        (
-            (1 2 6 5)
-        );
+        faces ((1 2 6 5));
     }}
     wall
     {{
         type wall;
-        faces
-        (
-            (3 7 6 2)
-        );
+        faces ((3 7 6 2));
     }}
     axis
     {{
         type empty;
-        faces
-        (
-            (0 1 5 4)
-        );
+        faces ((0 1 5 4));
     }}
     front
     {{
         type wedge;
-        faces
-        (
-            (0 3 2 1)
-        );
+        faces ((0 3 2 1));
     }}
     back
     {{
         type wedge;
-        faces
-        (
-            (4 5 6 7)
-        );
+        faces ((4 5 6 7));
     }}
 );
 
 mergePatchPairs
-(
-);
+();
 """
-    
     with open(case_dir / "system" / "blockMeshDict", 'w') as f:
         f.write(blockmesh)
     
