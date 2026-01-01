@@ -298,6 +298,7 @@ def generate_openfoam_case(params: dict, case_dir: Path):
     # Top edge follows nozzle contour, then expands to far-field radius
     
     x_exit = l_chamber + l_nozzle
+    r_inlet = r_chamber  # Inlet radius = chamber radius
     
     # Far-field dimensions
     farfield_length = 4 * r_exit
