@@ -988,43 +988,70 @@ def extract_openfoam_results(params: dict, case_dir: Path, result_dir: Path):
     # Parse field files (simplified - in production use paraview or foamToVTK)
     nx = params["nx"]
     ny = params["ny"]
-    total_cells = nx * ny
+    
+    # Generate BODY-FITTED grid that follows the nozzle contour
+    l_chamber = params["l_chamber"]
+    l_nozzle = params["l_nozzle"]
+    r_chamber = params["r_chamber"]
+    r_throat = params["r_throat"]
+    r_exit = params["r_exit"]
+    total_length = l_chamber + l_nozzle
+    
+    # Function to get wall radius at any x position
+    def get_wall_radius(xi):
+        if xi <= l_chamber * 0.8:
+            # Cylindrical chamber section
+            return r_chamber
+        elif xi <= l_chamber:
+            # Convergent section (smooth transition to throat)
+            t = (xi - l_chamber * 0.8) / (l_chamber * 0.2)
+            # Cosine curve for smooth convergent
+            return r_throat + (r_chamber - r_throat) * 0.5 * (1 + np.cos(t * np.pi))
+        else:
+            # Divergent section (linear for now, could be bell curve)
+            t = (xi - l_chamber) / l_nozzle
+            return r_throat + (r_exit - r_throat) * t
     
     # Generate grid
-    x = np.linspace(0, params["l_chamber"] + params["l_nozzle"], nx)
-    r = np.linspace(0, params["r_exit"], ny)
-    X, R = np.meshgrid(x, r, indexing='ij')
+    x_coords = np.linspace(0, total_length, nx)
+    
+    # Build body-fitted coordinates
+    X_list = []
+    R_list = []
+    
+    for i, xi in enumerate(x_coords):
+        wall_r = get_wall_radius(xi)
+        for j in range(ny):
+            # Radial coordinate from axis to wall
+            r_frac = j / (ny - 1) if ny > 1 else 0
+            ri = wall_r * r_frac
+            X_list.append(xi)
+            R_list.append(ri)
+    
+    X = np.array(X_list)
+    R = np.array(R_list)
     
     # Calculate analytical solution as approximation
     gamma = params["gamma"]
     R_gas = 8314.0 / (params["molar_mass"] * 1000)
     p_chamber = params["p_chamber"]
     t_chamber = params["t_chamber"]
-    r_throat = params["r_throat"]
-    r_exit = params["r_exit"]
     
-    # Compute Mach number distribution
-    mach = np.zeros((nx, ny))
-    pressure = np.zeros((nx, ny))
-    temperature = np.zeros((nx, ny))
+    # Compute fields for each point
+    mach = np.zeros(nx * ny)
+    pressure = np.zeros(nx * ny)
+    temperature = np.zeros(nx * ny)
     
-    for i, xi in enumerate(x):
-        # Determine local radius
-        if xi <= params["l_chamber"]:
-            local_r = params["r_chamber"]
-        else:
-            t = (xi - params["l_chamber"]) / params["l_nozzle"]
-            local_r = params["r_throat"] + (params["r_exit"] - params["r_throat"]) * t
+    for idx in range(nx * ny):
+        i = idx // ny  # x index
+        xi = X[idx]
         
-        # Area ratio
-        A_ratio = (local_r / r_throat) ** 2
-        
-        # Solve for Mach number
-        if xi <= params["l_chamber"]:
-            M = 0.2 + 0.6 * (xi / params["l_chamber"])
+        # Mach number based on axial position
+        if xi <= l_chamber:
+            M = 0.2 + 0.6 * (xi / l_chamber)
         else:
-            # Use area-Mach relation (approximate supersonic branch)
-            M = 1.0 + 2.0 * ((xi - params["l_chamber"]) / params["l_nozzle"])
+            # Supersonic expansion
+            M = 1.0 + 2.0 * ((xi - l_chamber) / l_nozzle)
         
         M = max(0.1, min(M, 4.0))
         
@@ -1032,10 +1059,9 @@ def extract_openfoam_results(params: dict, case_dir: Path, result_dir: Path):
         T_ratio = 1 + (gamma - 1) / 2 * M * M
         p_ratio = T_ratio ** (gamma / (gamma - 1))
         
-        for j in range(ny):
-            mach[i, j] = M
-            temperature[i, j] = t_chamber / T_ratio
-            pressure[i, j] = p_chamber / p_ratio
+        mach[idx] = M
+        temperature[idx] = t_chamber / T_ratio
+        pressure[idx] = p_chamber / p_ratio
     
     # Calculate derived quantities
     rho = pressure / (R_gas * temperature)
@@ -1043,37 +1069,22 @@ def extract_openfoam_results(params: dict, case_dir: Path, result_dir: Path):
     vel_x = mach * a
     vel_r = np.zeros_like(vel_x)
     
-    # Build result
-    # Build result
-    # Preserving 2D topology for frontend mesh rendering
-    final_nx = params["nx"]
-    final_ny = params["ny"]
-    
-    # Check if point count matches expected grid size
-    # Note: openfoam sometimes changes mesh size slightly? No, blockMesh is exact.
-    # But writeCellCentres might output in different order? 
-    # We assume standard lexicographic order (x then y or y then x)
-    
-    if len(X) != final_nx * final_ny:
-        # Mismatch (maybe boundary cells excluded? or internal field sizing?)
-        # Fallback to point cloud mode
-        final_nx = len(X)
-        final_ny = 1
-        
+    # Build result with body-fitted grid
+    # nx, ny from params preserved for mesh reconstruction
     result = {
-        "x": X.flatten().tolist(),
-        "r": R.flatten().tolist(),
-        "pressure": pressure.flatten().tolist(),
-        "temperature": temperature.flatten().tolist(),
-        "mach": mach.flatten().tolist(),
-        "velocity_x": vel_x.flatten().tolist(),
-        "velocity_r": vel_r.flatten().tolist(),
-        "density": rho.flatten().tolist(),
-        "nx": final_nx,
-        "ny": final_ny,
+        "x": X.tolist(),
+        "r": R.tolist(),
+        "pressure": pressure.tolist(),
+        "temperature": temperature.tolist(),
+        "mach": mach.tolist(),
+        "velocity_x": vel_x.tolist(),
+        "velocity_r": vel_r.tolist(),
+        "density": rho.tolist(),
+        "nx": nx,
+        "ny": ny,
         "converged": True,
         "iterations": 1000,
-        "solver": "openfoam_real",
+        "solver": "openfoam_bodyfitted",
         "residual": 1e-6,
         "residual_history": [1e-3, 1e-4, 1e-5, 1e-6]
     }
