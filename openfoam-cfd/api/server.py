@@ -304,44 +304,12 @@ def generate_openfoam_case(params: dict, case_dir: Path):
     ny_total = max(10, ny)
     
     # Wedge angle for axisymmetric (5 degrees total = +/- 2.5 degrees)
-    # Calculate geometry points for spline
-    # Split into two blocks: Chamber (Cylinder) and Nozzle (Convergent-Divergent)
-    # Actually, let's keep it as one block for simplicity but use polyLine for the top edge
-    
+    wedge_angle = 2.5  # degrees
+    theta = math.radians(wedge_angle)
+
     # Define points for the nozzle top edge
     # From x=l_chamber to x=total_length
     # Curve goes from r_chamber -> r_throat -> r_exit
-    # We'll use a simple approach: chamber is straight constant R, then nozzle starts
-    
-    num_spline_points = 20
-    spline_points = []
-    
-    # Nozzle section (x from l_chamber to total_length)
-    dx_nozzle = params["l_nozzle"] / num_spline_points
-    
-    for i in range(1, num_spline_points): # Exclude start and end points
-        xi = params["l_chamber"] + i * dx_nozzle
-        t = (xi - params["l_chamber"]) / params["l_nozzle"]
-        # Linear approximation for now (Cone) - Spline is better but let's be robust
-        # Or better: use the user's defined throat/exit
-        # Use a COSINE curve or similar? Or just linear interpolation?
-        # User prompt implies "real CFD", so let's try a smooth curve if possible
-        # Or just linear for simplicity but changing radius
-        
-        # Quadratic approximation for convergent/divergent?
-        # Let's stick to linear interpolation between throat and exit for the divergent part?
-        # Wait, the block is ONE block from Inlet to Outlet.
-        # So we include the chamber part too.
-        
-        # Actually, let's just make it a Cone from Chamber Radius to Exit Radius?
-        # No, that's wrong. Chamber >= Throat <= Exit.
-        # Single block cannot capture the throat constriction easily without negative volume if not careful.
-        # BETTER STRATEGY: 2 Blocks.
-        # Block 1: Inlet to Throat (Convergent)
-        # Block 2: Throat to Outlet (Divergent)
-        pass # We will stick to 1 Block for robustness for now, but warp the top edge
-             # CAUTION: Single block 0->L with Chamber->Throat->Exit is hard because edges must be monotonic?
-             # No, edges can curve.
     
     # Let's use a simpler geometry for this attempt: Chamber + Divergent Nozzle (Cone)
     # This avoids the complex throat constriction mesh issues in a single block for restarts.
