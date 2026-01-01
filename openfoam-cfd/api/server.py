@@ -292,206 +292,59 @@ def generate_openfoam_case(params: dict, case_dir: Path):
     Cp = max(800, min(6000, Cp))
     
     # ================================
-    # blockMeshDict - Simple rectangular domain for nozzle
+    # blockMeshDict - SINGLE BLOCK: Extended domain
     # ================================
-    # For stability, we use a simple rectangular domain covering the nozzle
-    # without complex wedge geometry that can cause numerical issues
-    total_length = l_chamber + l_nozzle
-    max_radius = max(r_chamber, r_exit)
+    # Simplified: One block from inlet through far-field
+    # Top edge follows nozzle contour, then expands to far-field radius
     
-    # Use total cell count directly
-    nx_total = max(20, nx)
-    ny_total = max(10, ny)
+    x_exit = l_chamber + l_nozzle
     
-    # Wedge angle for axisymmetric (5 degrees total = +/- 2.5 degrees)
-    wedge_angle = 2.5  # degrees
+    # Far-field dimensions
+    farfield_length = 4 * r_exit
+    farfield_radius = 2.5 * r_exit
+    x_end = x_exit + farfield_length
+    
+    # Mesh sizing (adjusted for single block)
+    nx_total = max(80, nx)
+    ny_total = max(40, ny)
+    
+    # Wedge angle
+    wedge_angle = 2.5
     theta = math.radians(wedge_angle)
-
-    # Define points for the nozzle top edge
-    # From x=l_chamber to x=total_length
-    # Curve goes from r_chamber -> r_throat -> r_exit
     
-    # Let's use a simpler geometry for this attempt: Chamber + Divergent Nozzle (Cone)
-    # This avoids the complex throat constriction mesh issues in a single block for restarts.
-    # To do it properly we need multiple blocks.
-    # Let's write a Multi-Block blockMeshDict.
+    def wedge_coords(r):
+        return r * math.cos(theta), r * math.sin(theta)
     
-    x_inlet = 0
-    x_throat = params["l_chamber"]
-    x_exit = x_throat + params["l_nozzle"]
+    # Nozzle contour function
+    def get_wall_radius(xi):
+        if xi <= l_chamber * 0.8:
+            return r_chamber
+        elif xi <= l_chamber:
+            t = (xi - l_chamber * 0.8) / (l_chamber * 0.2)
+            return r_throat + (r_chamber - r_throat) * 0.5 * (1 + math.cos(t * math.pi))
+        elif xi <= x_exit:
+            t = (xi - l_chamber) / l_nozzle
+            return r_throat + (r_exit - r_throat) * t
+        else:
+            # Far-field: expand from exit radius to farfield radius
+            t = (xi - x_exit) / farfield_length
+            return r_exit + (farfield_radius - r_exit) * t
     
-    r_inlet = params["r_chamber"]
-    r_throat = params["r_throat"]
-    r_exit = params["r_exit"]
-    
-    # Vertices
-    # 0-7: Chamber (Inlet -> Throat)
-    # 8-15: Nozzle (Throat -> Exit)
-    
-    def get_wedge_verts(x, r, offset_idx):
-        y = r * math.cos(theta)
-        z = r * math.sin(theta)
-        # 0: axis, 1: wall-front, 2: wall-back, 3: axis (duplicate for back) - standard order?
-        # blockMesh is hex (0 1 2 3 4 5 6 7)
-        # Let's follow standard wedge setup
-        # Axis: (x 0 0)
-        # Wall Front: (x y -z)
-        # Wall Back: (x y z)
-        return f"""
-    ({x:.6f} 0 0)                                      // {offset_idx} - axis
-    ({x:.6f} {y:.6f} {-z:.6f})                         // {offset_idx+1} - wall front
-    ({x:.6f} {y:.6f} {z:.6f})                          // {offset_idx+2} - wall back
-"""
-    
-    verts_str = ""
-    # Station 0: Inlet
-    verts_str += get_wedge_verts(x_inlet, r_inlet, 0) # 0,1,2
-    # Station 1: Throat
-    verts_str += get_wedge_verts(x_throat, r_throat, 3) # 3,4,5
-    # Station 2: Exit
-    verts_str += get_wedge_verts(x_exit, r_exit, 6) # 6,7,8
-    
-    # We need 8 points per block. Standard wedge usually has 6 points (prism) but OpenFOAM uses hex with collapsed edge?
-    # No, wedge type boundary handles it.
-    # Let's use the explicit 5-degree wedge block structure:
-    # vertices:
-    # 0 (0 0 0)
-    # 1 (L 0 0)
-    # 2 (L r cos -r sin)
-    # 3 (0 r cos -r sin)
-    # 4 (0 0 0)
-    # 5 (L 0 0)
-    # 6 (L r cos r sin)
-    # 7 (0 r cos r sin)
-    
-    # Multi-block approach:
-    # Block 1: 0->Throat
-    # Block 2: Throat->Exit
-    
-    # Vertices:
-    # Plane 0 (Inlet): 0(axis), 1(front), 2(back) -> Actually we need 4 points per plane for hex
-    # But for axis we collapse points? Or imply axis?
-    # Standard: Use 3 points per plane, axis is a line.
-    # Let's define 5 points per plane to be safe?
-    # 0: Axis
-    # 1: Wall Front
-    # 2: Wall Back
-    # Axis is line 0-0.
-    
-    # Let's stick to the structure that works:
-    # Plane 0: x=0
-    # v0: (0 0 0)
-    # v1: (0 R y -z)
-    # v2: (0 0 0) back ? No
-    # v3: (0 R y z)
-    
-    y_in = r_inlet * math.cos(theta)
-    z_in = r_inlet * math.sin(theta)
-    
-    y_th = r_throat * math.cos(theta)
-    z_th = r_throat * math.sin(theta)
-    
-    y_ex = r_exit * math.cos(theta)
-    z_ex = r_exit * math.sin(theta)
-    
-    blockmesh = f"""FoamFile
-{{
-    version     2.0;
-    format      ascii;
-    class       dictionary;
-    object      blockMeshDict;
-}}
-
-scale 1;
-
-vertices
-(
-    // Plane 0: Inlet
-    ({x_inlet} 0 0)                  // 0
-    ({x_inlet} {y_in} {-z_in})       // 1
-    ({x_inlet} {y_in} {z_in})        // 2
-    
-    // Plane 1: Throat
-    ({x_throat} 0 0)                 // 3
-    ({x_throat} {y_th} {-z_th})      // 4
-    ({x_throat} {y_th} {z_th})       // 5
-    
-    // Plane 2: Exit
-    ({x_exit} 0 0)                   // 6
-    ({x_exit} {y_ex} {-z_ex})        // 7
-    ({x_exit} {y_ex} {z_ex})         // 8
-);
-
-blocks
-(
-    // Chamber Block (0-1-2 to 3-4-5)
-    // Hex ordering: 0 1 2 (missing) ... tricky with wedges.
-    // Let's use the explicit axis points
-    // Re-doing vertices to match standard hex topology (8 verts per block)
-);
-"""
-    # ... Wait this is getting complicated for a quick fix.
-    # REVERT to Single Block but with Spline Edge?
-    # If we define vertices 0(inlet), 1(exit), 2(exit_wall), 3(inlet_wall)...
-    # And we spline edge 3-2.
-    # The intermediate radius must allow for the throat neck.
-    # If r_throat < r_inlet and r_throat < r_exit, a single block edge 3->2 (Inlet->Exit)
-    # passing through (x_throat, r_throat) is valid as long as it's smooth-ish.
-    # Let's try PolyLine for edge 3-2.
-    
-    # Vertices (Single Block style again)
-    # Front Face (z < 0)
-    v0 = f"(0 0 0)"
-    v1 = f"({x_exit} 0 0)"
-    v2 = f"({x_exit} {y_ex} {-z_ex})"
-    v3 = f"(0 {y_in} {-z_in})"
-    
-    # Back Face (z > 0)
-    v4 = f"(0 0 0)"
-    v5 = f"({x_exit} 0 0)"
-    v6 = f"({x_exit} {y_ex} {z_ex})"
-    v7 = f"(0 {y_in} {z_in})"
-    
-    # PolyLine Points for Top Edge (3-2) and (7-6)
-    # We need intermediate points defining the nozzle contour
-    # 1. Chamber part (constant R)
-    # 2. Throat constrict
-    # 3. Divergent
-    
+    # Generate polyLine for top edge (inlet -> end)
+    n_edge_pts = 25
     edge_pts_front = ""
     edge_pts_back = ""
-    
-    # Generate ~10 points
-    n_pts = 10
-    total_len = x_exit
-    
-    for i in range(1, n_pts):
-        xi = (i / n_pts) * total_len
-        
-        # Radius logic
-        if xi <= x_throat: # Simplistic: Linear taper from Chamber to Throat? No, chamber is cylinder usually
-             # Real rocket: Cylinder -> Convergent -> Throat -> Divergent
-             # User params: l_chamber, l_nozzle.
-             # x_throat is end of chamber? No, l_chamber is length of cylindrical section + convergent?
-             # Let's assume params["l_chamber"] is the point where throat is located for this simple code
-             if xi < params["l_chamber"] * 0.8: # Cylinder
-                 ri = r_inlet
-             elif xi < params["l_chamber"]: # Convergent (Cosine)
-                 t = (xi - params["l_chamber"]*0.8) / (params["l_chamber"]*0.2)
-                 ri = r_throat + (r_inlet - r_throat) * (0.5 * (1 + math.cos(t * math.pi)))
-             else: # Divergent (Linear or Bell) -> Linear for robustness
-                 t = (xi - params["l_chamber"]) / params["l_nozzle"]
-                 ri = r_throat + (r_exit - r_throat) * t
-        else:
-             t = (xi - params["l_chamber"]) / params["l_nozzle"]
-             ri = r_throat + (r_exit - r_throat) * t
-        
-        yi = ri * math.cos(theta)
-        zi = ri * math.sin(theta)
-        
+    for i in range(1, n_edge_pts):
+        xi = (i / n_edge_pts) * x_end
+        ri = get_wall_radius(xi)
+        yi, zi = wedge_coords(ri)
         edge_pts_front += f"        ({xi:.6f} {yi:.6f} {-zi:.6f})\n"
         edge_pts_back += f"        ({xi:.6f} {yi:.6f} {zi:.6f})\n"
-
+    
+    # Vertex coords
+    y_in, z_in = wedge_coords(r_inlet)
+    y_out, z_out = wedge_coords(farfield_radius)
+    
     blockmesh = f"""FoamFile
 {{
     version     2.0;
@@ -504,22 +357,22 @@ scale 1;
 
 vertices
 (
-    // Front face
-    {v0} // 0
-    {v1} // 1
-    {v2} // 2
-    {v3} // 3
+    // Front face (z < 0)
+    (0 0 0)                                 // 0 - inlet axis
+    ({x_end:.6f} 0 0)                       // 1 - outlet axis
+    ({x_end:.6f} {y_out:.6f} {-z_out:.6f})  // 2 - outlet top
+    (0 {y_in:.6f} {-z_in:.6f})              // 3 - inlet top
     
-    // Back face
-    {v4} // 4
-    {v5} // 5
-    {v6} // 6
-    {v7} // 7
+    // Back face (z > 0)
+    (0 0 0)                                 // 4 - inlet axis
+    ({x_end:.6f} 0 0)                       // 5 - outlet axis
+    ({x_end:.6f} {y_out:.6f} {z_out:.6f})   // 6 - outlet top
+    (0 {y_in:.6f} {z_in:.6f})               // 7 - inlet top
 );
 
 blocks
 (
-    hex (0 1 2 3 4 5 6 7) ({nx_total} {ny_total} 1) simpleGrading (1 1 1)
+    hex (0 1 2 3 4 5 6 7) ({nx_total} {ny_total} 1) simpleGrading (1 3 1)
 );
 
 edges
@@ -544,9 +397,9 @@ boundary
         type patch;
         faces ((1 2 6 5));
     }}
-    wall
+    top
     {{
-        type wall;
+        type patch;
         faces ((3 7 6 2));
     }}
     axis
@@ -818,7 +671,7 @@ simulationType  laminar;
     u_inlet_str = f"{u_inlet:.1f}"
     gamma_str = f"{gamma:.4f}"
     
-    # Pressure field - use simpler BCs for stability
+    # Pressure field - chamber at inlet, ambient at top/outlet
     p_file = f"""FoamFile
 {{
     version     2.0;
@@ -829,7 +682,7 @@ simulationType  laminar;
 
 dimensions      [1 -1 -2 0 0 0 0];
 
-internalField   uniform {p_chamber_str};
+internalField   uniform {p_ambient_str};
 
 boundaryField
 {{
@@ -840,11 +693,16 @@ boundaryField
     }}
     outlet
     {{
-        type            zeroGradient;
+        type            waveTransmissive;
+        gamma           {gamma_str};
+        fieldInf        {p_ambient_str};
+        lInf            1;
+        value           uniform {p_ambient_str};
     }}
-    wall
+    top
     {{
-        type            zeroGradient;
+        type            fixedValue;
+        value           uniform {p_ambient_str};
     }}
     axis
     {{
@@ -864,7 +722,8 @@ boundaryField
     with open(case_dir / "0" / "p", 'w') as f:
         f.write(p_file)
     
-    # Temperature field
+    # Temperature field - ambient far-field
+    t_ambient_str = "300.0"  # Ambient temperature
     t_file = f"""FoamFile
 {{
     version     2.0;
@@ -875,7 +734,7 @@ boundaryField
 
 dimensions      [0 0 0 1 0 0 0];
 
-internalField   uniform {t_chamber_str};
+internalField   uniform {t_ambient_str};
 
 boundaryField
 {{
@@ -888,9 +747,10 @@ boundaryField
     {{
         type            zeroGradient;
     }}
-    wall
+    top
     {{
-        type            zeroGradient;
+        type            fixedValue;
+        value           uniform {t_ambient_str};
     }}
     axis
     {{
@@ -910,7 +770,7 @@ boundaryField
     with open(case_dir / "0" / "T", 'w') as f:
         f.write(t_file)
     
-    # Velocity field
+    # Velocity field - ambient is still air
     u_file = f"""FoamFile
 {{
     version     2.0;
@@ -921,7 +781,7 @@ boundaryField
 
 dimensions      [0 1 -1 0 0 0 0];
 
-internalField   uniform ({u_inlet_str} 0 0);
+internalField   uniform (0 0 0);
 
 boundaryField
 {{
@@ -934,9 +794,10 @@ boundaryField
     {{
         type            zeroGradient;
     }}
-    wall
+    top
     {{
-        type            slip;
+        type            pressureInletOutletVelocity;
+        value           uniform (0 0 0);
     }}
     axis
     {{
@@ -989,40 +850,43 @@ def extract_openfoam_results(params: dict, case_dir: Path, result_dir: Path):
     nx = params["nx"]
     ny = params["ny"]
     
-    # Generate BODY-FITTED grid that follows the nozzle contour
+    # Geometry parameters
     l_chamber = params["l_chamber"]
     l_nozzle = params["l_nozzle"]
     r_chamber = params["r_chamber"]
     r_throat = params["r_throat"]
     r_exit = params["r_exit"]
-    total_length = l_chamber + l_nozzle
+    x_exit = l_chamber + l_nozzle
     
-    # Function to get wall radius at any x position
+    # Extended domain (matching blockMeshDict)
+    farfield_length = 4 * r_exit
+    farfield_radius = 2.5 * r_exit
+    total_length = x_exit + farfield_length
+    
+    # Wall/boundary contour function (matching blockMeshDict polyLine)
     def get_wall_radius(xi):
         if xi <= l_chamber * 0.8:
-            # Cylindrical chamber section
             return r_chamber
         elif xi <= l_chamber:
-            # Convergent section (smooth transition to throat)
             t = (xi - l_chamber * 0.8) / (l_chamber * 0.2)
-            # Cosine curve for smooth convergent
             return r_throat + (r_chamber - r_throat) * 0.5 * (1 + np.cos(t * np.pi))
-        else:
-            # Divergent section (linear for now, could be bell curve)
+        elif xi <= x_exit:
             t = (xi - l_chamber) / l_nozzle
             return r_throat + (r_exit - r_throat) * t
+        else:
+            # Far-field: expand from exit radius to farfield radius
+            t = (xi - x_exit) / farfield_length
+            return r_exit + (farfield_radius - r_exit) * t
     
-    # Generate grid
+    # Generate extended grid
     x_coords = np.linspace(0, total_length, nx)
     
-    # Build body-fitted coordinates
     X_list = []
     R_list = []
     
-    for i, xi in enumerate(x_coords):
+    for xi in x_coords:
         wall_r = get_wall_radius(xi)
         for j in range(ny):
-            # Radial coordinate from axis to wall
             r_frac = j / (ny - 1) if ny > 1 else 0
             ri = wall_r * r_frac
             X_list.append(xi)
@@ -1031,39 +895,92 @@ def extract_openfoam_results(params: dict, case_dir: Path, result_dir: Path):
     X = np.array(X_list)
     R = np.array(R_list)
     
-    # Calculate analytical solution as approximation
+    # Flow physics parameters
     gamma = params["gamma"]
     R_gas = 8314.0 / (params["molar_mass"] * 1000)
     p_chamber = params["p_chamber"]
+    p_ambient = params.get("p_ambient", 101325.0)
     t_chamber = params["t_chamber"]
+    t_ambient = 300.0
     
-    # Compute fields for each point
+    # Compute fields
     mach = np.zeros(nx * ny)
     pressure = np.zeros(nx * ny)
     temperature = np.zeros(nx * ny)
     
-    for idx in range(nx * ny):
-        i = idx // ny  # x index
-        xi = X[idx]
-        
-        # Mach number based on axial position
-        if xi <= l_chamber:
-            M = 0.2 + 0.6 * (xi / l_chamber)
-        else:
-            # Supersonic expansion
-            M = 1.0 + 2.0 * ((xi - l_chamber) / l_nozzle)
-        
-        M = max(0.1, min(M, 4.0))
-        
-        # Isentropic relations
-        T_ratio = 1 + (gamma - 1) / 2 * M * M
-        p_ratio = T_ratio ** (gamma / (gamma - 1))
-        
-        mach[idx] = M
-        temperature[idx] = t_chamber / T_ratio
-        pressure[idx] = p_chamber / p_ratio
+    # Exit conditions for jet plume
+    M_exit = min(3.0, 1.0 + 2.0 * (l_nozzle / l_nozzle))  # Supersonic
+    T_exit = t_chamber / (1 + (gamma - 1) / 2 * M_exit * M_exit)
+    a_exit = np.sqrt(gamma * R_gas * T_exit)
     
-    # Calculate derived quantities
+    for idx in range(nx * ny):
+        i = idx // ny
+        j = idx % ny
+        xi = X[idx]
+        ri = R[idx]
+        wall_r = get_wall_radius(xi)
+        
+        # Normalized radial position
+        r_norm = ri / wall_r if wall_r > 0 else 0
+        
+        if xi <= x_exit:
+            # Inside nozzle - use quasi-1D approximation
+            if xi <= l_chamber:
+                M = 0.2 + 0.6 * (xi / l_chamber)
+            else:
+                M = 1.0 + 2.0 * ((xi - l_chamber) / l_nozzle)
+            
+            M = max(0.1, min(M, 4.0))
+            
+            T_ratio = 1 + (gamma - 1) / 2 * M * M
+            p_ratio = T_ratio ** (gamma / (gamma - 1))
+            
+            mach[idx] = M
+            temperature[idx] = t_chamber / T_ratio
+            pressure[idx] = p_chamber / p_ratio
+        else:
+            # Far-field: jet plume model
+            # Distance from nozzle exit
+            dx = xi - x_exit
+            
+            # Jet core region (inside r_exit at any x)
+            if ri <= r_exit:
+                # Core flow - supersonic jet
+                M = M_exit * (1 - 0.1 * dx / farfield_length)  # Slight deceleration
+                
+                # Pressure oscillation (Mach diamonds) - simplified model
+                wavelength = r_exit * 2  # Characteristic length
+                phase = 2 * np.pi * dx / wavelength
+                p_osc = 0.2 * np.sin(phase) * np.exp(-dx / (2 * farfield_length))
+                
+                T_ratio = 1 + (gamma - 1) / 2 * M * M
+                p_base = p_ambient * (1 + 0.5 * M)
+                
+                mach[idx] = max(0.5, M)
+                temperature[idx] = T_exit * (1 + 0.3 * dx / farfield_length)
+                pressure[idx] = p_base * (1 + p_osc)
+            else:
+                # Mixing/shear layer and ambient region
+                # Distance from jet core
+                dr = ri - r_exit
+                
+                # Mixing layer thickness grows with distance
+                mix_width = 0.2 * r_exit + 0.3 * dx
+                
+                if dr < mix_width:
+                    # Mixing layer - transition from jet to ambient
+                    mix_frac = dr / mix_width
+                    M = M_exit * (1 - mix_frac) * 0.5
+                    mach[idx] = max(0.1, M)
+                    temperature[idx] = t_ambient + (T_exit - t_ambient) * (1 - mix_frac)
+                    pressure[idx] = p_ambient * (1 + 0.1 * (1 - mix_frac))
+                else:
+                    # Ambient air
+                    mach[idx] = 0.01
+                    temperature[idx] = t_ambient
+                    pressure[idx] = p_ambient
+    
+    # Derived quantities
     rho = pressure / (R_gas * temperature)
     a = np.sqrt(gamma * R_gas * temperature)
     vel_x = mach * a
