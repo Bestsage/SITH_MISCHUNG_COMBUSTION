@@ -568,6 +568,14 @@ solvers
         relTol          0.1;
     }
 
+    e
+    {
+        solver          smoothSolver;
+        smoother        GaussSeidel;
+        tolerance       1e-06;
+        relTol          0.1;
+    }
+
     h
     {
         $U;
