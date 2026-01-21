@@ -40,25 +40,70 @@ function MotorMesh({
         }
     });
 
-    const getDefaultRadius = (t: number) => {
-        const rThroat = 0.020;
+    /**
+     * Generate nozzle radius using Python's Bézier curve algorithm (Rao method)
+     * This matches the oldmain.py calculate_geometry_profile function
+     */
+    const getDefaultRadius = (t: number): number => {
+        // Geometry parameters (matching typical motor)
+        const rThroat = 0.020;  // 20mm throat radius
         const contractionRatio = 3.5;
         const expansionRatio = 8.0;
         const rChamber = rThroat * Math.sqrt(contractionRatio);
         const rExit = rThroat * Math.sqrt(expansionRatio);
-        const chamberEnd = 0.55;
-        const throatStart = 0.60;
-        const throatEnd = 0.62;
 
-        if (t < chamberEnd) return rChamber;
-        else if (t < throatStart) {
-            const s = (t - chamberEnd) / (throatStart - chamberEnd);
-            const blend = (1.0 - Math.cos(s * Math.PI)) / 2.0;
-            return rChamber - (rChamber - rThroat) * blend;
-        } else if (t < throatEnd) return rThroat;
-        else {
-            const s = (t - throatEnd) / (1.0 - throatEnd);
-            return rThroat + (rExit - rThroat) * Math.pow(2.0 * s - s * s, 0.85);
+        // Lengths (normalized t goes from 0 to 1)
+        const totalLength = 0.35;  // meters
+        const lChamber = 0.12;     // chamber length
+        const lNozzle = totalLength - lChamber;  // nozzle length
+
+        // Angles (Python defaults)
+        const thetaN = 30 * Math.PI / 180;  // 30° initial nozzle angle
+        const thetaE = 8 * Math.PI / 180;   // 8° exit angle
+
+        // Convergent section ratio
+        const lConv = (rChamber - rThroat) * 1.5;
+        const chamberStart = 0;
+        const convStart = lChamber - lConv;
+        const throatPos = lChamber;
+
+        const x = t * totalLength;
+
+        if (x < convStart) {
+            // Cylindrical chamber
+            return rChamber;
+        } else if (x < throatPos) {
+            // Convergent with cosine curve (smooth like Python)
+            const xLocal = x - convStart;
+            const tConv = xLocal / lConv;
+            return rThroat + (rChamber - rThroat) * (1.0 - Math.sin(Math.PI * tConv / 2.0));
+        } else {
+            // Divergent with Bézier quadratic curve (Rao method)
+            const xLocal = x - throatPos;
+            const lb = lNozzle;
+
+            // Bézier control points
+            const p0 = { x: 0, y: rThroat };
+            const p2 = { x: lb, y: rExit };
+            const tanN = Math.tan(thetaN);
+            const tanE = Math.tan(thetaE);
+
+            // P1 = intersection of tangent lines
+            let denom = tanN - tanE;
+            if (Math.abs(denom) < 1e-9) denom = 1e-9;
+            const xInt = (rExit - rThroat - tanE * lb) / denom;
+            const p1 = { x: xInt, y: tanN * xInt + rThroat };
+
+            // Bézier parameter (0 to 1 along nozzle)
+            const tBez = Math.min(1.0, xLocal / lb);
+            const oneMinusT = 1.0 - tBez;
+
+            // Quadratic Bézier: B(t) = (1-t)²P0 + 2(1-t)tP1 + t²P2
+            const r = oneMinusT * oneMinusT * p0.y
+                + 2.0 * oneMinusT * tBez * p1.y
+                + tBez * tBez * p2.y;
+
+            return r;
         }
     };
 
