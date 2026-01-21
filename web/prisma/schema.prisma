@@ -1,0 +1,134 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// ============================================================================
+// UTILISATEURS
+// ============================================================================
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  image         String?
+  role          String    @default("USER") // USER, ADMIN, SUPERADMIN
+  createdAt     DateTime  @default(now())
+  lastLoginAt   DateTime?
+
+  // Relations
+  ownedProjects Project[]       @relation("ProjectOwner")
+  memberships   ProjectMember[]
+  activities    Activity[]
+  accounts      Account[]
+}
+
+// Pour NextAuth - stocke les comptes OAuth liés
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+// ============================================================================
+// PROJETS
+// ============================================================================
+
+model Project {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  grade       String   @default("FREE") // FREE, STANDARD, PREMIUM, ENTERPRISE
+  isPublic    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  ownerId    String
+  owner      User            @relation("ProjectOwner", fields: [ownerId], references: [id])
+  members    ProjectMember[]
+  data       ProjectData[]
+  activities Activity[]
+}
+
+model ProjectMember {
+  id       String   @id @default(cuid())
+  role     String   @default("VIEWER") // VIEWER, EDITOR, PROJECT_ADMIN, OWNER
+  joinedAt DateTime @default(now())
+
+  userId    String
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, projectId])
+}
+
+// ============================================================================
+// DONNÉES DE PROJET (Combustion, Cooling, CFD, etc.)
+// ============================================================================
+
+model ProjectData {
+  id        String   @id @default(cuid())
+  type      String   // "combustion", "cooling", "cfd", "nozzle", etc.
+  name      String?  // Nom optionnel pour identifier la config
+  data      String   // JSON stringifié (SQLite ne supporte pas Json natif)
+  version   Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+// ============================================================================
+// TRACKING D'ACTIVITÉ
+// ============================================================================
+
+model Activity {
+  id        String   @id @default(cuid())
+  type      String   // "login", "calculation", "project_create", "member_invite", etc.
+  metadata  String?  // JSON stringifié
+  createdAt DateTime @default(now())
+
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+}
+
+// ============================================================================
+// CLÉS API (pour accès futur)
+// ============================================================================
+
+model ApiKey {
+  id          String    @id @default(cuid())
+  name        String
+  keyHash     String    @unique // Hash de la clé, jamais stocker en clair
+  permissions String    @default("read") // "read", "write", "admin"
+  lastUsedAt  DateTime?
+  expiresAt   DateTime?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+
+  userId String
+}

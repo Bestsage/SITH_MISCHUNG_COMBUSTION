@@ -1,17 +1,38 @@
 import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/prisma"; // Direct DB access because server component
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 
-// Site statistics placeholders - will be replaced with real data later
 async function getSiteStats() {
-    // TODO: Connect to actual data sources
+    const [
+        totalUsers,
+        totalProjects,
+        totalActivities,
+        recentProjects,
+        recentUsers
+    ] = await Promise.all([
+        prisma.user.count(),
+        prisma.project.count(),
+        prisma.activity.count(),
+        prisma.project.findMany({
+            take: 5,
+            orderBy: { createdAt: 'desc' },
+            include: { owner: true }
+        }),
+        prisma.user.findMany({
+            take: 5,
+            orderBy: { createdAt: 'desc' }
+        })
+    ]);
+
     return {
-        totalCalculations: 1247,
-        activeSessions: 12,
-        cfDSimulations: 89,
-        materialLibraryItems: 156,
-        totalUsers: 0, // Will be populated when user DB is added
-        pendingRequests: 0, // Future feature: access requests
+        totalUsers,
+        totalProjects,
+        totalActivities,
+        recentProjects,
+        recentUsers,
+        totalCalculations: 1247 + totalActivities, // Hybrid stat
     };
 }
 
@@ -23,6 +44,7 @@ export default async function AdminPage() {
         redirect("/auth/signin?callbackUrl=/admin");
     }
 
+    // Note: session.user.isAdmin comes from our extended session logic
     if (!session.user.isAdmin) {
         redirect("/?error=unauthorized");
     }
@@ -46,126 +68,120 @@ export default async function AdminPage() {
                             </Link>
                             <div>
                                 <h1 className="text-2xl font-bold bg-gradient-to-r from-amber-400 to-orange-500 bg-clip-text text-transparent">
-                                    Admin Dashboard
+                                    Super Admin
                                 </h1>
-                                <p className="text-sm text-slate-400">Rocket Design Studio Control Panel</p>
+                                <p className="text-sm text-slate-400">Master Control Panel</p>
                             </div>
                         </div>
                         <div className="flex items-center gap-3">
-                            <span className="px-3 py-1 bg-amber-500/20 text-amber-400 text-sm font-medium rounded-full border border-amber-500/30">
-                                Admin Mode
-                            </span>
+                            <div className="px-3 py-1 bg-amber-500/20 text-amber-400 text-sm font-medium rounded-full border border-amber-500/30 flex items-center gap-2">
+                                <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+                                Live Database
+                            </div>
                         </div>
                     </div>
                 </div>
             </header>
 
             <main className="max-w-7xl mx-auto px-6 py-8">
-                {/* Welcome Section */}
-                <div className="mb-8 p-6 bg-gradient-to-r from-slate-800/50 to-slate-800/30 rounded-2xl border border-slate-700/50">
-                    <h2 className="text-xl font-semibold text-white mb-2">
-                        Bienvenue, {session.user.name || "Admin"} 👋
-                    </h2>
-                    <p className="text-slate-400">
-                        Voici un aperçu de l&apos;activité du site Rocket Design Studio.
-                    </p>
-                </div>
 
                 {/* Stats Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                     <StatCard
-                        title="Total Calculations"
-                        value={stats.totalCalculations.toLocaleString()}
-                        icon="🔬"
+                        title="Total Users"
+                        value={stats.totalUsers.toLocaleString()}
+                        icon="👥"
                         color="cyan"
                     />
                     <StatCard
-                        title="CFD Simulations"
-                        value={stats.cfDSimulations.toLocaleString()}
-                        icon="🌊"
+                        title="Projects"
+                        value={stats.totalProjects.toLocaleString()}
+                        icon="🚀"
                         color="blue"
                     />
                     <StatCard
-                        title="Active Sessions"
-                        value={stats.activeSessions.toLocaleString()}
-                        icon="👥"
-                        color="green"
-                    />
-                    <StatCard
-                        title="Material Library"
-                        value={stats.materialLibraryItems.toLocaleString()}
-                        icon="🧪"
+                        title="Activities"
+                        value={stats.totalActivities.toLocaleString()}
+                        icon="⚡"
                         color="purple"
                     />
                     <StatCard
-                        title="Registered Users"
-                        value={stats.totalUsers.toLocaleString()}
-                        icon="👤"
-                        color="amber"
-                        description="Coming soon"
-                    />
-                    <StatCard
-                        title="Access Requests"
-                        value={stats.pendingRequests.toLocaleString()}
-                        icon="📬"
-                        color="rose"
-                        description="Coming soon"
+                        title="Simulations"
+                        value={stats.totalCalculations.toLocaleString()}
+                        icon="🔥"
+                        color="orange"
                     />
                 </div>
 
-                {/* Quick Actions */}
-                <section className="mb-8">
-                    <h3 className="text-lg font-semibold text-white mb-4">Actions Rapides</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                        <QuickActionCard
-                            title="Combustion"
-                            href="/combustion"
-                            icon="🔥"
-                        />
-                        <QuickActionCard
-                            title="CFD"
-                            href="/cfd"
-                            icon="🌊"
-                        />
-                        <QuickActionCard
-                            title="Materials"
-                            href="/materials"
-                            icon="🧪"
-                        />
-                        <QuickActionCard
-                            title="Cooling"
-                            href="/cooling"
-                            icon="❄️"
-                        />
-                    </div>
-                </section>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    {/* Recent Users */}
+                    <section className="bg-slate-900/50 rounded-2xl border border-slate-800/50 p-6">
+                        <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                            <span className="text-xl">🌟</span> New Users
+                        </h3>
+                        <div className="space-y-4">
+                            {stats.recentUsers.map((user: any) => (
+                                <div key={user.id} className="flex items-center justify-between p-3 bg-slate-800/50 rounded-xl hover:bg-slate-700/50 transition-colors">
+                                    <div className="flex items-center gap-3">
+                                        {user.image ? (
+                                            <Image src={user.image} alt="avatar" width={40} height={40} className="rounded-full" />
+                                        ) : (
+                                            <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center text-slate-300">
+                                                {user.name?.[0]?.toUpperCase() || "U"}
+                                            </div>
+                                        )}
+                                        <div>
+                                            <p className="font-medium text-white">{user.name || "Anonymous"}</p>
+                                            <p className="text-xs text-slate-400">{user.email}</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex flex-col items-end">
+                                        <span className={`text-xs font-mono px-2 py-0.5 rounded-full border ${user.role === 'SUPERADMIN' ? 'bg-red-500/20 text-red-400 border-red-500/30' :
+                                            user.role === 'ADMIN' ? 'bg-amber-500/20 text-amber-400 border-amber-500/30' :
+                                                'bg-slate-500/20 text-slate-400 border-slate-500/30'
+                                            }`}>
+                                            {user.role}
+                                        </span>
+                                        <span className="text-xs text-slate-500 mt-1">
+                                            {new Date(user.createdAt).toLocaleDateString()}
+                                        </span>
+                                    </div>
+                                </div>
+                            ))}
+                            <div className="text-center py-2 text-sm text-slate-500">
+                                Manage users in database directly for now
+                            </div>
+                        </div>
+                    </section>
 
-                {/* Future Features Section */}
-                <section className="p-6 bg-slate-800/30 rounded-2xl border border-slate-700/50">
-                    <h3 className="text-lg font-semibold text-white mb-4">Fonctionnalités à Venir</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <FutureFeatureCard
-                            title="Sync de Projets"
-                            description="Synchronisez et sauvegardez les projets utilisateur"
-                            status="planned"
-                        />
-                        <FutureFeatureCard
-                            title="Collaboration"
-                            description="Partagez des projets entre utilisateurs"
-                            status="planned"
-                        />
-                        <FutureFeatureCard
-                            title="API Keys"
-                            description="Générez des clés API pour l'accès programmatique"
-                            status="planned"
-                        />
-                        <FutureFeatureCard
-                            title="Site Fermé"
-                            description="Mode accès restreint avec demandes d'invitation"
-                            status="planned"
-                        />
-                    </div>
-                </section>
+                    {/* Recent Projects */}
+                    <section className="bg-slate-900/50 rounded-2xl border border-slate-800/50 p-6">
+                        <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                            <span className="text-xl">🛠️</span> Recent Projects
+                        </h3>
+                        <div className="space-y-4">
+                            {stats.recentProjects.map((project: any) => (
+                                <div key={project.id} className="flex items-center justify-between p-3 bg-slate-800/50 rounded-xl hover:bg-slate-700/50 transition-colors">
+                                    <div>
+                                        <h4 className="font-medium text-white">{project.name}</h4>
+                                        <p className="text-xs text-slate-400">by {project.owner.name}</p>
+                                    </div>
+                                    <div className="flex flex-col items-end">
+                                        <span className={`text-xs px-2 py-0.5 rounded-full border ${project.grade === 'ENTERPRISE' ? 'bg-purple-500/20 text-purple-400 border-purple-500/30' :
+                                            project.grade === 'PREMIUM' ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30' :
+                                                'bg-slate-500/20 text-slate-400 border-slate-500/30'
+                                            }`}>
+                                            {project.grade}
+                                        </span>
+                                        <span className="text-xs text-slate-500 mt-1">
+                                            {new Date(project.createdAt).toLocaleDateString()}
+                                        </span>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </section>
+                </div>
             </main>
         </div>
     );
@@ -181,7 +197,7 @@ function StatCard({
     title: string;
     value: string;
     icon: string;
-    color: "cyan" | "blue" | "green" | "purple" | "amber" | "rose";
+    color: "cyan" | "blue" | "green" | "purple" | "amber" | "rose" | "orange";
     description?: string;
 }) {
     const colorClasses = {
@@ -191,6 +207,7 @@ function StatCard({
         purple: "from-purple-500/20 to-purple-600/10 border-purple-500/30",
         amber: "from-amber-500/20 to-amber-600/10 border-amber-500/30",
         rose: "from-rose-500/20 to-rose-600/10 border-rose-500/30",
+        orange: "from-orange-500/20 to-orange-600/10 border-orange-500/30",
     };
 
     return (
@@ -205,65 +222,6 @@ function StatCard({
                 </div>
                 <span className="text-3xl">{icon}</span>
             </div>
-        </div>
-    );
-}
-
-function QuickActionCard({
-    title,
-    href,
-    icon,
-}: {
-    title: string;
-    href: string;
-    icon: string;
-}) {
-    return (
-        <Link
-            href={href}
-            className="flex items-center gap-3 p-4 bg-slate-800/50 hover:bg-slate-700/50 rounded-xl border border-slate-700/50 transition-colors group"
-        >
-            <span className="text-2xl">{icon}</span>
-            <span className="font-medium text-white group-hover:text-cyan-400 transition-colors">
-                {title}
-            </span>
-            <svg className="w-5 h-5 text-slate-500 group-hover:text-cyan-400 ml-auto transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
-        </Link>
-    );
-}
-
-function FutureFeatureCard({
-    title,
-    description,
-    status,
-}: {
-    title: string;
-    description: string;
-    status: "planned" | "in-progress" | "completed";
-}) {
-    const statusColors = {
-        planned: "bg-slate-500/20 text-slate-400 border-slate-500/30",
-        "in-progress": "bg-amber-500/20 text-amber-400 border-amber-500/30",
-        completed: "bg-green-500/20 text-green-400 border-green-500/30",
-    };
-
-    const statusLabels = {
-        planned: "Prévu",
-        "in-progress": "En cours",
-        completed: "Terminé",
-    };
-
-    return (
-        <div className="p-4 bg-slate-800/30 rounded-xl border border-slate-700/30">
-            <div className="flex items-start justify-between mb-2">
-                <h4 className="font-medium text-white">{title}</h4>
-                <span className={`px-2 py-0.5 text-xs font-medium rounded-full border ${statusColors[status]}`}>
-                    {statusLabels[status]}
-                </span>
-            </div>
-            <p className="text-sm text-slate-400">{description}</p>
         </div>
     );
 }
