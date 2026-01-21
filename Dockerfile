@@ -2,13 +2,13 @@
 # Optimized for CasaOS deployment
 
 # === Stage 1: Frontend Build ===
-FROM node:22-alpine AS frontend-builder
+FROM node:22-slim AS frontend-builder
 WORKDIR /app
 
 # Copy package files
 COPY web/package*.json ./web/
 WORKDIR /app/web
-RUN apk add --no-cache python3 make g++
+RUN apt-get update && apt-get install -y python3 make g++
 RUN npm ci --legacy-peer-deps || npm install --legacy-peer-deps
 
 # Copy source and build
