@@ -1,10 +1,8 @@
 import NextAuth from "next-auth";
-import GitHub from "next-auth/providers/github";
-import Google from "next-auth/providers/google";
-import Discord from "next-auth/providers/discord";
-import Slack from "next-auth/providers/slack";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { prisma } from "@/lib/prisma";
+import { authConfig } from "./auth.config";
+
 
 // Extend the session type to include admin role
 declare module "next-auth" {
@@ -24,31 +22,11 @@ declare module "next-auth" {
 const ADMIN_EMAILS = (process.env.ADMIN_EMAIL || "").split(",").map((e) => e.trim().toLowerCase());
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
+    ...authConfig,
     adapter: PrismaAdapter(prisma),
-    providers: [
-        GitHub({
-            clientId: process.env.GITHUB_CLIENT_ID,
-            clientSecret: process.env.GITHUB_CLIENT_SECRET,
-        }),
-        Google({
-            clientId: process.env.GOOGLE_CLIENT_ID,
-            clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-        }),
-        Discord({
-            clientId: process.env.DISCORD_CLIENT_ID,
-            clientSecret: process.env.DISCORD_CLIENT_SECRET,
-        }),
-        Slack({
-            clientId: process.env.SLACK_CLIENT_ID,
-            clientSecret: process.env.SLACK_CLIENT_SECRET,
-        }),
-    ],
+    session: { strategy: "database" }, // Explicitly use database strategy with adapter
     callbacks: {
-        async jwt({ token, user }) {
-            // Add admin flag to the token (only needed if using JWT session, which Prisma adapter might not use by default but we can check)
-            // With database, NextAuth often uses database sessions, but we can stick to JWT strategy or just enhance session
-            return token;
-        },
+        ...authConfig.callbacks,
         async session({ session, user }) {
             // With database adapter, 'user' object is passed to session callback
             if (session.user && user) {
@@ -63,13 +41,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
                 // Auto-promote to SUPERADMIN if in env var
                 if (userEmail && ADMIN_EMAILS.includes(userEmail) && userRole !== 'SUPERADMIN') {
-                    // We can't await prisma here easily without causing delays, 
-                    // but technically we could update the user in DB if we imported prisma
-                    // For now, allow access via isAdmin flag
+                    // Optimization: Auto promote logic is handled in signIn event usually
                 }
             }
             return session;
-        },
+        }
     },
     events: {
         async signIn({ user }) {
@@ -97,9 +73,4 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             }
         }
     },
-    pages: {
-        signIn: "/auth/signin",
-        error: "/auth/error",
-    },
-    trustHost: true,
 });
