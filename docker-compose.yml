@@ -19,6 +19,10 @@ services:
       - RUST_BACKEND_URL=http://localhost:8000
       - CEA_SERVICE_URL=http://localhost:8001
       - OPENFOAM_URL=http://openfoam-cfd:8001
+      - DATABASE_URL=file:/app/db/dev.db
+    volumes:
+      - ./data:/app/db
+      - ./web/public/uploads:/app/web/public/uploads
     networks:
       - sith-network
     depends_on:

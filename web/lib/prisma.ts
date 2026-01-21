@@ -7,11 +7,11 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 // Ensure direct file path for better-sqlite3
-const dbPath = path.join(process.cwd(), "dev.db");
+const connectionString = process.env.DATABASE_URL ?? `file:${path.join(process.cwd(), "dev.db")}`;
 
 // Initialize adapter with the correct configuration object
 const adapter = new PrismaBetterSqlite3({
-    url: `file:${dbPath}`,
+    url: connectionString,
 });
 
 export const prisma =

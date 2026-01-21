@@ -8,6 +8,7 @@ WORKDIR /app
 # Copy package files
 COPY web/package*.json ./web/
 WORKDIR /app/web
+RUN apk add --no-cache python3 make g++
 RUN npm ci --legacy-peer-deps || npm install --legacy-peer-deps
 
 # Copy source and build
