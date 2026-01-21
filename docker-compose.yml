@@ -12,6 +12,8 @@ services:
       - "8000:8000"
     environment:
       - NEXT_PUBLIC_API_URL=https://api.mischungcombustor.uk
+      - NEXTAUTH_URL=https://mischungcombustor.uk
+      - AUTH_TRUST_HOST=true
       - RUST_BACKEND_URL=http://localhost:8000
       - CEA_SERVICE_URL=http://localhost:8001
       - OPENFOAM_URL=http://openfoam-cfd:8001
