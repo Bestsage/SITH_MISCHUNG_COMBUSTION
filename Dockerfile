@@ -11,7 +11,10 @@ WORKDIR /app/web
 RUN npm ci --legacy-peer-deps || npm install --legacy-peer-deps
 
 # Copy source and build
+# Copy source and build
 COPY web/ ./
+RUN ls -la
+RUN npx prisma generate
 RUN npm run build
 
 # === Stage 2: Rust Build ===
