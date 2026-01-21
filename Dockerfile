@@ -9,7 +9,8 @@ WORKDIR /app
 COPY web/package*.json ./web/
 WORKDIR /app/web
 RUN apt-get update && apt-get install -y python3 make g++
-RUN npm ci --legacy-peer-deps || npm install --legacy-peer-deps
+RUN rm -f package-lock.json
+RUN npm install --legacy-peer-deps
 
 # Copy source and build
 # Copy source and build
