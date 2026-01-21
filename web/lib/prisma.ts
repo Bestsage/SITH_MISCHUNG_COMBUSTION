@@ -9,11 +9,12 @@ const globalForPrisma = globalThis as unknown as {
 
 // Ensure direct file path for better-sqlite3
 // Ensure direct file path for better-sqlite3
+// Ensure direct file path for better-sqlite3
 const dbPath = path.join(process.cwd(), "dev.db");
-// Adapter expects simple config object apparently
-const adapter = new PrismaBetterSQLite3({
-    url: `file:${dbPath}`
-});
+// Initialize better-sqlite3 database instance
+const db = new Database(dbPath);
+// Pass the database instance to the adapter
+const adapter = new PrismaBetterSQLite3(db);
 
 export const prisma =
     globalForPrisma.prisma ??
