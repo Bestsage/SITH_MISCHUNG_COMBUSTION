@@ -8,22 +8,27 @@ const nextConfig: NextConfig = {
     },
   },
   async rewrites() {
-    return [
-      // CFD API routes -> OpenFOAM container (direct, avoids timeout)
-      {
-        source: '/api/cfd/:path*',
-        destination: 'http://openfoam-cfd:8001/api/cfd/:path*',
-      },
-      // All other API routes -> Rust backend
-      {
-        source: '/api/:path*',
-        destination: 'http://localhost:8000/api/:path*', // Proxy to Rust backend
-      },
-      {
-        source: '/docs', // Optional: Proxy documentation if needed
-        destination: 'http://localhost:8000/docs',
-      }
-    ];
+    return {
+      // Auth routes should NOT be proxied - handled by NextAuth
+      beforeFiles: [],
+      afterFiles: [
+        // CFD API routes -> OpenFOAM container (direct, avoids timeout)
+        {
+          source: '/api/cfd/:path*',
+          destination: 'http://openfoam-cfd:8001/api/cfd/:path*',
+        },
+        // All other API routes -> Rust backend (except auth)
+        {
+          source: '/api/:path((?!auth).*)',
+          destination: 'http://localhost:8000/api/:path*',
+        },
+        {
+          source: '/docs',
+          destination: 'http://localhost:8000/docs',
+        }
+      ],
+      fallback: [],
+    };
   },
 };
 
