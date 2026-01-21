@@ -13,7 +13,8 @@ RUN npm ci --legacy-peer-deps || npm install --legacy-peer-deps
 # Copy source and build
 # Copy source and build
 COPY web/ ./
-RUN ls -la
+RUN echo "=== DEBUG FILE STRUCTURE ===" && ls -R lib/ && ls -R app/
+RUN echo "=== DEBUG TSCONFIG ===" && cat tsconfig.json
 RUN npx prisma generate
 RUN npm run build
 
