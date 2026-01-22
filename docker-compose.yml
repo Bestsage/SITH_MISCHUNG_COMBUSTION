@@ -15,8 +15,12 @@ services:
     environment:
       - NEXT_PUBLIC_API_URL=https://api.mischungcombustor.uk
       - NEXTAUTH_URL=https://mischungcombustor.uk
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
       - AUTH_TRUST_HOST=true
       - AUTH_BYPASS=true
+      - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID}
+      - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET}
+      - ADMIN_EMAIL=${ADMIN_EMAIL}
       - RUST_BACKEND_URL=http://localhost:8000
       - CEA_SERVICE_URL=http://localhost:8001
       - OPENFOAM_URL=http://openfoam-cfd:8001
