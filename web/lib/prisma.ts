@@ -6,11 +6,19 @@ const globalForPrisma = globalThis as unknown as {
     prisma: PrismaClient | undefined;
 };
 
-// Ensure direct file path for better-sqlite3 - pointing to prisma/dev.db
-const dbPath = path.join(process.cwd(), "prisma", "dev.db");
-const connectionString = `file:${dbPath}`;
+// Use DATABASE_URL if defined, otherwise fallback to local prisma/dev.db
+let connectionString: string;
 
-console.log("Prisma DB path:", dbPath);
+if (process.env.DATABASE_URL) {
+    // Use the environment variable directly
+    connectionString = process.env.DATABASE_URL;
+    console.log("Prisma using DATABASE_URL:", connectionString);
+} else {
+    // Fallback for local development
+    const dbPath = path.join(process.cwd(), "prisma", "dev.db");
+    connectionString = `file:${dbPath}`;
+    console.log("Prisma using local path:", dbPath);
+}
 
 // Initialize adapter with the correct configuration object
 const adapter = new PrismaBetterSQLite3({

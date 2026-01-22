@@ -12,6 +12,8 @@ export async function POST(request: Request) {
         const body = await request.json();
         const { name, email, password } = body;
 
+        console.log("[Signup] Attempting signup for:", email);
+
         if (!name || !email || !password) {
             return NextResponse.json(
                 { error: "Tous les champs sont requis" },
@@ -27,9 +29,19 @@ export async function POST(request: Request) {
         }
 
         // Check if user already exists
-        const existingUser = await prisma.user.findUnique({
-            where: { email: email.toLowerCase() }
-        });
+        let existingUser;
+        try {
+            existingUser = await prisma.user.findUnique({
+                where: { email: email.toLowerCase() }
+            });
+            console.log("[Signup] Existing user check:", existingUser ? "found" : "not found");
+        } catch (dbError) {
+            console.error("[Signup] Database error checking user:", dbError);
+            return NextResponse.json(
+                { error: "Erreur de base de données" },
+                { status: 500 }
+            );
+        }
 
         if (existingUser) {
             return NextResponse.json(
