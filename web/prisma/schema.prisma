@@ -30,6 +30,7 @@ model User {
   memberships   ProjectMember[]
   activities    Activity[]
   accounts      Account[]
+  sessions      Session[]
 }
 
 // Pour NextAuth - stocke les comptes OAuth liés
@@ -50,6 +51,24 @@ model Account {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
+}
+
+// Pour NextAuth - stocke les sessions (requis avec strategy: "database")
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// Pour NextAuth - tokens de vérification email (optionnel mais recommandé)
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
 }
 
 // ============================================================================
