@@ -56,6 +56,8 @@ function SignInContent() {
         setIsLoading(true);
         setLoginError("");
 
+        console.log("[SignIn] Attempting login with email:", email);
+
         try {
             const result = await signIn("credentials", {
                 email,
@@ -64,12 +66,17 @@ function SignInContent() {
                 callbackUrl,
             });
 
+            console.log("[SignIn] Result:", result);
+
             if (result?.error) {
+                console.log("[SignIn] Error:", result.error);
                 setLoginError("Email ou mot de passe incorrect");
             } else if (result?.ok) {
+                console.log("[SignIn] Success, redirecting to:", callbackUrl);
                 window.location.href = callbackUrl;
             }
-        } catch {
+        } catch (err) {
+            console.error("[SignIn] Exception:", err);
             setLoginError("Une erreur est survenue");
         } finally {
             setIsLoading(false);
