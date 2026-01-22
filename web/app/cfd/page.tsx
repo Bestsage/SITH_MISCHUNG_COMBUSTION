@@ -256,18 +256,20 @@ interface CFDHeatmapProps {
 
 function CFDHeatmapShader({ result, field, colormap, showContours, contourInterval, showWireframe, onHover }: CFDHeatmapProps) {
     const meshRef = useRef<THREE.Mesh>(null);
+    const meshMirrorRef = useRef<THREE.Mesh>(null);
     const wireframeRef = useRef<THREE.LineSegments>(null);
+    const wireframeMirrorRef = useRef<THREE.LineSegments>(null);
     const { camera, gl } = useThree();
     const raycaster = useRef(new THREE.Raycaster());
     const mouse = useRef(new THREE.Vector2());
 
-    const { geometry, shaderMaterial, wireframeGeometry, minVal, maxVal } = useMemo(() => {
+    const { geometry, geometryMirror, shaderMaterial, wireframeGeometry, wireframeGeometryMirror, minVal, maxVal } = useMemo(() => {
         const nx = result.nx;
         const ny = result.ny;
         const fieldData = result[field];
 
         if (!fieldData || fieldData.length === 0 || nx < 2 || ny < 2) {
-            return { geometry: null, shaderMaterial: null, wireframeGeometry: null, minVal: 0, maxVal: 1 };
+            return { geometry: null, geometryMirror: null, shaderMaterial: null, wireframeGeometry: null, wireframeGeometryMirror: null, minVal: 0, maxVal: 1 };
         }
 
         // Calculate Min/Max
@@ -281,19 +283,62 @@ function CFDHeatmapShader({ result, field, colormap, showContours, contourInterv
         if (!Number.isFinite(min)) { min = 0; max = 1; }
         if (max <= min) max = min + 1e-6;
 
-        // Generate geometry
+        // Generate geometry - HORIZONTAL with FULL SYMMETRY (top + bottom)
         const numPoints = result.x.length;
         const positions = new Float32Array(numPoints * 3);
+        const positionsMirror = new Float32Array(numPoints * 3);
         const fieldValues = new Float32Array(numPoints);
         const velocities = new Float32Array(numPoints * 2);
 
         const max_x = Math.max(...result.x) || 1;
         const scale = 20 / max_x;
+        
+        // Find nozzle exit position (where throat is minimum r on wall)
+        let nozzleExitX = 0;
+        let minWallR = Infinity;
+        for (let i = 0; i < nx; i++) {
+            const wallIdx = i * ny + (ny - 1);
+            if (wallIdx < result.r.length && result.r[wallIdx] < minWallR) {
+                minWallR = result.r[wallIdx];
+            }
+        }
+        // Find where wall radius starts expanding beyond throat (that's nozzle region)
+        for (let i = 0; i < nx; i++) {
+            const wallIdx = i * ny + (ny - 1);
+            const axisIdx = i * ny;
+            if (wallIdx < result.r.length) {
+                // Check if this is past the divergent section (wall expanding rapidly or constant = far-field)
+                if (i > 0) {
+                    const prevWallIdx = (i - 1) * ny + (ny - 1);
+                    const wallR = result.r[wallIdx];
+                    const prevWallR = result.r[prevWallIdx];
+                    const deltaR = wallR - prevWallR;
+                    const deltaX = result.x[wallIdx] - result.x[prevWallIdx];
+                    const slope = deltaR / (deltaX + 1e-10);
+                    // Far-field has very steep expansion (slope > 1) - mark exit before that
+                    if (slope > 0.8 && wallR > minWallR * 1.5) {
+                        nozzleExitX = result.x[prevWallIdx];
+                        break;
+                    }
+                }
+            }
+        }
+        if (nozzleExitX === 0) nozzleExitX = max_x * 0.3; // Fallback
 
         for (let i = 0; i < numPoints; i++) {
-            positions[i * 3] = result.x[i] * scale - 10;
-            positions[i * 3 + 1] = result.r[i] * scale;
+            // Horizontal: x stays x, r becomes y
+            const posX = result.x[i] * scale - 10;  // Axial -> horizontal (centered)
+            const posY = result.r[i] * scale;       // Radial -> vertical
+            
+            // Upper half (positive Y)
+            positions[i * 3] = posX;
+            positions[i * 3 + 1] = posY;
             positions[i * 3 + 2] = 0;
+            
+            // Lower half (negative Y) - mirror
+            positionsMirror[i * 3] = posX;
+            positionsMirror[i * 3 + 1] = -posY;
+            positionsMirror[i * 3 + 2] = 0;
 
             let val = fieldData[i];
             if (!Number.isFinite(val)) val = min;
@@ -305,26 +350,53 @@ function CFDHeatmapShader({ result, field, colormap, showContours, contourInterv
         }
 
         // Generate indices for triangulated mesh
+        // SKIP triangles that are in "ambient" zone (very low Mach outside nozzle)
         const indexArray: number[] = [];
+        const machData = result.mach;
+        const ambientThreshold = 0.02; // Below this = ambient air, don't draw
+        
         for (let i = 0; i < nx - 1; i++) {
             for (let j = 0; j < ny - 1; j++) {
                 const a = i * ny + j;
                 const b = i * ny + j + 1;
                 const c = (i + 1) * ny + j;
                 const d = (i + 1) * ny + j + 1;
-
-                indexArray.push(a, d, b);
-                indexArray.push(a, c, d);
+                
+                // Check if this quad is in the plume region or nozzle
+                const xi = result.x[a];
+                const isInsideNozzle = xi <= nozzleExitX;
+                
+                // For far-field, only draw if at least one vertex has significant Mach
+                const maxMachInQuad = Math.max(
+                    machData[a] || 0,
+                    machData[b] || 0,
+                    machData[c] || 0,
+                    machData[d] || 0
+                );
+                
+                // Draw if inside nozzle OR if there's significant flow
+                if (isInsideNozzle || maxMachInQuad > ambientThreshold) {
+                    indexArray.push(a, d, b);
+                    indexArray.push(a, c, d);
+                }
             }
         }
 
+        // Upper half geometry
         const geom = new THREE.BufferGeometry();
         geom.setAttribute('position', new THREE.BufferAttribute(positions, 3));
         geom.setAttribute('fieldValue', new THREE.BufferAttribute(fieldValues, 1));
         geom.setAttribute('velocity', new THREE.BufferAttribute(velocities, 2));
         geom.setIndex(indexArray);
 
-        // Wireframe geometry
+        // Lower half (mirrored) geometry
+        const geomMirror = new THREE.BufferGeometry();
+        geomMirror.setAttribute('position', new THREE.BufferAttribute(positionsMirror, 3));
+        geomMirror.setAttribute('fieldValue', new THREE.BufferAttribute(fieldValues.slice(), 1));
+        geomMirror.setAttribute('velocity', new THREE.BufferAttribute(velocities.slice(), 2));
+        geomMirror.setIndex(indexArray.slice());
+
+        // Wireframe geometry - upper
         const wireGeom = new THREE.BufferGeometry();
         wireGeom.setAttribute('position', new THREE.BufferAttribute(positions.slice(), 3));
         const wireIndices: number[] = [];
@@ -345,6 +417,11 @@ function CFDHeatmapShader({ result, field, colormap, showContours, contourInterv
         }
         wireGeom.setIndex(wireIndices);
 
+        // Wireframe geometry - lower (mirrored)
+        const wireGeomMirror = new THREE.BufferGeometry();
+        wireGeomMirror.setAttribute('position', new THREE.BufferAttribute(positionsMirror.slice(), 3));
+        wireGeomMirror.setIndex(wireIndices.slice());
+
         // Shader material
         const shader = new THREE.ShaderMaterial({
             vertexShader: CFD_VERTEX_SHADER,
@@ -360,7 +437,7 @@ function CFDHeatmapShader({ result, field, colormap, showContours, contourInterv
             side: THREE.DoubleSide,
         });
 
-        return { geometry: geom, shaderMaterial: shader, wireframeGeometry: wireGeom, minVal: min, maxVal: max };
+        return { geometry: geom, geometryMirror: geomMirror, shaderMaterial: shader, wireframeGeometry: wireGeom, wireframeGeometryMirror: wireGeomMirror, minVal: min, maxVal: max };
     }, [result, field, colormap, showContours, contourInterval]);
 
     // Update uniforms when props change
@@ -377,18 +454,18 @@ function CFDHeatmapShader({ result, field, colormap, showContours, contourInterv
         if (!meshRef.current || !onHover) return;
 
         raycaster.current.setFromCamera(mouse.current, camera);
-        const intersects = raycaster.current.intersectObject(meshRef.current);
+        const intersects = raycaster.current.intersectObjects([meshRef.current, meshMirrorRef.current!].filter(Boolean));
 
         if (intersects.length > 0) {
             const hit = intersects[0];
             const faceIdx = hit.faceIndex;
             if (faceIdx === undefined) return;
 
-            // Find closest data point
+            // Find closest data point - HORIZONTAL
             const max_x = Math.max(...result.x) || 1;
             const scale = 20 / max_x;
-            const worldX = (hit.point.x + 10) / scale;
-            const worldR = hit.point.y / scale;
+            const worldX = (hit.point.x + 10) / scale;  // Axial position
+            const worldR = Math.abs(hit.point.y) / scale;  // Radial (absolute)
 
             // Find nearest index
             let nearestIdx = 0;
@@ -436,15 +513,23 @@ function CFDHeatmapShader({ result, field, colormap, showContours, contourInterv
         };
     }, [gl, onHover]);
 
-    if (!geometry || !shaderMaterial) return null;
+    if (!geometry || !geometryMirror || !shaderMaterial) return null;
 
     return (
         <group>
+            {/* Upper half */}
             <mesh ref={meshRef} geometry={geometry} material={shaderMaterial} />
-            {showWireframe && wireframeGeometry && (
-                <lineSegments ref={wireframeRef} geometry={wireframeGeometry}>
-                    <lineBasicMaterial attach="material" color="#ffffff" opacity={0.15} transparent linewidth={1} />
-                </lineSegments>
+            {/* Lower half (mirrored) */}
+            <mesh ref={meshMirrorRef} geometry={geometryMirror} material={shaderMaterial} />
+            {showWireframe && wireframeGeometry && wireframeGeometryMirror && (
+                <>
+                    <lineSegments ref={wireframeRef} geometry={wireframeGeometry}>
+                        <lineBasicMaterial attach="material" color="#ffffff" opacity={0.15} transparent linewidth={1} />
+                    </lineSegments>
+                    <lineSegments ref={wireframeMirrorRef} geometry={wireframeGeometryMirror}>
+                        <lineBasicMaterial attach="material" color="#ffffff" opacity={0.15} transparent linewidth={1} />
+                    </lineSegments>
+                </>
             )}
         </group>
     );
@@ -480,53 +565,62 @@ function VectorFieldOverlay({ result, scale = 1 }: { result: CFDResult; scale?: 
         }
         if (maxVel < 1) maxVel = 1;
 
+        // Helper to add arrow at position
+        const addArrow = (posX: number, posY: number, vx: number, vy: number, vel: number) => {
+            if (vel < maxVel * 0.01) return; // Skip near-zero velocity
+
+            // Arrow length proportional to velocity magnitude
+            const arrowLength = 0.3 * scale * (vel / maxVel);
+            const angle = Math.atan2(vy, vx);
+
+            // Arrow shaft
+            const endX = posX + Math.cos(angle) * arrowLength;
+            const endY = posY + Math.sin(angle) * arrowLength;
+
+            // Shaft line
+            positions.push(posX, posY, 0.01, endX, endY, 0.01);
+
+            // Arrow head
+            const headSize = arrowLength * 0.3;
+            const headAngle1 = angle + Math.PI * 0.8;
+            const headAngle2 = angle - Math.PI * 0.8;
+
+            positions.push(
+                endX, endY, 0.01,
+                endX + Math.cos(headAngle1) * headSize, endY + Math.sin(headAngle1) * headSize, 0.01
+            );
+            positions.push(
+                endX, endY, 0.01,
+                endX + Math.cos(headAngle2) * headSize, endY + Math.sin(headAngle2) * headSize, 0.01
+            );
+
+            // Color based on velocity magnitude
+            const t = vel / maxVel;
+            const color = new THREE.Color().setHSL(0.55 - t * 0.55, 0.9, 0.6);
+
+            // 6 vertices per arrow (shaft + 2 head lines)
+            for (let k = 0; k < 6; k++) {
+                colors.push(color.r, color.g, color.b);
+            }
+        };
+
         for (let i = 0; i < nx; i += sampleX) {
             for (let j = 0; j < ny; j += sampleY) {
                 const idx = i * ny + j;
                 if (idx >= result.x.length) continue;
 
-                const x = result.x[idx] * scalePos - 10;
-                const y = result.r[idx] * scalePos;
+                // Horizontal orientation
+                const posX = result.x[idx] * scalePos - 10;
+                const posY = result.r[idx] * scalePos;
 
                 const vx = result.velocity_x[idx] || 0;
                 const vy = result.velocity_r?.[idx] || 0;
                 const vel = Math.sqrt(vx * vx + vy * vy);
 
-                if (vel < maxVel * 0.01) continue; // Skip near-zero velocity
-
-                // Arrow length proportional to velocity magnitude
-                const arrowLength = 0.4 * scale * (vel / maxVel);
-                const angle = Math.atan2(vy, vx);
-
-                // Arrow shaft
-                const endX = x + Math.cos(angle) * arrowLength;
-                const endY = y + Math.sin(angle) * arrowLength;
-
-                // Shaft line
-                positions.push(x, y, 0.01, endX, endY, 0.01);
-
-                // Arrow head
-                const headSize = arrowLength * 0.3;
-                const headAngle1 = angle + Math.PI * 0.8;
-                const headAngle2 = angle - Math.PI * 0.8;
-
-                positions.push(
-                    endX, endY, 0.01,
-                    endX + Math.cos(headAngle1) * headSize, endY + Math.sin(headAngle1) * headSize, 0.01
-                );
-                positions.push(
-                    endX, endY, 0.01,
-                    endX + Math.cos(headAngle2) * headSize, endY + Math.sin(headAngle2) * headSize, 0.01
-                );
-
-                // Color based on velocity magnitude
-                const t = vel / maxVel;
-                const color = new THREE.Color().setHSL(0.55 - t * 0.55, 0.9, 0.6);
-
-                // 6 vertices per arrow (shaft + 2 head lines)
-                for (let k = 0; k < 6; k++) {
-                    colors.push(color.r, color.g, color.b);
-                }
+                // Upper half
+                addArrow(posX, posY, vx, vy, vel);
+                // Lower half (mirrored)
+                addArrow(posX, -posY, vx, -vy, vel);
             }
         }
 
@@ -552,56 +646,117 @@ function VectorFieldOverlay({ result, scale = 1 }: { result: CFDResult; scale?: 
 // ============================================================================
 
 function NozzleContour({ result }: { result: CFDResult }) {
-    const { wallGeom, axisGeom } = useMemo(() => {
+    const { wallGeomUpper, wallGeomLower, axisGeom } = useMemo(() => {
         const nx = result.nx;
         const ny = result.ny;
-        if (nx < 2 || ny < 2) return { wallGeom: null, axisGeom: null };
+        if (nx < 2 || ny < 2) return { wallGeomUpper: null, wallGeomLower: null, axisGeom: null };
 
         const max_x = Math.max(...result.x) || 1;
         const scale = 20 / max_x;
 
-        const wallPositions: number[] = [];
-        const axisPositions: number[] = [];
-
-        // Extract wall contour (last row: j = ny-1)
+        // Extract wall radii to find nozzle exit
+        const wallRadii: number[] = [];
+        const wallX: number[] = [];
         for (let i = 0; i < nx; i++) {
             const idx = i * ny + (ny - 1);
             if (idx < result.x.length) {
-                wallPositions.push(
-                    result.x[idx] * scale - 10,
-                    result.r[idx] * scale,
-                    0.02
-                );
+                wallRadii.push(result.r[idx]);
+                wallX.push(result.x[idx]);
             }
         }
 
-        // Axis line (j = 0)
-        for (let i = 0; i < nx; i++) {
+        // Find throat (minimum radius)
+        let throatIdx = 0;
+        let minR = Infinity;
+        for (let i = 0; i < wallRadii.length; i++) {
+            if (wallRadii[i] < minR) {
+                minR = wallRadii[i];
+                throatIdx = i;
+            }
+        }
+
+        // Find nozzle exit: after throat, find where radius stops increasing 
+        // or starts decreasing (that's where far-field begins)
+        let exitIdx = wallRadii.length - 1;
+        for (let i = throatIdx + 1; i < wallRadii.length - 1; i++) {
+            // If radius starts decreasing or stays flat after divergent, that's the exit
+            if (wallRadii[i + 1] < wallRadii[i] - 0.0001) {
+                exitIdx = i;
+                break;
+            }
+            // Also detect if we're past the main divergent section (far-field typically has linear expansion)
+            // Check for sudden change in slope
+            if (i > throatIdx + 5) {
+                const slope1 = (wallRadii[i] - wallRadii[i - 1]) / (wallX[i] - wallX[i - 1] + 1e-10);
+                const slope2 = (wallRadii[i + 1] - wallRadii[i]) / (wallX[i + 1] - wallX[i] + 1e-10);
+                // If slope suddenly increases a lot (far-field expansion), stop here
+                if (slope2 > slope1 * 2 && slope2 > 0.3) {
+                    exitIdx = i;
+                    break;
+                }
+            }
+        }
+
+        const wallPositionsUpper: number[] = [];
+        const wallPositionsLower: number[] = [];
+        const axisPositions: number[] = [];
+
+        // Only draw wall contour up to nozzle exit (not far-field)
+        for (let i = 0; i <= exitIdx; i++) {
+            const idx = i * ny + (ny - 1);
+            if (idx < result.x.length) {
+                const posX = result.x[idx] * scale - 10;
+                const posY = result.r[idx] * scale;
+                
+                wallPositionsUpper.push(posX, posY, 0.02);
+                wallPositionsLower.push(posX, -posY, 0.02);
+            }
+        }
+
+        // Axis line only up to nozzle exit
+        for (let i = 0; i <= exitIdx; i++) {
             const idx = i * ny;
             if (idx < result.x.length) {
-                axisPositions.push(
-                    result.x[idx] * scale - 10,
-                    0,
-                    0.02
-                );
+                const posX = result.x[idx] * scale - 10;
+                axisPositions.push(posX, 0, 0.02);
             }
         }
 
-        const wGeom = new THREE.BufferGeometry();
-        wGeom.setAttribute('position', new THREE.Float32BufferAttribute(wallPositions, 3));
+        // Add closing lines at exit (vertical lines to show nozzle end)
+        if (exitIdx > 0) {
+            const exitWallIdx = exitIdx * ny + (ny - 1);
+            const exitAxisIdx = exitIdx * ny;
+            if (exitWallIdx < result.x.length && exitAxisIdx < result.x.length) {
+                const exitX = result.x[exitWallIdx] * scale - 10;
+                const exitR = result.r[exitWallIdx] * scale;
+                // Add exit plane vertices
+                wallPositionsUpper.push(exitX, exitR, 0.02);
+                wallPositionsLower.push(exitX, -exitR, 0.02);
+            }
+        }
+
+        const wGeomUpper = new THREE.BufferGeometry();
+        wGeomUpper.setAttribute('position', new THREE.Float32BufferAttribute(wallPositionsUpper, 3));
+
+        const wGeomLower = new THREE.BufferGeometry();
+        wGeomLower.setAttribute('position', new THREE.Float32BufferAttribute(wallPositionsLower, 3));
 
         const aGeom = new THREE.BufferGeometry();
         aGeom.setAttribute('position', new THREE.Float32BufferAttribute(axisPositions, 3));
 
-        return { wallGeom: wGeom, axisGeom: aGeom };
+        return { wallGeomUpper: wGeomUpper, wallGeomLower: wGeomLower, axisGeom: aGeom };
     }, [result]);
 
-    if (!wallGeom || !axisGeom) return null;
+    if (!wallGeomUpper || !wallGeomLower || !axisGeom) return null;
 
     return (
         <group>
-            <primitive object={new THREE.Line(wallGeom, new THREE.LineBasicMaterial({ color: 0x00ffff, opacity: 0.6, transparent: true }))} />
-            <primitive object={new THREE.Line(axisGeom, new THREE.LineBasicMaterial({ color: 0xffffff, opacity: 0.3, transparent: true }))} />
+            {/* Upper wall contour */}
+            <primitive object={new THREE.Line(wallGeomUpper, new THREE.LineBasicMaterial({ color: 0x00ffff, opacity: 0.9, transparent: true, linewidth: 2 }))} />
+            {/* Lower wall contour (mirrored) */}
+            <primitive object={new THREE.Line(wallGeomLower, new THREE.LineBasicMaterial({ color: 0x00ffff, opacity: 0.9, transparent: true, linewidth: 2 }))} />
+            {/* Centerline axis */}
+            <primitive object={new THREE.Line(axisGeom, new THREE.LineBasicMaterial({ color: 0xffffff, opacity: 0.15, transparent: true }))} />
         </group>
     );
 }
@@ -1254,7 +1409,7 @@ export default function CFDPage() {
                         <div className="flex-1 bg-[#050508] rounded-lg border border-[#27272a] relative overflow-hidden">
                             {result ? (
                                 <>
-                                    <Canvas orthographic camera={{ zoom: 28, position: [0, 2, 50] }}>
+                                    <Canvas orthographic camera={{ zoom: 28, position: [0, 0, 50] }}>
                                         <color attach="background" args={["#050508"]} />
                                         <CFDHeatmapShader
                                             result={result}

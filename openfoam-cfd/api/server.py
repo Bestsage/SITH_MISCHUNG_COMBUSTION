@@ -1018,7 +1018,29 @@ def extract_openfoam_results(params: dict, case_dir: Path, result_dir: Path):
             # λ ≈ 1.22 * D * sqrt(M² - 1) / M for first cell
             shock_cell_length = 1.22 * 2 * r_exit * np.sqrt(M_exit**2 - 1) / M_exit
             
-            if ri <= core_radius:
+            # ===== DOMAIN EDGE FADE-OUT =====
+            # Smooth blend to ambient at domain boundaries (no visible edges)
+            edge_fade_x = 1.0
+            edge_fade_r = 1.0
+            
+            # Fade out near axial end of domain
+            fade_start_x = 0.7  # Start fading at 70% of farfield
+            if dx_norm > fade_start_x:
+                edge_fade_x = 1.0 - ((dx_norm - fade_start_x) / (1.0 - fade_start_x)) ** 2
+                edge_fade_x = max(0, edge_fade_x)
+            
+            # Fade out near radial boundary
+            r_domain_max = farfield_radius
+            r_norm_domain = ri / r_domain_max
+            fade_start_r = 0.65  # Start fading at 65% of radial domain
+            if r_norm_domain > fade_start_r:
+                edge_fade_r = 1.0 - ((r_norm_domain - fade_start_r) / (1.0 - fade_start_r)) ** 1.5
+                edge_fade_r = max(0, edge_fade_r)
+            
+            # Combined edge fade
+            edge_fade = edge_fade_x * edge_fade_r
+            
+            if ri <= core_radius and edge_fade > 0.01:
                 # ===== INSIDE SUPERSONIC JET CORE =====
                 r_norm_core = ri / core_radius if core_radius > 0 else 0
                 
@@ -1064,14 +1086,19 @@ def extract_openfoam_results(params: dict, case_dir: Path, result_dir: Path):
                 P = p_isentropic * (1 + shock_effect * 0.5) + p_ambient * dx_norm * 0.3
                 P = max(p_ambient * 0.5, P)
                 
+                # APPLY EDGE FADE - blend towards ambient at domain boundaries
+                M = M * edge_fade
+                T = T * edge_fade + t_ambient * (1 - edge_fade)
+                P = P * edge_fade + p_ambient * (1 - edge_fade)
+                
                 mach[idx] = M
                 temperature[idx] = T
                 pressure[idx] = P
                 
                 # Radial velocity in expanding jet (outward flow)
-                velocity_r[idx] = spreading_rate * r_norm_core * 40 * axial_decay
+                velocity_r[idx] = spreading_rate * r_norm_core * 40 * axial_decay * edge_fade
                 
-            else:
+            elif edge_fade > 0.01:
                 # ===== MIXING LAYER / SHEAR REGION =====
                 dr = ri - core_radius
                 
@@ -1085,26 +1112,33 @@ def extract_openfoam_results(params: dict, case_dir: Path, result_dir: Path):
                     
                     # Mach decays through shear layer
                     M_edge = M_exit * 0.2 * np.exp(-0.4 * dx_norm)
-                    M = M_edge * (1 - blend_smooth)
+                    M = M_edge * (1 - blend_smooth) * edge_fade
                     
                     # Temperature: entrainment heating
                     T = T_exit + (t_ambient - T_exit) * blend_smooth
+                    T = T * edge_fade + t_ambient * (1 - edge_fade)
                     
                     # Pressure approaches ambient
-                    P = p_ambient * (1 + 0.05 * (1 - blend_smooth))
+                    P = p_ambient * (1 + 0.05 * (1 - blend_smooth) * edge_fade)
                     
-                    mach[idx] = max(0.02, M)
+                    mach[idx] = max(0.001, M)
                     temperature[idx] = T
                     pressure[idx] = P
                     
                     # Small outward radial velocity in mixing layer
-                    velocity_r[idx] = 5 * (1 - blend_smooth) * np.exp(-0.3 * dx_norm)
+                    velocity_r[idx] = 5 * (1 - blend_smooth) * np.exp(-0.3 * dx_norm) * edge_fade
                 else:
                     # Quiescent ambient air
-                    mach[idx] = 0.005
+                    mach[idx] = 0.001
                     temperature[idx] = t_ambient
                     pressure[idx] = p_ambient
                     velocity_r[idx] = 0
+            else:
+                # Outside domain fade - pure ambient
+                mach[idx] = 0.001
+                temperature[idx] = t_ambient
+                pressure[idx] = p_ambient
+                velocity_r[idx] = 0
     
     # ==========================================================================
     # 6. DERIVED QUANTITIES
