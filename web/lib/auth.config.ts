@@ -47,6 +47,10 @@ export const authConfig = {
             const isOnApiAuth = nextUrl.pathname.startsWith('/api/auth');
             const isOnPublicPage = nextUrl.pathname === '/' || nextUrl.pathname.startsWith('/_next') || nextUrl.pathname.startsWith('/static');
 
+            console.log("[Middleware] Path:", nextUrl.pathname);
+            console.log("[Middleware] isLoggedIn:", isLoggedIn);
+            console.log("[Middleware] auth?.user:", auth?.user?.email);
+
             // Auth bypass mode - allows access without login
             const authBypass = process.env.AUTH_BYPASS === 'true';
             if (authBypass) {
