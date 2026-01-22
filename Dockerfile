@@ -13,11 +13,11 @@ RUN rm -f package-lock.json
 RUN npm install --legacy-peer-deps
 
 # Copy source and build
-# Copy source and build
 COPY web/ ./
 RUN echo "=== DEBUG FILE STRUCTURE ===" && ls -R lib/ && ls -R app/
 RUN echo "=== DEBUG TSCONFIG ===" && cat tsconfig.json
 ENV DATABASE_URL="file:/app/data/sith.db"
+ENV NODE_ENV="production"
 RUN npx prisma generate
 RUN npm run build
 
@@ -64,6 +64,9 @@ COPY --from=frontend-builder /app/web/.next/standalone ./web/
 COPY --from=frontend-builder /app/web/.next/static ./web/.next/static
 COPY --from=frontend-builder /app/web/public ./web/public
 COPY --from=frontend-builder /app/web/prisma ./web/prisma
+
+# Set production environment
+ENV NODE_ENV="production"
 
 # Copy Rust server binary
 COPY --from=rust-builder /app/rocket_server/target/release/rocket_server ./

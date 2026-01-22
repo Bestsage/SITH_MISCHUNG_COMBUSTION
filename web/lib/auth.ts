@@ -35,16 +35,20 @@ declare module "next-auth" {
 // Admin email(s) - the main user who has full access
 const ADMIN_EMAILS = (process.env.ADMIN_EMAIL || "").split(",").map((e) => e.trim().toLowerCase());
 
-// Check if we're in production (HTTPS)
-const useSecureCookies = process.env.NEXTAUTH_URL?.startsWith('https://');
-const cookiePrefix = useSecureCookies ? '__Secure-' : '';
+// For Cloudflare proxy, use secure cookies but without __Secure- prefix
+// The __Secure- prefix requires the cookie to be set from a secure origin,
+// but Cloudflare sometimes terminates SSL and forwards HTTP internally
+const useSecureCookies = process.env.NODE_ENV === 'production';
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
     adapter: PrismaAdapter(prisma),
-    session: { strategy: "jwt" }, // Use JWT for credentials provider compatibility
+    session: { 
+        strategy: "jwt",
+        maxAge: 30 * 24 * 60 * 60, // 30 days
+    },
     cookies: {
         sessionToken: {
-            name: `${cookiePrefix}next-auth.session-token`,
+            name: `next-auth.session-token`,
             options: {
                 httpOnly: true,
                 sameSite: 'lax',
@@ -53,7 +57,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             },
         },
         callbackUrl: {
-            name: `${cookiePrefix}next-auth.callback-url`,
+            name: `next-auth.callback-url`,
             options: {
                 sameSite: 'lax',
                 path: '/',
