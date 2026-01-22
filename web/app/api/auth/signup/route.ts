@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { randomUUID } from "crypto";
 
 // Simple hash function - same as in auth.ts
 function hashPassword(password: string): string {
@@ -50,24 +51,19 @@ export async function POST(request: Request) {
             );
         }
 
-        // Create user
+        // Create user with generated ID
+        console.log("[Signup] Creating user...");
         const user = await prisma.user.create({
             data: {
+                id: randomUUID(),
                 name,
                 email: email.toLowerCase(),
                 password: hashPassword(password),
-                role: "USER"
+                role: "USER",
+                createdAt: new Date().toISOString(),
             }
         });
-
-        // Create welcome activity
-        await prisma.activity.create({
-            data: {
-                type: "account_created",
-                metadata: JSON.stringify({ source: "signup" }),
-                userId: user.id
-            }
-        });
+        console.log("[Signup] User created:", user.id);
 
         return NextResponse.json({
             success: true,
@@ -78,7 +74,7 @@ export async function POST(request: Request) {
             }
         });
     } catch (error) {
-        console.error("Signup error:", error);
+        console.error("[Signup] Error:", error);
         return NextResponse.json(
             { error: "Erreur lors de la création du compte" },
             { status: 500 }
