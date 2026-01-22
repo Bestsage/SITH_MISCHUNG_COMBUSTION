@@ -35,13 +35,12 @@ declare module "next-auth" {
 // Admin email(s) - the main user who has full access
 const ADMIN_EMAILS = (process.env.ADMIN_EMAIL || "").split(",").map((e) => e.trim().toLowerCase());
 
-// IMPORTANT: With Cloudflare Flexible SSL, the backend receives HTTP not HTTPS
-// So we MUST use secure: false for cookies to work
-// Cloudflare handles the HTTPS termination
-const useSecureCookies = false; // Force non-secure for Cloudflare Flexible SSL
+// For Cloudflare with HTTPS, we need secure cookies
+// The domain should match the NEXTAUTH_URL domain
+const isProduction = process.env.NODE_ENV === 'production' || process.env.NEXTAUTH_URL?.startsWith('https://');
+const cookieDomain = process.env.NEXTAUTH_URL ? new URL(process.env.NEXTAUTH_URL).hostname : undefined;
 
-console.log("[Auth] Cookie secure mode:", useSecureCookies);
-console.log("[Auth] NEXTAUTH_URL:", process.env.NEXTAUTH_URL);
+console.log("[Auth] Cookie config - secure:", isProduction, "domain:", cookieDomain);
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
     adapter: PrismaAdapter(prisma),
@@ -56,7 +55,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                 httpOnly: true,
                 sameSite: 'lax',
                 path: '/',
-                secure: useSecureCookies,
+                secure: isProduction,
+                domain: cookieDomain,
             },
         },
         callbackUrl: {
@@ -64,7 +64,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             options: {
                 sameSite: 'lax',
                 path: '/',
-                secure: useSecureCookies,
+                secure: isProduction,
+                domain: cookieDomain,
             },
         },
         csrfToken: {
@@ -73,7 +74,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                 httpOnly: true,
                 sameSite: 'lax',
                 path: '/',
-                secure: useSecureCookies,
+                secure: isProduction,
+                domain: cookieDomain,
             },
         },
     },
