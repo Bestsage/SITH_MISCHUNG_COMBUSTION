@@ -101,6 +101,30 @@ function SignInContent() {
                             </button>
                         ))}
                     </div>
+
+                    {/* Divider */}
+                    <div className="relative my-6">
+                        <div className="absolute inset-0 flex items-center">
+                            <div className="w-full border-t border-slate-700"></div>
+                        </div>
+                        <div className="relative flex justify-center text-sm">
+                            <span className="px-4 bg-slate-900/50 text-slate-500">ou</span>
+                        </div>
+                    </div>
+
+                    {/* Bypass Button */}
+                    <Link
+                        href="/"
+                        className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-gradient-to-r from-slate-700 to-slate-800 hover:from-slate-600 hover:to-slate-700 text-white font-medium rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] border border-slate-600"
+                    >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 9l3 3m0 0l-3 3m3-3H8m13 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span>Continuer sans connexion</span>
+                    </Link>
+                    <p className="text-xs text-slate-500 text-center mt-3">
+                        Certaines fonctionnalités peuvent être limitées
+                    </p>
                 </div>
 
                 {/* Back Link */}

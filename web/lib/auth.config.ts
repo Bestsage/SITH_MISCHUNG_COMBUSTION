@@ -34,6 +34,12 @@ export const authConfig = {
             const isOnApiAuth = nextUrl.pathname.startsWith('/api/auth');
             const isOnPublicPage = nextUrl.pathname === '/' || nextUrl.pathname.startsWith('/_next') || nextUrl.pathname.startsWith('/static');
 
+            // Auth bypass mode - allows access without login
+            const authBypass = process.env.AUTH_BYPASS === 'true';
+            if (authBypass) {
+                return true; // Allow all access when bypass is enabled
+            }
+
             // Allow access to auth pages and API auth routes
             if (isOnAuthPage || isOnApiAuth) {
                 return true;
