@@ -1,13 +1,16 @@
 "use client";
 
-import { useState, useRef, useMemo } from "react";
+import { useState, useRef, useMemo, useCallback, useEffect } from "react";
 import AppLayout from "@/components/AppLayout";
 import { useCalculation } from "@/contexts/CalculationContext";
-import { Canvas } from "@react-three/fiber";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { trackActivity } from "@/lib/activity";
 
-// Types matching Rust backend
+// ============================================================================
+// TYPES
+// ============================================================================
+
 interface CFDResult {
     converged: boolean;
     iterations: number;
@@ -15,33 +18,208 @@ interface CFDResult {
     pressure: number[];
     temperature: number[];
     velocity_x: number[];
+    velocity_r?: number[];
     density: number[];
     x: number[];
     r: number[];
     nx: number;
     ny: number;
     residual_history?: number[];
+    solver?: string;
 }
 
 type FieldType = "mach" | "pressure" | "temperature" | "velocity_x" | "density";
 
-const FIELD_CONFIG: Record<FieldType, { name: string; unit: string; colormap: string }> = {
-    mach: { name: "Nombre de Mach", unit: "", colormap: "plasma" },
-    pressure: { name: "Pression", unit: "Pa", colormap: "viridis" },
-    temperature: { name: "Température", unit: "K", colormap: "inferno" },
-    velocity_x: { name: "Vitesse Axiale", unit: "m/s", colormap: "coolwarm" },
-    density: { name: "Densité", unit: "kg/m³", colormap: "magma" },
+interface TooltipData {
+    x: number;
+    y: number;
+    worldX: number;
+    worldR: number;
+    mach: number;
+    pressure: number;
+    temperature: number;
+    velocity: number;
+}
+
+// ============================================================================
+// CONFIGURATION
+// ============================================================================
+
+const FIELD_CONFIG: Record<FieldType, { name: string; unit: string; colormap: string; format: (v: number) => string }> = {
+    mach: { name: "Mach", unit: "", colormap: "plasma", format: v => v.toFixed(3) },
+    pressure: { name: "Pression", unit: "Pa", colormap: "viridis", format: v => (v / 1e5).toFixed(2) + " bar" },
+    temperature: { name: "Température", unit: "K", colormap: "inferno", format: v => v.toFixed(0) + " K" },
+    velocity_x: { name: "Vitesse", unit: "m/s", colormap: "coolwarm", format: v => v.toFixed(0) + " m/s" },
+    density: { name: "Densité", unit: "kg/m³", colormap: "magma", format: v => v.toFixed(3) + " kg/m³" },
 };
 
-// Robust Color Mapping
+// ============================================================================
+// CUSTOM SHADERS FOR SMOOTH INTERPOLATION
+// ============================================================================
+
+const CFD_VERTEX_SHADER = `
+    attribute float fieldValue;
+    attribute vec2 velocity;
+    
+    varying float vFieldValue;
+    varying vec2 vPosition;
+    varying vec2 vVelocity;
+    
+    void main() {
+        vFieldValue = fieldValue;
+        vPosition = position.xy;
+        vVelocity = velocity;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+`;
+
+const CFD_FRAGMENT_SHADER = `
+    uniform float uMinValue;
+    uniform float uMaxValue;
+    uniform int uColormap;
+    uniform float uContourInterval;
+    uniform bool uShowContours;
+    uniform float uContourWidth;
+    
+    varying float vFieldValue;
+    varying vec2 vPosition;
+    varying vec2 vVelocity;
+    
+    // Plasma colormap (Matplotlib)
+    vec3 plasma(float t) {
+        const vec3 c0 = vec3(0.050383, 0.029803, 0.527975);
+        const vec3 c1 = vec3(0.494877, 0.006098, 0.658390);
+        const vec3 c2 = vec3(0.798216, 0.280197, 0.469538);
+        const vec3 c3 = vec3(0.973416, 0.585761, 0.252472);
+        const vec3 c4 = vec3(0.940015, 0.975158, 0.131326);
+        
+        if (t < 0.25) return mix(c0, c1, t * 4.0);
+        if (t < 0.5) return mix(c1, c2, (t - 0.25) * 4.0);
+        if (t < 0.75) return mix(c2, c3, (t - 0.5) * 4.0);
+        return mix(c3, c4, (t - 0.75) * 4.0);
+    }
+    
+    // Viridis colormap
+    vec3 viridis(float t) {
+        const vec3 c0 = vec3(0.267004, 0.004874, 0.329415);
+        const vec3 c1 = vec3(0.282327, 0.140926, 0.457517);
+        const vec3 c2 = vec3(0.127568, 0.566949, 0.550556);
+        const vec3 c3 = vec3(0.369214, 0.788888, 0.382914);
+        const vec3 c4 = vec3(0.993248, 0.906157, 0.143936);
+        
+        if (t < 0.25) return mix(c0, c1, t * 4.0);
+        if (t < 0.5) return mix(c1, c2, (t - 0.25) * 4.0);
+        if (t < 0.75) return mix(c2, c3, (t - 0.5) * 4.0);
+        return mix(c3, c4, (t - 0.75) * 4.0);
+    }
+    
+    // Inferno colormap
+    vec3 inferno(float t) {
+        const vec3 c0 = vec3(0.001462, 0.000466, 0.013866);
+        const vec3 c1 = vec3(0.258234, 0.038571, 0.406152);
+        const vec3 c2 = vec3(0.578304, 0.148039, 0.404411);
+        const vec3 c3 = vec3(0.865006, 0.316822, 0.226055);
+        const vec3 c4 = vec3(0.988362, 0.998364, 0.644924);
+        
+        if (t < 0.25) return mix(c0, c1, t * 4.0);
+        if (t < 0.5) return mix(c1, c2, (t - 0.25) * 4.0);
+        if (t < 0.75) return mix(c2, c3, (t - 0.5) * 4.0);
+        return mix(c3, c4, (t - 0.75) * 4.0);
+    }
+    
+    // Coolwarm (diverging)
+    vec3 coolwarm(float t) {
+        const vec3 cool = vec3(0.230, 0.299, 0.754);
+        const vec3 white = vec3(0.865, 0.865, 0.865);
+        const vec3 warm = vec3(0.706, 0.016, 0.150);
+        
+        if (t < 0.5) return mix(cool, white, t * 2.0);
+        return mix(white, warm, (t - 0.5) * 2.0);
+    }
+    
+    // Magma colormap
+    vec3 magma(float t) {
+        const vec3 c0 = vec3(0.001462, 0.000466, 0.013866);
+        const vec3 c1 = vec3(0.316654, 0.071690, 0.485380);
+        const vec3 c2 = vec3(0.716387, 0.214982, 0.474030);
+        const vec3 c3 = vec3(0.987053, 0.535049, 0.382719);
+        const vec3 c4 = vec3(0.987053, 0.991438, 0.749504);
+        
+        if (t < 0.25) return mix(c0, c1, t * 4.0);
+        if (t < 0.5) return mix(c1, c2, (t - 0.25) * 4.0);
+        if (t < 0.75) return mix(c2, c3, (t - 0.5) * 4.0);
+        return mix(c3, c4, (t - 0.75) * 4.0);
+    }
+    
+    void main() {
+        // Normalize value
+        float range = uMaxValue - uMinValue;
+        float t = clamp((vFieldValue - uMinValue) / max(range, 0.0001), 0.0, 1.0);
+        
+        // Apply colormap
+        vec3 color;
+        if (uColormap == 0) color = plasma(t);
+        else if (uColormap == 1) color = viridis(t);
+        else if (uColormap == 2) color = inferno(t);
+        else if (uColormap == 3) color = coolwarm(t);
+        else color = magma(t);
+        
+        // Improved contour lines - smoother and more stable
+        if (uShowContours && uContourInterval > 0.0) {
+            // Normalized contour position
+            float normalizedVal = (vFieldValue - uMinValue) / max(range, 0.0001);
+            float numContours = 12.0; // Fixed number of contours
+            float contourVal = normalizedVal * numContours;
+            
+            // Distance to nearest contour line
+            float contourDist = abs(fract(contourVal + 0.5) - 0.5);
+            
+            // Use screen-space derivatives for consistent line width
+            float dx = dFdx(contourVal);
+            float dy = dFdy(contourVal);
+            float gradientMag = sqrt(dx * dx + dy * dy);
+            
+            // Prevent artifacts by clamping gradient
+            gradientMag = clamp(gradientMag, 0.01, 2.0);
+            
+            // Anti-aliased contour line
+            float lineWidth = uContourWidth * 0.8;
+            float lineStrength = 1.0 - smoothstep(0.0, lineWidth * gradientMag, contourDist);
+            
+            // Softer, more elegant contour visualization
+            vec3 contourColor = color * 0.25;
+            color = mix(color, contourColor, lineStrength * 0.6);
+        }
+        
+        gl_FragColor = vec4(color, 1.0);
+    }
+`;
+
+// ============================================================================
+// COLOR UTILITIES
+// ============================================================================
+
+function getColormapIndex(colormap: string): number {
+    switch (colormap) {
+        case "plasma": return 0;
+        case "viridis": return 1;
+        case "inferno": return 2;
+        case "coolwarm": return 3;
+        case "magma": return 4;
+        default: return 0;
+    }
+}
+
 function getColorForValue(t: number, colormap: string): THREE.Color {
     const color = new THREE.Color();
-    // Clamp t to [0, 1] and handle NaN
     t = Math.max(0, Math.min(1, Number.isFinite(t) ? t : 0));
 
     switch (colormap) {
         case "plasma":
-            color.setHSL(0.75 - t * 0.75, 1, 0.3 + t * 0.4);
+            if (t < 0.25) color.setRGB(0.05 + t * 1.78, 0.03 - t * 0.1, 0.53 + t * 0.52);
+            else if (t < 0.5) color.setRGB(0.49 + (t - 0.25) * 1.22, 0.01 + (t - 0.25) * 1.1, 0.66 - (t - 0.25) * 0.76);
+            else if (t < 0.75) color.setRGB(0.8 + (t - 0.5) * 0.69, 0.28 + (t - 0.5) * 1.22, 0.47 - (t - 0.5) * 0.87);
+            else color.setRGB(0.97 - (t - 0.75) * 0.13, 0.59 + (t - 0.75) * 1.56, 0.25 - (t - 0.75) * 0.47);
             break;
         case "viridis":
             color.setHSL(0.75 - t * 0.5, 0.8, 0.25 + t * 0.35);
@@ -62,118 +240,386 @@ function getColorForValue(t: number, colormap: string): THREE.Color {
     return color;
 }
 
-// Robust Heatmap Component with Mesh Support
-function CFDHeatmap({ result, field, colormap }: { result: CFDResult; field: FieldType; colormap: string }) {
-    const { positions, colors, indices, isMesh } = useMemo(() => {
+// ============================================================================
+// COMPONENTS: CFD HEATMAP WITH SHADER
+// ============================================================================
+
+interface CFDHeatmapProps {
+    result: CFDResult;
+    field: FieldType;
+    colormap: string;
+    showContours: boolean;
+    contourInterval: number;
+    showWireframe: boolean;
+    onHover?: (data: TooltipData | null) => void;
+}
+
+function CFDHeatmapShader({ result, field, colormap, showContours, contourInterval, showWireframe, onHover }: CFDHeatmapProps) {
+    const meshRef = useRef<THREE.Mesh>(null);
+    const wireframeRef = useRef<THREE.LineSegments>(null);
+    const { camera, gl } = useThree();
+    const raycaster = useRef(new THREE.Raycaster());
+    const mouse = useRef(new THREE.Vector2());
+
+    const { geometry, shaderMaterial, wireframeGeometry, minVal, maxVal } = useMemo(() => {
         const nx = result.nx;
         const ny = result.ny;
         const fieldData = result[field];
 
-        if (!fieldData || fieldData.length === 0) {
-            return { positions: new Float32Array(0), colors: new Float32Array(0), indices: null, isMesh: false };
+        if (!fieldData || fieldData.length === 0 || nx < 2 || ny < 2) {
+            return { geometry: null, shaderMaterial: null, wireframeGeometry: null, minVal: 0, maxVal: 1 };
         }
 
-        // 1. Calculate Min/Max robustly
+        // Calculate Min/Max
         let min = Infinity, max = -Infinity;
-        let hasValid = false;
-
         for (const v of fieldData) {
             if (Number.isFinite(v)) {
                 if (v < min) min = v;
                 if (v > max) max = v;
-                hasValid = true;
             }
         }
-
-        if (!hasValid) { min = 0; max = 1; }
+        if (!Number.isFinite(min)) { min = 0; max = 1; }
         if (max <= min) max = min + 1e-6;
 
-        // 2. Generate Geometry
+        // Generate geometry
         const numPoints = result.x.length;
         const positions = new Float32Array(numPoints * 3);
-        const colors = new Float32Array(numPoints * 3);
+        const fieldValues = new Float32Array(numPoints);
+        const velocities = new Float32Array(numPoints * 2);
 
         const max_x = Math.max(...result.x) || 1;
         const scale = 20 / max_x;
 
         for (let i = 0; i < numPoints; i++) {
-            // Position
             positions[i * 3] = result.x[i] * scale - 10;
             positions[i * 3 + 1] = result.r[i] * scale;
             positions[i * 3 + 2] = 0;
 
-            // Color
             let val = fieldData[i];
             if (!Number.isFinite(val)) val = min;
+            fieldValues[i] = val;
 
-            const t = (val - min) / (max - min);
-            const color = getColorForValue(t, colormap);
-
-            colors[i * 3] = color.r;
-            colors[i * 3 + 1] = color.g;
-            colors[i * 3 + 2] = color.b;
+            // Velocity for vector field
+            velocities[i * 2] = result.velocity_x?.[i] || 0;
+            velocities[i * 2 + 1] = result.velocity_r?.[i] || 0;
         }
 
-        // 3. Generate Indices for Mesh
-        let indices = null;
-        let isMesh = false;
+        // Generate indices for triangulated mesh
+        const indexArray: number[] = [];
+        for (let i = 0; i < nx - 1; i++) {
+            for (let j = 0; j < ny - 1; j++) {
+                const a = i * ny + j;
+                const b = i * ny + j + 1;
+                const c = (i + 1) * ny + j;
+                const d = (i + 1) * ny + j + 1;
 
-        if (nx > 1 && ny > 1 && nx * ny === numPoints) {
-            const indexArray = [];
-            // Assume Row-Major ordering: p = i*ny + j (x-slow, y-fast)
-            for (let i = 0; i < nx - 1; i++) {
-                for (let j = 0; j < ny - 1; j++) {
-                    const a = i * ny + j;
-                    const b = i * ny + j + 1;
-                    const c = (i + 1) * ny + j;
-                    const d = (i + 1) * ny + j + 1;
+                indexArray.push(a, d, b);
+                indexArray.push(a, c, d);
+            }
+        }
 
-                    // Two triangles: a-d-b and a-c-d
-                    indexArray.push(a, d, b);
-                    indexArray.push(a, c, d);
+        const geom = new THREE.BufferGeometry();
+        geom.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        geom.setAttribute('fieldValue', new THREE.BufferAttribute(fieldValues, 1));
+        geom.setAttribute('velocity', new THREE.BufferAttribute(velocities, 2));
+        geom.setIndex(indexArray);
+
+        // Wireframe geometry
+        const wireGeom = new THREE.BufferGeometry();
+        wireGeom.setAttribute('position', new THREE.BufferAttribute(positions.slice(), 3));
+        const wireIndices: number[] = [];
+        for (let i = 0; i < nx - 1; i++) {
+            for (let j = 0; j < ny - 1; j++) {
+                const a = i * ny + j;
+                const b = i * ny + j + 1;
+                const c = (i + 1) * ny + j;
+                wireIndices.push(a, b, a, c);
+            }
+        }
+        // Edge lines
+        for (let j = 0; j < ny - 1; j++) {
+            wireIndices.push((nx - 1) * ny + j, (nx - 1) * ny + j + 1);
+        }
+        for (let i = 0; i < nx - 1; i++) {
+            wireIndices.push(i * ny + ny - 1, (i + 1) * ny + ny - 1);
+        }
+        wireGeom.setIndex(wireIndices);
+
+        // Shader material
+        const shader = new THREE.ShaderMaterial({
+            vertexShader: CFD_VERTEX_SHADER,
+            fragmentShader: CFD_FRAGMENT_SHADER,
+            uniforms: {
+                uMinValue: { value: min },
+                uMaxValue: { value: max },
+                uColormap: { value: getColormapIndex(colormap) },
+                uShowContours: { value: showContours },
+                uContourInterval: { value: contourInterval },
+                uContourWidth: { value: 0.15 },
+            },
+            side: THREE.DoubleSide,
+        });
+
+        return { geometry: geom, shaderMaterial: shader, wireframeGeometry: wireGeom, minVal: min, maxVal: max };
+    }, [result, field, colormap, showContours, contourInterval]);
+
+    // Update uniforms when props change
+    useEffect(() => {
+        if (shaderMaterial) {
+            shaderMaterial.uniforms.uColormap.value = getColormapIndex(colormap);
+            shaderMaterial.uniforms.uShowContours.value = showContours;
+            shaderMaterial.uniforms.uContourInterval.value = contourInterval;
+        }
+    }, [colormap, showContours, contourInterval, shaderMaterial]);
+
+    // Raycaster for tooltip
+    useFrame(() => {
+        if (!meshRef.current || !onHover) return;
+
+        raycaster.current.setFromCamera(mouse.current, camera);
+        const intersects = raycaster.current.intersectObject(meshRef.current);
+
+        if (intersects.length > 0) {
+            const hit = intersects[0];
+            const faceIdx = hit.faceIndex;
+            if (faceIdx === undefined) return;
+
+            // Find closest data point
+            const max_x = Math.max(...result.x) || 1;
+            const scale = 20 / max_x;
+            const worldX = (hit.point.x + 10) / scale;
+            const worldR = hit.point.y / scale;
+
+            // Find nearest index
+            let nearestIdx = 0;
+            let minDist = Infinity;
+            for (let i = 0; i < result.x.length; i++) {
+                const dx = result.x[i] - worldX;
+                const dr = result.r[i] - worldR;
+                const dist = dx * dx + dr * dr;
+                if (dist < minDist) {
+                    minDist = dist;
+                    nearestIdx = i;
                 }
             }
-            indices = new Uint16Array(indexArray);
-            isMesh = true;
+
+            onHover({
+                x: hit.point.x,
+                y: hit.point.y,
+                worldX: result.x[nearestIdx],
+                worldR: result.r[nearestIdx],
+                mach: result.mach[nearestIdx],
+                pressure: result.pressure[nearestIdx],
+                temperature: result.temperature[nearestIdx],
+                velocity: result.velocity_x[nearestIdx],
+            });
         }
+    });
 
-        return { positions, colors, indices, isMesh };
-    }, [result, field, colormap]);
+    // Mouse move handler
+    useEffect(() => {
+        const canvas = gl.domElement;
+        const handleMouseMove = (event: MouseEvent) => {
+            const rect = canvas.getBoundingClientRect();
+            mouse.current.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+            mouse.current.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+        };
+        const handleMouseLeave = () => {
+            if (onHover) onHover(null);
+        };
 
-    if (positions.length === 0) return null;
+        canvas.addEventListener('mousemove', handleMouseMove);
+        canvas.addEventListener('mouseleave', handleMouseLeave);
+        return () => {
+            canvas.removeEventListener('mousemove', handleMouseMove);
+            canvas.removeEventListener('mouseleave', handleMouseLeave);
+        };
+    }, [gl, onHover]);
 
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-
-    if (isMesh && indices) {
-        geometry.setIndex(new THREE.BufferAttribute(indices, 1));
-        return (
-            <mesh>
-                <bufferGeometry attach="geometry" {...geometry} />
-                <meshBasicMaterial attach="material" vertexColors side={THREE.DoubleSide} />
-            </mesh>
-        );
-    }
+    if (!geometry || !shaderMaterial) return null;
 
     return (
-        <points>
-            <bufferGeometry attach="geometry" {...geometry} />
-            <pointsMaterial attach="material" vertexColors size={0.3} sizeAttenuation={true} />
-        </points>
+        <group>
+            <mesh ref={meshRef} geometry={geometry} material={shaderMaterial} />
+            {showWireframe && wireframeGeometry && (
+                <lineSegments ref={wireframeRef} geometry={wireframeGeometry}>
+                    <lineBasicMaterial attach="material" color="#ffffff" opacity={0.15} transparent linewidth={1} />
+                </lineSegments>
+            )}
+        </group>
     );
 }
 
-// Simple Residual Plot (SVG)
+// ============================================================================
+// COMPONENT: VECTOR FIELD (ARROWS)
+// ============================================================================
+
+function VectorFieldOverlay({ result, scale = 1 }: { result: CFDResult; scale?: number }) {
+    const arrowsGeometry = useMemo(() => {
+        const nx = result.nx;
+        const ny = result.ny;
+        if (nx < 2 || ny < 2) return null;
+
+        // Sample every nth point for arrows
+        const sampleX = Math.max(1, Math.floor(nx / 20));
+        const sampleY = Math.max(1, Math.floor(ny / 10));
+
+        const positions: number[] = [];
+        const colors: number[] = [];
+
+        const max_x = Math.max(...result.x) || 1;
+        const scalePos = 20 / max_x;
+
+        // Normalize velocities
+        let maxVel = 0;
+        for (let i = 0; i < result.velocity_x.length; i++) {
+            const vx = result.velocity_x[i] || 0;
+            const vr = result.velocity_r?.[i] || 0;
+            const vel = Math.sqrt(vx * vx + vr * vr);
+            if (vel > maxVel) maxVel = vel;
+        }
+        if (maxVel < 1) maxVel = 1;
+
+        for (let i = 0; i < nx; i += sampleX) {
+            for (let j = 0; j < ny; j += sampleY) {
+                const idx = i * ny + j;
+                if (idx >= result.x.length) continue;
+
+                const x = result.x[idx] * scalePos - 10;
+                const y = result.r[idx] * scalePos;
+
+                const vx = result.velocity_x[idx] || 0;
+                const vy = result.velocity_r?.[idx] || 0;
+                const vel = Math.sqrt(vx * vx + vy * vy);
+
+                if (vel < maxVel * 0.01) continue; // Skip near-zero velocity
+
+                // Arrow length proportional to velocity magnitude
+                const arrowLength = 0.4 * scale * (vel / maxVel);
+                const angle = Math.atan2(vy, vx);
+
+                // Arrow shaft
+                const endX = x + Math.cos(angle) * arrowLength;
+                const endY = y + Math.sin(angle) * arrowLength;
+
+                // Shaft line
+                positions.push(x, y, 0.01, endX, endY, 0.01);
+
+                // Arrow head
+                const headSize = arrowLength * 0.3;
+                const headAngle1 = angle + Math.PI * 0.8;
+                const headAngle2 = angle - Math.PI * 0.8;
+
+                positions.push(
+                    endX, endY, 0.01,
+                    endX + Math.cos(headAngle1) * headSize, endY + Math.sin(headAngle1) * headSize, 0.01
+                );
+                positions.push(
+                    endX, endY, 0.01,
+                    endX + Math.cos(headAngle2) * headSize, endY + Math.sin(headAngle2) * headSize, 0.01
+                );
+
+                // Color based on velocity magnitude
+                const t = vel / maxVel;
+                const color = new THREE.Color().setHSL(0.55 - t * 0.55, 0.9, 0.6);
+
+                // 6 vertices per arrow (shaft + 2 head lines)
+                for (let k = 0; k < 6; k++) {
+                    colors.push(color.r, color.g, color.b);
+                }
+            }
+        }
+
+        if (positions.length === 0) return null;
+
+        const geom = new THREE.BufferGeometry();
+        geom.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+        geom.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+        return geom;
+    }, [result, scale]);
+
+    if (!arrowsGeometry) return null;
+
+    return (
+        <lineSegments geometry={arrowsGeometry}>
+            <lineBasicMaterial attach="material" vertexColors transparent opacity={0.8} />
+        </lineSegments>
+    );
+}
+
+// ============================================================================
+// COMPONENT: NOZZLE CONTOUR OUTLINE
+// ============================================================================
+
+function NozzleContour({ result }: { result: CFDResult }) {
+    const { wallGeom, axisGeom } = useMemo(() => {
+        const nx = result.nx;
+        const ny = result.ny;
+        if (nx < 2 || ny < 2) return { wallGeom: null, axisGeom: null };
+
+        const max_x = Math.max(...result.x) || 1;
+        const scale = 20 / max_x;
+
+        const wallPositions: number[] = [];
+        const axisPositions: number[] = [];
+
+        // Extract wall contour (last row: j = ny-1)
+        for (let i = 0; i < nx; i++) {
+            const idx = i * ny + (ny - 1);
+            if (idx < result.x.length) {
+                wallPositions.push(
+                    result.x[idx] * scale - 10,
+                    result.r[idx] * scale,
+                    0.02
+                );
+            }
+        }
+
+        // Axis line (j = 0)
+        for (let i = 0; i < nx; i++) {
+            const idx = i * ny;
+            if (idx < result.x.length) {
+                axisPositions.push(
+                    result.x[idx] * scale - 10,
+                    0,
+                    0.02
+                );
+            }
+        }
+
+        const wGeom = new THREE.BufferGeometry();
+        wGeom.setAttribute('position', new THREE.Float32BufferAttribute(wallPositions, 3));
+
+        const aGeom = new THREE.BufferGeometry();
+        aGeom.setAttribute('position', new THREE.Float32BufferAttribute(axisPositions, 3));
+
+        return { wallGeom: wGeom, axisGeom: aGeom };
+    }, [result]);
+
+    if (!wallGeom || !axisGeom) return null;
+
+    return (
+        <group>
+            <primitive object={new THREE.Line(wallGeom, new THREE.LineBasicMaterial({ color: 0x00ffff, opacity: 0.6, transparent: true }))} />
+            <primitive object={new THREE.Line(axisGeom, new THREE.LineBasicMaterial({ color: 0xffffff, opacity: 0.3, transparent: true }))} />
+        </group>
+    );
+}
+
+// ============================================================================
+// COMPONENT: RESIDUAL PLOT
+// ============================================================================
+
 function ResidualPlot({ history }: { history: number[] }) {
-    if (!history || history.length < 2) return <div className="text-gray-500 text-xs italic">Pas de données de convergence</div>;
+    if (!history || history.length < 2) {
+        return <div className="text-gray-500 text-xs italic">Pas de données de convergence</div>;
+    }
 
-    const width = 100;
-    const height = 50;
-    const padding = 5;
+    const width = 200;
+    const height = 80;
+    const padding = 10;
 
-    // Log scale for residuals
-    const logValues = history.map(v => Math.log10(Math.max(v, 1e-10)));
+    const logValues = history.map(v => Math.log10(Math.max(v, 1e-12)));
     const min = Math.min(...logValues);
     const max = Math.max(...logValues);
     const range = max - min || 1;
@@ -186,18 +632,120 @@ function ResidualPlot({ history }: { history: number[] }) {
 
     return (
         <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full">
-            <polyline points={points} fill="none" stroke="#06b6d4" strokeWidth="1.5" />
+            <defs>
+                <linearGradient id="residualGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stopColor="#06b6d4" />
+                    <stop offset="100%" stopColor="#22c55e" />
+                </linearGradient>
+            </defs>
+            {/* Grid lines */}
+            <g stroke="#27272a" strokeWidth="0.5">
+                {[0.25, 0.5, 0.75].map(f => (
+                    <line key={f} x1={padding} x2={width - padding} y1={height - padding - f * (height - 2 * padding)} y2={height - padding - f * (height - 2 * padding)} />
+                ))}
+            </g>
+            {/* Curve */}
+            <polyline points={points} fill="none" stroke="url(#residualGrad)" strokeWidth="2" strokeLinecap="round" />
+            {/* Labels */}
+            <text x={padding} y={height - 2} fill="#666" fontSize="8" fontFamily="monospace">1e{min.toFixed(0)}</text>
+            <text x={width - padding} y={padding} fill="#666" fontSize="8" fontFamily="monospace" textAnchor="end">1e{max.toFixed(0)}</text>
         </svg>
     );
 }
 
+// ============================================================================
+// COMPONENT: DYNAMIC LEGEND
+// ============================================================================
+
+function DynamicLegend({ field, min, max, colormap }: { field: FieldType; min: number; max: number; colormap: string }) {
+    const gradientId = `legend-grad-${colormap}`;
+    const config = FIELD_CONFIG[field];
+
+    // Generate gradient stops
+    const stops = useMemo(() => {
+        const numStops = 10;
+        return Array.from({ length: numStops }, (_, i) => {
+            const t = i / (numStops - 1);
+            const color = getColorForValue(t, colormap);
+            return { offset: `${t * 100}%`, color: `#${color.getHexString()}` };
+        });
+    }, [colormap]);
+
+    const formatValue = (v: number) => {
+        if (field === "pressure") return `${(v / 1e5).toFixed(1)}`;
+        if (field === "temperature") return `${v.toFixed(0)}`;
+        if (field === "velocity_x") return `${v.toFixed(0)}`;
+        if (field === "density") return v.toFixed(2);
+        return v.toFixed(2);
+    };
+
+    return (
+        <div className="absolute bottom-4 right-4 bg-black/80 p-3 rounded-lg border border-cyan-900/50 backdrop-blur-sm">
+            <div className="text-cyan-400 text-xs font-bold mb-2">{config.name} {config.unit && `(${config.unit})`}</div>
+            <svg width="140" height="20" className="mb-1">
+                <defs>
+                    <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="0%">
+                        {stops.map((s, i) => (
+                            <stop key={i} offset={s.offset} stopColor={s.color} />
+                        ))}
+                    </linearGradient>
+                </defs>
+                <rect x="0" y="0" width="140" height="12" rx="2" fill={`url(#${gradientId})`} />
+            </svg>
+            <div className="flex justify-between text-[10px] text-gray-400 font-mono">
+                <span>{formatValue(min)}</span>
+                <span>{formatValue((min + max) / 2)}</span>
+                <span>{formatValue(max)}</span>
+            </div>
+        </div>
+    );
+}
+
+// ============================================================================
+// COMPONENT: PROGRESS BAR
+// ============================================================================
+
+function ProgressBar({ progress, message }: { progress: number; message: string }) {
+    return (
+        <div className="bg-[#1a1a25] rounded-lg border border-[#27272a] p-4">
+            <div className="flex justify-between items-center mb-2">
+                <span className="text-sm text-gray-400">{message}</span>
+                <span className="text-sm font-mono text-cyan-400">{(progress * 100).toFixed(1)}%</span>
+            </div>
+            <div className="h-2 bg-[#0a0a0f] rounded-full overflow-hidden">
+                <div
+                    className="h-full bg-gradient-to-r from-cyan-600 to-blue-500 transition-all duration-300 ease-out"
+                    style={{ width: `${progress * 100}%` }}
+                />
+            </div>
+        </div>
+    );
+}
+
+// ============================================================================
+// MAIN PAGE COMPONENT
+// ============================================================================
+
 export default function CFDPage() {
     const { config: mainConfig, results } = useCalculation();
+
+    // State
     const [status, setStatus] = useState<"idle" | "running" | "completed" | "error">("idle");
+    const [progress, setProgress] = useState(0);
+    const [progressMessage, setProgressMessage] = useState("");
     const [logs, setLogs] = useState<string[]>([]);
     const [result, setResult] = useState<CFDResult | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [field, setField] = useState<FieldType>("mach");
+
+    // Visualization options
+    const [showContours, setShowContours] = useState(true);
+    const [contourInterval, setContourInterval] = useState(0.5);
+    const [showWireframe, setShowWireframe] = useState(false);
+    const [showVectorField, setShowVectorField] = useState(false);
+    const [tooltip, setTooltip] = useState<TooltipData | null>(null);
+
+    // Save state
     const [currentJobId, setCurrentJobId] = useState<string | null>(null);
     const [currentParams, setCurrentParams] = useState<Record<string, unknown> | null>(null);
     const [saving, setSaving] = useState(false);
@@ -207,46 +755,89 @@ export default function CFDPage() {
     const abortControllerRef = useRef<AbortController | null>(null);
     const OPENFOAM_API = process.env.NEXT_PUBLIC_OPENFOAM_URL || "/api/cfd";
 
-    const addLog = (message: string) => {
+    const addLog = useCallback((message: string) => {
         setLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] ${message}`]);
-    };
+    }, []);
 
+    // ========================================================================
+    // RUN SIMULATION - SYNCHRONISÉ AVEC LE CONTEXTE DE CALCUL
+    // ========================================================================
     const runSimulation = async () => {
         if (status === "running") return;
 
         setStatus("running");
+        setProgress(0);
+        setProgressMessage("Initialisation...");
         setLogs([]);
         setResult(null);
         setError(null);
 
-        addLog("🚀 Initialisation de la simulation...");
+        addLog("🚀 Initialisation de la simulation OpenFOAM...");
 
         if (abortControllerRef.current) abortControllerRef.current.abort();
         abortControllerRef.current = new AbortController();
 
         try {
-            // Use geometry from main calculation context, fallback to defaults
+            // ================================================================
+            // EXTRACTION DYNAMIQUE DE TOUTES LES VALEURS DU CONTEXTE
+            // ================================================================
+            
+            // Géométrie (depuis results ou valeurs par défaut)
+            const r_throat = results?.r_throat ?? 0.025;          // [m]
+            const r_chamber = results?.r_chamber ?? 0.05;         // [m]
+            const r_exit = results?.r_exit ?? 0.075;              // [m]
+            const l_chamber = results?.l_chamber ?? 0.1;          // [m]
+            const l_nozzle = results?.l_nozzle ?? 0.2;            // [m]
+            
+            // Conditions thermodynamiques (depuis CEA via results)
+            const t_chamber = results?.t_chamber ?? 3000;          // [K]
+            const gamma = results?.gamma ?? 1.2;                   // [-]
+            const mw_gmol = results?.mw ?? 20;                     // [g/mol] (CEA output)
+            
+            // Pression : mainConfig.pc est en bar, convertir en Pa
+            const p_chamber_pa = mainConfig.pc * 1e5;              // bar → Pa
+            const p_ambient_pa = mainConfig.pamb * 1e5;            // bar → Pa
+            
+            // Masse molaire : convertir g/mol → kg/mol pour le backend
+            const molar_mass_kgmol = mw_gmol / 1000;               // g/mol → kg/mol
+
             const simParams = {
-                r_throat: results?.r_throat || 0.025,
-                r_chamber: results?.r_chamber || 0.05,
-                r_exit: results?.r_exit || 0.075,
-                l_chamber: results?.l_chamber || 0.1,
-                l_nozzle: results?.l_nozzle || 0.2,
-                p_chamber: mainConfig.pc * 1e5,
-                p_ambient: mainConfig.pe * 1e5,
-                t_chamber: results?.t_chamber || 3000,
-                gamma: results?.gamma || 1.2,
-                molar_mass: (results?.mw || 20) / 1000, // mw is in g/mol, convert to kg/mol
-                nx: 200,  // High resolution for solid mesh rendering
-                ny: 100,
+                // Géométrie
+                r_throat,
+                r_chamber,
+                r_exit,
+                l_chamber,
+                l_nozzle,
+                
+                // Conditions thermodynamiques
+                p_chamber: p_chamber_pa,
+                p_ambient: p_ambient_pa,
+                t_chamber,
+                gamma,
+                molar_mass: molar_mass_kgmol,
+                
+                // Résolution du maillage (haute résolution)
+                nx: 200,
+                ny: 80,
+                
+                // Paramètres solveur
                 max_iter: 5000,
-                mode: 1,
+                tolerance: 1e-6,
                 solver: "openfoam"
             };
 
-            addLog(`📝 Géométrie: Rt=${(simParams.r_throat * 1000).toFixed(1)}mm, Rc=${(simParams.r_chamber * 1000).toFixed(1)}mm, Re=${(simParams.r_exit * 1000).toFixed(1)}mm`);
-            addLog(`📝 Longueurs: Lc=${(simParams.l_chamber * 1000).toFixed(0)}mm, Ln=${(simParams.l_nozzle * 1000).toFixed(0)}mm | Pc=${(simParams.p_chamber / 1e5).toFixed(1)}bar, Tc=${simParams.t_chamber.toFixed(0)}K`);
-            addLog("📡 Envoi de la demande au serveur...");
+            addLog("📊 Paramètres extraits du contexte de calcul :");
+            addLog(`   • Géométrie: Rt=${(r_throat * 1000).toFixed(2)}mm, Rc=${(r_chamber * 1000).toFixed(2)}mm, Re=${(r_exit * 1000).toFixed(2)}mm`);
+            addLog(`   • Longueurs: Lc=${(l_chamber * 1000).toFixed(1)}mm, Ln=${(l_nozzle * 1000).toFixed(1)}mm`);
+            addLog(`   • Pression chambre: ${(p_chamber_pa / 1e5).toFixed(2)} bar (${(p_chamber_pa / 1e6).toFixed(2)} MPa)`);
+            addLog(`   • Température chambre: ${t_chamber.toFixed(0)} K`);
+            addLog(`   • Gamma (Cp/Cv): ${gamma.toFixed(4)}`);
+            addLog(`   • Masse molaire: ${mw_gmol.toFixed(2)} g/mol → ${(molar_mass_kgmol * 1000).toFixed(2)} g/mol pour OpenFOAM`);
+            addLog(`   • Maillage: ${simParams.nx}×${simParams.ny} = ${simParams.nx * simParams.ny} cellules`);
+
+            setProgress(0.05);
+            setProgressMessage("Envoi au serveur OpenFOAM...");
+            addLog("📡 Envoi de la requête au serveur OpenFOAM...");
 
             const startResponse = await fetch(`${OPENFOAM_API}/run`, {
                 method: "POST",
@@ -264,14 +855,20 @@ export default function CFDPage() {
             const jobId = jobInfo.job_id;
             setCurrentJobId(jobId);
             setCurrentParams(simParams);
-            addLog(`✅ Job créé: ID ${jobId}`);
+            addLog(`✅ Job créé: ${jobId} (${jobInfo.message})`);
 
+            setProgress(0.1);
+            setProgressMessage("Simulation en cours...");
+
+            // ================================================================
+            // POLLING AVEC PROGRESS BAR BASÉE SUR LES LOGS RÉELS
+            // ================================================================
             let completed = false;
             let attempts = 0;
             const maxAttempts = 600;
 
             while (!completed && attempts < maxAttempts) {
-                await new Promise(r => setTimeout(r, 2000));
+                await new Promise(r => setTimeout(r, 1500));
                 attempts++;
 
                 const statusRes = await fetch(`${OPENFOAM_API}/status?jobId=${jobId}`, {
@@ -281,20 +878,26 @@ export default function CFDPage() {
                 if (!statusRes.ok) throw new Error("Erreur vérification status");
 
                 const statusData = await statusRes.json();
+                const serverProgress = statusData.progress || 0;
+
+                setProgress(serverProgress);
+                setProgressMessage(statusData.message || "Calcul...");
 
                 if (statusData.status === "running") {
-                    if (attempts % 5 === 0) {
-                        addLog(`⏳ En cours... ${(statusData.progress * 100).toFixed(1)}%`);
+                    if (attempts % 3 === 0) {
+                        addLog(`⏳ ${statusData.message} [${(serverProgress * 100).toFixed(1)}%]`);
                     }
                 } else if (statusData.status === "completed") {
                     completed = true;
+                    setProgress(0.95);
+                    setProgressMessage("Post-traitement...");
                     addLog("🏁 Simulation terminée avec succès !");
                 } else if (statusData.status === "failed") {
                     throw new Error(`Simulation échouée: ${statusData.message}`);
                 }
             }
 
-            if (!completed) throw new Error("Timeout: La simulation prend trop de temps.");
+            if (!completed) throw new Error("Timeout: La simulation prend trop de temps (>15min).");
 
             addLog("📥 Téléchargement des résultats...");
             const resultRes = await fetch(`${OPENFOAM_API}/result?jobId=${jobId}`, {
@@ -303,34 +906,54 @@ export default function CFDPage() {
 
             if (!resultRes.ok) throw new Error("Erreur récupération résultats");
 
-            const resultData = await resultRes.json();
+            const resultData: CFDResult = await resultRes.json();
             setResult(resultData);
             setStatus("completed");
-            addLog("✨ Résultats chargés !");
-            
-            // Track the CFD analysis
+            setProgress(1);
+            setProgressMessage("Terminé !");
+
+            // Statistiques
+            const machMax = Math.max(...(resultData.mach || [0]));
+            const pMin = Math.min(...(resultData.pressure || [0]));
+            const tMax = Math.max(...(resultData.temperature || [0]));
+
+            addLog(`✨ Résultats chargés (solveur: ${resultData.solver || 'openfoam'})`);
+            addLog(`   • Mach max: ${machMax.toFixed(3)}`);
+            addLog(`   • Pression min: ${(pMin / 1e5).toFixed(2)} bar`);
+            addLog(`   • Température max: ${tMax.toFixed(0)} K`);
+            addLog(`   • Convergé: ${resultData.converged ? '✅ OUI' : '❌ NON'}`);
+
+            // Track activity
             trackActivity("cfd_run", {
                 jobId,
                 converged: resultData.converged,
-                iterations: resultData.iterations
+                iterations: resultData.iterations,
+                machMax,
+                solver: resultData.solver
             });
 
-        } catch (err: any) {
-            if (err.name === 'AbortError') {
+        } catch (err: unknown) {
+            const error = err as Error;
+            if (error.name === 'AbortError') {
                 addLog("🛑 Simulation annulée.");
                 setStatus("idle");
             } else {
                 console.error(err);
-                setError(err.message || "Erreur inconnue");
-                addLog(`❌ Erreur: ${err.message}`);
+                setError(error.message || "Erreur inconnue");
+                addLog(`❌ Erreur: ${error.message}`);
                 setStatus("error");
             }
+            setProgress(0);
+            setProgressMessage("");
         }
     };
 
+    // ========================================================================
+    // SAVE & EXPORT
+    // ========================================================================
     const saveSimulation = async () => {
         if (!result || !saveName.trim()) return;
-        
+
         setSaving(true);
         try {
             const response = await fetch("/api/cfd/save", {
@@ -338,13 +961,13 @@ export default function CFDPage() {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     name: saveName.trim(),
-                    description: `Simulation OpenFOAM - ${currentJobId}`,
+                    description: `OpenFOAM Simulation - Job ${currentJobId}`,
                     jobId: currentJobId,
                     params: currentParams,
                     result: result
                 })
             });
-            
+
             if (response.ok) {
                 addLog("💾 Simulation sauvegardée avec succès !");
                 setShowSaveDialog(false);
@@ -353,8 +976,9 @@ export default function CFDPage() {
                 const data = await response.json();
                 addLog(`❌ Erreur sauvegarde: ${data.error}`);
             }
-        } catch (err: any) {
-            addLog(`❌ Erreur sauvegarde: ${err.message}`);
+        } catch (err: unknown) {
+            const error = err as Error;
+            addLog(`❌ Erreur sauvegarde: ${error.message}`);
         } finally {
             setSaving(false);
         }
@@ -362,14 +986,35 @@ export default function CFDPage() {
 
     const exportResults = () => {
         if (!result) return;
-        
+
         const exportData = {
-            jobId: currentJobId,
+            metadata: {
+                jobId: currentJobId,
+                exportedAt: new Date().toISOString(),
+                solver: result.solver || "openfoam",
+                converged: result.converged,
+                iterations: result.iterations
+            },
             params: currentParams,
-            result: result,
-            exportedAt: new Date().toISOString()
+            grid: {
+                nx: result.nx,
+                ny: result.ny,
+                x: result.x,
+                r: result.r
+            },
+            fields: {
+                mach: result.mach,
+                pressure: result.pressure,
+                temperature: result.temperature,
+                velocity_x: result.velocity_x,
+                velocity_r: result.velocity_r,
+                density: result.density
+            },
+            convergence: {
+                residual_history: result.residual_history
+            }
         };
-        
+
         const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -382,162 +1027,297 @@ export default function CFDPage() {
         addLog("📁 Résultats exportés en JSON !");
     };
 
+    // ========================================================================
+    // COMPUTED VALUES
+    // ========================================================================
+    const fieldMinMax = useMemo(() => {
+        if (!result) return { min: 0, max: 1 };
+        const data = result[field];
+        if (!data || data.length === 0) return { min: 0, max: 1 };
+
+        let min = Infinity, max = -Infinity;
+        for (const v of data) {
+            if (Number.isFinite(v)) {
+                if (v < min) min = v;
+                if (v > max) max = v;
+            }
+        }
+        if (!Number.isFinite(min)) return { min: 0, max: 1 };
+        return { min, max };
+    }, [result, field]);
+
+    // Auto-adjust contour interval based on field
+    useEffect(() => {
+        if (!result) return;
+        const { min, max } = fieldMinMax;
+        const range = max - min;
+        // ~10 contour lines
+        setContourInterval(range / 10);
+    }, [field, fieldMinMax, result]);
+
+    // ========================================================================
+    // RENDER
+    // ========================================================================
     return (
         <AppLayout>
-            <div className="flex flex-col h-screen bg-[#0a0a0f] text-white p-6 gap-6">
-                <header className="flex justify-between items-end">
+            <div className="flex flex-col h-screen bg-[#0a0a0f] text-white p-6 gap-4">
+                {/* Header */}
+                <header className="flex justify-between items-end shrink-0">
                     <div>
                         <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-blue-600">
-                            OpenFOAM Simulation Runner
+                            🔥 OpenFOAM CFD Simulation
                         </h1>
-                        <p className="text-gray-400 text-sm">Interface de diagnostic simplifiée & Visualisation</p>
+                        <p className="text-gray-500 text-sm">Simulation haute-fidélité avec rhoCentralFoam • Visualisation par shaders GPU</p>
                     </div>
-                    {/* Controls */}
-                    <div className="flex gap-4 items-center">
+
+                    {/* Action buttons */}
+                    <div className="flex gap-3 items-center">
                         {result && (
                             <>
                                 <button
                                     onClick={() => setShowSaveDialog(true)}
-                                    className="px-4 py-2 rounded font-bold bg-green-600 hover:bg-green-500 text-white transition-all"
+                                    className="px-4 py-2 rounded-lg font-bold bg-green-600/20 hover:bg-green-600/40 text-green-400 border border-green-600/50 transition-all"
                                 >
                                     💾 Sauvegarder
                                 </button>
                                 <button
                                     onClick={exportResults}
-                                    className="px-4 py-2 rounded font-bold bg-purple-600 hover:bg-purple-500 text-white transition-all"
+                                    className="px-4 py-2 rounded-lg font-bold bg-purple-600/20 hover:bg-purple-600/40 text-purple-400 border border-purple-600/50 transition-all"
                                 >
-                                    📁 Exporter JSON
+                                    📁 Exporter
                                 </button>
                             </>
                         )}
                         <button
                             onClick={runSimulation}
                             disabled={status === "running"}
-                            className={`px-6 py-2 rounded font-bold transition-all ${status === "running"
-                                ? "bg-gray-700 cursor-not-allowed text-gray-400"
-                                : "bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white shadow-lg shadow-cyan-500/20"
+                            className={`px-6 py-2.5 rounded-lg font-bold transition-all ${status === "running"
+                                    ? "bg-gray-800 cursor-not-allowed text-gray-500"
+                                    : "bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white shadow-lg shadow-cyan-500/30"
                                 }`}
                         >
-                            {status === "running" ? "Simulation en cours..." : "🚀 Lancer Simulation"}
+                            {status === "running" ? "⏳ Simulation en cours..." : "🚀 Lancer Simulation"}
                         </button>
                     </div>
                 </header>
 
-                {/* Save Dialog */}
+                {/* Progress bar (when running) */}
+                {status === "running" && (
+                    <ProgressBar progress={progress} message={progressMessage} />
+                )}
+
+                {/* Error display */}
+                {error && (
+                    <div className="bg-red-900/30 border border-red-600/50 rounded-lg p-4 text-red-400">
+                        <strong>Erreur:</strong> {error}
+                    </div>
+                )}
+
+                {/* Save Dialog Modal */}
                 {showSaveDialog && (
-                    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                        <div className="bg-[#1a1a25] rounded-lg border border-[#27272a] p-6 w-96">
-                            <h3 className="text-lg font-bold mb-4">💾 Sauvegarder la Simulation</h3>
+                    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 backdrop-blur-sm">
+                        <div className="bg-[#1a1a25] rounded-xl border border-cyan-900/50 p-6 w-96 shadow-2xl">
+                            <h3 className="text-lg font-bold mb-4 text-cyan-400">💾 Sauvegarder la Simulation</h3>
                             <input
                                 type="text"
                                 value={saveName}
                                 onChange={(e) => setSaveName(e.target.value)}
                                 placeholder="Nom de la simulation..."
-                                className="w-full px-4 py-2 bg-[#0a0a0f] border border-[#27272a] rounded mb-4 text-white"
+                                className="w-full px-4 py-3 bg-[#0a0a0f] border border-[#27272a] rounded-lg mb-4 text-white focus:border-cyan-500 focus:outline-none transition-colors"
                                 autoFocus
                             />
                             <div className="flex gap-3 justify-end">
                                 <button
                                     onClick={() => setShowSaveDialog(false)}
-                                    className="px-4 py-2 rounded bg-gray-700 hover:bg-gray-600 text-white"
+                                    className="px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-white transition-colors"
                                 >
                                     Annuler
                                 </button>
                                 <button
                                     onClick={saveSimulation}
                                     disabled={!saveName.trim() || saving}
-                                    className="px-4 py-2 rounded bg-green-600 hover:bg-green-500 text-white disabled:opacity-50"
+                                    className="px-4 py-2 rounded-lg bg-green-600 hover:bg-green-500 text-white disabled:opacity-50 transition-colors"
                                 >
-                                    {saving ? "Sauvegarde..." : "Sauvegarder"}
+                                    {saving ? "⏳ Sauvegarde..." : "✓ Sauvegarder"}
                                 </button>
                             </div>
                         </div>
                     </div>
                 )}
 
-                {/* Main Content Area */}
-                <div className="flex flex-1 gap-6 min-h-0">
-                    {/* Left: Logs & Details */}
-                    <div className="w-1/3 flex flex-col gap-6">
+                {/* Main Content */}
+                <div className="flex flex-1 gap-4 min-h-0">
+                    {/* Left Panel: Logs & Stats */}
+                    <div className="w-80 flex flex-col gap-4 shrink-0">
                         {/* Logs Console */}
-                        <div className="flex-1 bg-[#1a1a25] rounded-lg border border-[#27272a] p-4 flex flex-col font-mono text-xs shadow-inner">
-                            <h2 className="text-gray-400 font-bold mb-2 uppercase border-b border-[#27272a] pb-2">Logs de Simulation</h2>
-                            <div className="flex-1 overflow-y-auto space-y-1">
-                                {logs.length === 0 && <span className="text-gray-600 italic">En attente de démarrage...</span>}
+                        <div className="flex-1 bg-[#1a1a25] rounded-xl border border-[#27272a] p-4 flex flex-col overflow-hidden">
+                            <h2 className="text-cyan-400 font-bold mb-3 uppercase text-xs tracking-wider border-b border-[#27272a] pb-2">
+                                📋 Logs de Simulation
+                            </h2>
+                            <div className="flex-1 overflow-y-auto space-y-1 font-mono text-xs scrollbar-thin scrollbar-thumb-gray-700">
+                                {logs.length === 0 && (
+                                    <span className="text-gray-600 italic">En attente de démarrage...</span>
+                                )}
                                 {logs.map((log, i) => (
-                                    <div key={i} className="text-gray-300 border-b border-[#27272a]/30 pb-0.5">{log}</div>
+                                    <div key={i} className="text-gray-300 border-b border-[#27272a]/30 pb-1 leading-relaxed">
+                                        {log}
+                                    </div>
                                 ))}
                             </div>
                         </div>
 
-                        {/* Quick Stats */}
+                        {/* Stats Panel */}
                         {result && (
-                            <div className="bg-[#1a1a25] rounded-lg border border-[#27272a] p-4 shrink-0">
-                                <h2 className="text-gray-400 font-bold mb-3 uppercase text-xs">Performance</h2>
-                                <div className="grid grid-cols-2 gap-3 mb-4">
-                                    <div className="bg-[#0a0a0f] p-2 rounded">
+                            <div className="bg-[#1a1a25] rounded-xl border border-[#27272a] p-4 shrink-0">
+                                <h2 className="text-cyan-400 font-bold mb-3 uppercase text-xs tracking-wider">📊 Statistiques</h2>
+
+                                <div className="grid grid-cols-2 gap-2 mb-4">
+                                    <div className="bg-[#0a0a0f] p-3 rounded-lg border border-purple-900/30">
                                         <div className="text-gray-500 text-[10px] uppercase">Mach Max</div>
-                                        <div className="text-purple-400 font-bold text-lg">{Math.max(...(result.mach || [0])).toFixed(2)}</div>
+                                        <div className="text-purple-400 font-bold text-xl">{Math.max(...(result.mach || [0])).toFixed(2)}</div>
                                     </div>
-                                    <div className="bg-[#0a0a0f] p-2 rounded">
+                                    <div className="bg-[#0a0a0f] p-3 rounded-lg border border-orange-900/30">
                                         <div className="text-gray-500 text-[10px] uppercase">Pression Min</div>
-                                        <div className="text-orange-400 font-bold text-lg">{(Math.min(...(result.pressure || [0])) / 1e5).toFixed(2)} bar</div>
+                                        <div className="text-orange-400 font-bold text-xl">{(Math.min(...(result.pressure || [0])) / 1e5).toFixed(1)} bar</div>
+                                    </div>
+                                    <div className="bg-[#0a0a0f] p-3 rounded-lg border border-red-900/30">
+                                        <div className="text-gray-500 text-[10px] uppercase">Temp Max</div>
+                                        <div className="text-red-400 font-bold text-xl">{Math.max(...(result.temperature || [0])).toFixed(0)} K</div>
+                                    </div>
+                                    <div className="bg-[#0a0a0f] p-3 rounded-lg border border-green-900/30">
+                                        <div className="text-gray-500 text-[10px] uppercase">Vitesse Max</div>
+                                        <div className="text-green-400 font-bold text-xl">{Math.max(...(result.velocity_x || [0])).toFixed(0)} m/s</div>
                                     </div>
                                 </div>
 
-                                <h2 className="text-gray-400 font-bold mb-1 uppercase text-xs">Convergence</h2>
-                                <div className="h-16 w-full bg-[#0a0a0f] rounded relative">
+                                <h3 className="text-gray-500 font-bold mb-2 uppercase text-[10px]">Convergence</h3>
+                                <div className="h-20 w-full bg-[#0a0a0f] rounded-lg border border-[#27272a] p-1">
                                     <ResidualPlot history={result.residual_history || []} />
                                 </div>
                             </div>
                         )}
                     </div>
 
-                    {/* Right: Visualization */}
-                    <div className="flex-1 bg-[#1a1a25] rounded-lg border border-[#27272a] p-4 flex flex-col relative overflow-hidden">
-                        <div className="flex justify-between items-center mb-4 z-10">
-                            <h2 className="text-gray-400 font-bold uppercase">Visualisation 2D</h2>
-
-                            {/* Field Selector */}
-                            <div className="flex bg-[#0a0a0f] rounded p-1 border border-[#27272a]">
+                    {/* Right Panel: Visualization */}
+                    <div className="flex-1 bg-[#1a1a25] rounded-xl border border-[#27272a] p-4 flex flex-col overflow-hidden">
+                        {/* Toolbar */}
+                        <div className="flex justify-between items-center mb-3 flex-wrap gap-2">
+                            {/* Field selector */}
+                            <div className="flex bg-[#0a0a0f] rounded-lg p-1 border border-[#27272a]">
                                 {(Object.keys(FIELD_CONFIG) as FieldType[]).map((f) => (
                                     <button
                                         key={f}
                                         onClick={() => setField(f)}
-                                        className={`px-3 py-1 rounded text-xs font-bold transition-all ${field === f ? "bg-cyan-600 text-white" : "text-gray-400 hover:text-white"
+                                        className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${field === f
+                                                ? "bg-cyan-600 text-white shadow-lg shadow-cyan-600/30"
+                                                : "text-gray-400 hover:text-white hover:bg-white/5"
                                             }`}
                                     >
                                         {FIELD_CONFIG[f].name}
                                     </button>
                                 ))}
                             </div>
+
+                            {/* Visualization options */}
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => setShowContours(!showContours)}
+                                    className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all border ${showContours
+                                            ? "bg-cyan-600/20 text-cyan-400 border-cyan-600/50"
+                                            : "bg-transparent text-gray-500 border-gray-700 hover:text-gray-300"
+                                        }`}
+                                >
+                                    📈 Contours
+                                </button>
+                                <button
+                                    onClick={() => setShowWireframe(!showWireframe)}
+                                    className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all border ${showWireframe
+                                            ? "bg-cyan-600/20 text-cyan-400 border-cyan-600/50"
+                                            : "bg-transparent text-gray-500 border-gray-700 hover:text-gray-300"
+                                        }`}
+                                >
+                                    🔲 Maillage
+                                </button>
+                                <button
+                                    onClick={() => setShowVectorField(!showVectorField)}
+                                    className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all border ${showVectorField
+                                            ? "bg-cyan-600/20 text-cyan-400 border-cyan-600/50"
+                                            : "bg-transparent text-gray-500 border-gray-700 hover:text-gray-300"
+                                        }`}
+                                >
+                                    ➡️ Vecteurs
+                                </button>
+                            </div>
                         </div>
 
-                        <div className="flex-1 bg-[#0a0a0f] rounded border border-[#27272a] relative">
+                        {/* Canvas */}
+                        <div className="flex-1 bg-[#050508] rounded-lg border border-[#27272a] relative overflow-hidden">
                             {result ? (
                                 <>
-                                    <Canvas orthographic camera={{ zoom: 25, position: [0, 0, 50] }}>
-                                        <color attach="background" args={["#0a0a0f"]} />
-                                        <CFDHeatmap
+                                    <Canvas orthographic camera={{ zoom: 28, position: [0, 2, 50] }}>
+                                        <color attach="background" args={["#050508"]} />
+                                        <CFDHeatmapShader
                                             result={result}
                                             field={field}
                                             colormap={FIELD_CONFIG[field].colormap}
+                                            showContours={showContours}
+                                            contourInterval={contourInterval}
+                                            showWireframe={showWireframe}
+                                            onHover={setTooltip}
                                         />
+                                        {showVectorField && <VectorFieldOverlay result={result} scale={1.2} />}
+                                        <NozzleContour result={result} />
                                     </Canvas>
 
-                                    {/* Legend Overlay */}
-                                    <div className="absolute bottom-4 right-4 bg-black/80 p-2 rounded border border-gray-800 backdrop-blur-sm">
-                                        <div className="text-gray-300 text-xs font-bold mb-1">{FIELD_CONFIG[field].unit || "Sans unité"}</div>
-                                        <div className="w-32 h-3 bg-gradient-to-r from-blue-900 to-yellow-500 rounded-sm opacity-80"></div>
-                                        <div className="flex justify-between text-[10px] text-gray-500 mt-1 font-mono">
-                                            <span>Min</span>
-                                            <span>Max</span>
+                                    {/* Dynamic Legend */}
+                                    <DynamicLegend
+                                        field={field}
+                                        min={fieldMinMax.min}
+                                        max={fieldMinMax.max}
+                                        colormap={FIELD_CONFIG[field].colormap}
+                                    />
+
+                                    {/* Tooltip */}
+                                    {tooltip && (
+                                        <div
+                                            className="absolute pointer-events-none bg-black/90 px-3 py-2 rounded-lg border border-cyan-800/50 text-xs font-mono shadow-xl"
+                                            style={{
+                                                left: '50%',
+                                                top: 16,
+                                                transform: 'translateX(-50%)'
+                                            }}
+                                        >
+                                            <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                                                <span className="text-gray-500">Position:</span>
+                                                <span className="text-white">x={tooltip.worldX.toFixed(4)}m, r={tooltip.worldR.toFixed(4)}m</span>
+                                                <span className="text-purple-400">Mach:</span>
+                                                <span className="text-white font-bold">{tooltip.mach.toFixed(3)}</span>
+                                                <span className="text-orange-400">Pression:</span>
+                                                <span className="text-white font-bold">{(tooltip.pressure / 1e5).toFixed(2)} bar</span>
+                                                <span className="text-red-400">Température:</span>
+                                                <span className="text-white font-bold">{tooltip.temperature.toFixed(0)} K</span>
+                                                <span className="text-green-400">Vitesse:</span>
+                                                <span className="text-white font-bold">{tooltip.velocity.toFixed(0)} m/s</span>
+                                            </div>
                                         </div>
+                                    )}
+
+                                    {/* Info overlay */}
+                                    <div className="absolute top-3 left-3 text-[10px] text-gray-600 font-mono">
+                                        {result.nx}×{result.ny} mesh • {result.solver || 'openfoam'} • {result.converged ? '✓ converged' : '⚠ not converged'}
                                     </div>
                                 </>
                             ) : (
-                                <div className="flex items-center justify-center h-full text-gray-600 italic">
-                                    En attente de résultats...
+                                <div className="flex items-center justify-center h-full">
+                                    <div className="text-center">
+                                        <div className="text-6xl mb-4 opacity-20">🚀</div>
+                                        <div className="text-gray-600 italic">
+                                            Cliquez sur &quot;Lancer Simulation&quot; pour démarrer
+                                        </div>
+                                        <div className="text-gray-700 text-xs mt-2">
+                                            Les paramètres seront extraits automatiquement du contexte de calcul
+                                        </div>
+                                    </div>
                                 </div>
                             )}
                         </div>

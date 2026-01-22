@@ -1,6 +1,6 @@
 """
 Micro-service Python UNIQUEMENT pour NASA CEA
-Port: 8001
+Port: 8002
 """
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -137,6 +137,6 @@ def health():
 
 if __name__ == "__main__":
     import uvicorn
-    print("🔬 CEA Microservice starting on port 8001...")
-    uvicorn.run(app, host="0.0.0.0", port=8001)
+    print("🔬 CEA Microservice starting on port 8002...")
+    uvicorn.run(app, host="0.0.0.0", port=8002)
 
