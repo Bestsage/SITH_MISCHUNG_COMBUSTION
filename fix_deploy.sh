@@ -1,5 +1,8 @@
 #!/bin/bash
-# Script to resolve "KeyError: 'ContainerConfig'" on Docker Compose 1.29.2
+# Script to fix deployment on CasaOS
+
+echo "📥 Pulling latest changes from git..."
+git pull
 
 echo "🛑 Stopping containers..."
 docker-compose stop
