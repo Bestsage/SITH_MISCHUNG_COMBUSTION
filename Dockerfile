@@ -17,6 +17,7 @@ RUN npm install --legacy-peer-deps
 COPY web/ ./
 RUN echo "=== DEBUG FILE STRUCTURE ===" && ls -R lib/ && ls -R app/
 RUN echo "=== DEBUG TSCONFIG ===" && cat tsconfig.json
+ENV DATABASE_URL="file:/app/data/sith.db"
 RUN npx prisma generate
 RUN npm run build
 
