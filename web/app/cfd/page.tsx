@@ -5,6 +5,7 @@ import AppLayout from "@/components/AppLayout";
 import { useCalculation } from "@/contexts/CalculationContext";
 import { Canvas } from "@react-three/fiber";
 import * as THREE from "three";
+import { trackActivity } from "@/lib/activity";
 
 // Types matching Rust backend
 interface CFDResult {
@@ -266,7 +267,7 @@ export default function CFDPage() {
                 await new Promise(r => setTimeout(r, 2000));
                 attempts++;
 
-                const statusRes = await fetch(`${OPENFOAM_API}/status/${jobId}`, {
+                const statusRes = await fetch(`${OPENFOAM_API}/status?jobId=${jobId}`, {
                     signal: abortControllerRef.current.signal
                 });
 
@@ -289,7 +290,7 @@ export default function CFDPage() {
             if (!completed) throw new Error("Timeout: La simulation prend trop de temps.");
 
             addLog("📥 Téléchargement des résultats...");
-            const resultRes = await fetch(`${OPENFOAM_API}/result/${jobId}`, {
+            const resultRes = await fetch(`${OPENFOAM_API}/result?jobId=${jobId}`, {
                 signal: abortControllerRef.current.signal
             });
 
@@ -299,6 +300,13 @@ export default function CFDPage() {
             setResult(resultData);
             setStatus("completed");
             addLog("✨ Résultats chargés !");
+            
+            // Track the CFD analysis
+            trackActivity("cfd_run", {
+                jobId,
+                converged: resultData.converged,
+                iterations: resultData.iterations
+            });
 
         } catch (err: any) {
             if (err.name === 'AbortError') {

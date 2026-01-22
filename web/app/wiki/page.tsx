@@ -1,12 +1,33 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import AppLayout from "@/components/AppLayout";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
+
+// Convert title to slug for stable IDs
+function slugify(text: string): string {
+    return text
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '') // Remove accents
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/(^-|-$)/g, '');
+}
+
+// Quick links to main sections
+const quickLinks = [
+    { icon: "🚀", title: "Introduction", slug: "1-introduction-le-principe-d-action-reaction", description: "Les bases de la propulsion" },
+    { icon: "🔥", title: "Tuyère de Laval", slug: "2-la-tuyere-de-laval-passer-le-mur-du-son", description: "Flux supersonique" },
+    { icon: "🌡️", title: "Thermique", slug: "3-le-probleme-thermique", description: "Gestion de la chaleur" },
+    { icon: "❄️", title: "Refroidissement", slug: "4-le-refroidissement-regeneratif", description: "Techniques de cooling" },
+    { icon: "⚗️", title: "Combustion", slug: "5-chimie-de-combustion-nasa-cea", description: "NASA CEA & thermochimie" },
+    { icon: "🔧", title: "Matériaux", slug: "9-criteres-de-selection-des-materiaux", description: "Sélection & propriétés" },
+    { icon: "📐", title: "Concepts", slug: "13-introduction-et-concepts-fondamentaux", description: "Théorie avancée" },
+];
 
 export default function WikiPage() {
     const [wikiContent, setWikiContent] = useState<string>("");
@@ -25,24 +46,31 @@ export default function WikiPage() {
             });
     }, []);
 
-    // Parse sections from wiki content
+    // Parse sections from wiki content with stable slugs
     const sections = useMemo(() => {
         const sectionList: { id: string; title: string; level: number }[] = [];
         const lines = wikiContent.split('\n');
 
-        lines.forEach((line, index) => {
-            const h2Match = line.match(/^## (\d+\..*)/);
-            const h3Match = line.match(/^### (\d+\.\d+.*)/);
+        lines.forEach((line) => {
+            const h1Match = line.match(/^# (.+)/);
+            const h2Match = line.match(/^## (.+)/);
+            const h3Match = line.match(/^### (.+)/);
 
-            if (h2Match) {
+            if (h1Match) {
                 sectionList.push({
-                    id: `section-${index}`,
+                    id: slugify(h1Match[1]),
+                    title: h1Match[1].trim(),
+                    level: 1
+                });
+            } else if (h2Match) {
+                sectionList.push({
+                    id: slugify(h2Match[1]),
                     title: h2Match[1].trim(),
                     level: 2
                 });
             } else if (h3Match) {
                 sectionList.push({
-                    id: `section-${index}`,
+                    id: slugify(h3Match[1]),
                     title: h3Match[1].trim(),
                     level: 3
                 });
@@ -61,7 +89,7 @@ export default function WikiPage() {
         let includeSection = false;
 
         for (const line of lines) {
-            if (line.startsWith('## ') || line.startsWith('### ')) {
+            if (line.startsWith('#')) {
                 includeSection = line.toLowerCase().includes(searchQuery.toLowerCase());
             }
             if (includeSection || line.toLowerCase().includes(searchQuery.toLowerCase())) {
@@ -71,6 +99,14 @@ export default function WikiPage() {
 
         return filteredLines.join('\n');
     }, [wikiContent, searchQuery]);
+
+    // Scroll to section
+    const scrollToSection = useCallback((id: string) => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    }, []);
 
     return (
         <AppLayout>
@@ -87,22 +123,50 @@ export default function WikiPage() {
                         />
                     </div>
 
+                    {/* Quick Links */}
+                    <div className="p-4 border-b border-[#27272a] flex-shrink-0">
+                        <h3 className="text-xs font-bold text-[#a1a1aa] uppercase tracking-wider mb-3">
+                            ⚡ Accès Rapide
+                        </h3>
+                        <div className="grid grid-cols-2 gap-2">
+                            {quickLinks.map((link) => (
+                                <button
+                                    key={link.slug}
+                                    onClick={() => scrollToSection(link.slug)}
+                                    className="text-left p-2 rounded-lg bg-[#1f1f2e] hover:bg-[#2a2a3e] transition-all group"
+                                    title={link.description}
+                                >
+                                    <span className="text-lg">{link.icon}</span>
+                                    <span className="text-[10px] text-[#71717a] group-hover:text-white block truncate">
+                                        {link.title}
+                                    </span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
                     <div className="flex-1 overflow-y-auto p-4">
                         <h3 className="text-xs font-bold text-[#a1a1aa] uppercase tracking-wider mb-3">
                             📑 Table des Matières ({sections.length})
                         </h3>
                         <div className="space-y-1">
-                            {sections.map((section) => (
+                            {sections.map((section, idx) => (
                                 <button
-                                    key={section.id}
-                                    onClick={() => {
-                                        document.getElementById(section.id)?.scrollIntoView({ behavior: 'smooth' });
-                                    }}
-                                    className={`w-full text-left px-2 py-1.5 rounded text-xs transition-all ${section.level === 3 ? 'ml-3 text-[#71717a]' : 'text-[#a1a1aa] font-medium'
-                                        } hover:bg-[#1f1f2e] hover:text-white truncate`}
+                                    key={`${section.id}-${idx}`}
+                                    onClick={() => scrollToSection(section.id)}
+                                    className={`w-full text-left px-2 py-1.5 rounded text-xs transition-all ${
+                                        section.level === 1 
+                                            ? 'text-white font-bold bg-[#1f1f2e] mt-2' 
+                                            : section.level === 3 
+                                            ? 'ml-4 text-[#71717a]' 
+                                            : 'ml-2 text-[#a1a1aa] font-medium'
+                                    } hover:bg-[#2a2a3e] hover:text-white truncate`}
                                     title={section.title}
                                 >
-                                    {section.title.length > 35 ? section.title.substring(0, 35) + '...' : section.title}
+                                    {section.level === 1 && '📖 '}
+                                    {section.level === 2 && '• '}
+                                    {section.level === 3 && '◦ '}
+                                    {section.title.length > 30 ? section.title.substring(0, 30) + '...' : section.title}
                                 </button>
                             ))}
                         </div>
@@ -132,23 +196,29 @@ export default function WikiPage() {
                                     remarkPlugins={[remarkGfm, remarkMath]}
                                     rehypePlugins={[rehypeKatex]}
                                     components={{
-                                        h1: ({ children }) => (
-                                            <h1 className="text-4xl font-bold text-white mt-12 mb-6 pb-4 border-b border-[#27272a]">
-                                                {children}
-                                            </h1>
-                                        ),
-                                        h2: ({ children, node }) => {
-                                            const index = wikiContent.split('\n').findIndex(l => l.includes(String(children)));
+                                        h1: ({ children }) => {
+                                            const text = String(children);
+                                            const id = slugify(text);
                                             return (
-                                                <h2 id={`section-${index}`} className="text-2xl font-bold text-[#00d4ff] mt-10 mb-4 scroll-mt-4">
+                                                <h1 id={id} className="text-4xl font-bold text-white mt-12 mb-6 pb-4 border-b border-[#27272a] scroll-mt-4">
+                                                    {children}
+                                                </h1>
+                                            );
+                                        },
+                                        h2: ({ children }) => {
+                                            const text = String(children);
+                                            const id = slugify(text);
+                                            return (
+                                                <h2 id={id} className="text-2xl font-bold text-[#00d4ff] mt-10 mb-4 scroll-mt-4">
                                                     {children}
                                                 </h2>
                                             );
                                         },
-                                        h3: ({ children, node }) => {
-                                            const index = wikiContent.split('\n').findIndex(l => l.includes(String(children)));
+                                        h3: ({ children }) => {
+                                            const text = String(children);
+                                            const id = slugify(text);
                                             return (
-                                                <h3 id={`section-${index}`} className="text-xl font-semibold text-[#8b5cf6] mt-8 mb-3 scroll-mt-4">
+                                                <h3 id={id} className="text-xl font-semibold text-[#8b5cf6] mt-8 mb-3 scroll-mt-4">
                                                     {children}
                                                 </h3>
                                             );

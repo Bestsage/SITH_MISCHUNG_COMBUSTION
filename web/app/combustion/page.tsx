@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import AppLayout from "@/components/AppLayout";
+import { trackActivity } from "@/lib/activity";
 
 export default function CombustionPage() {
     const [ceaParams, setCeaParams] = useState({
@@ -23,9 +24,23 @@ export default function CombustionPage() {
                 body: JSON.stringify(ceaParams)
             });
             const data = await res.json();
-            setResults(data);
+            
+            if (res.ok && !data.error) {
+                setResults(data);
+                // Track the simulation only on success
+                trackActivity("cea_calculation", {
+                    fuel: ceaParams.fuel,
+                    oxidizer: ceaParams.oxidizer,
+                    of_ratio: ceaParams.of_ratio,
+                    pc: ceaParams.pc
+                });
+            } else {
+                console.error("CEA calculation error:", data.error);
+                setResults({ error: data.error || "Erreur de calcul CEA" });
+            }
         } catch (e) {
             console.error("CEA calculation failed:", e);
+            setResults({ error: "Impossible de contacter le serveur CEA" });
         } finally {
             setLoading(false);
         }

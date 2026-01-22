@@ -178,12 +178,20 @@ function SignInContent() {
                 </div>
 
                 {/* Footer */}
-                <p className="text-center text-xs text-slate-500 mt-6">
-                    En vous connectant, vous acceptez nos{" "}
-                    <Link href="/terms" className="text-cyan-400 hover:text-cyan-300">
-                        conditions d&apos;utilisation
-                    </Link>
-                </p>
+                <div className="text-center mt-6 space-y-2">
+                    <p className="text-slate-400">
+                        Pas encore de compte ?{" "}
+                        <Link href="/auth/signup" className="text-cyan-400 hover:text-cyan-300 font-medium">
+                            Créer un compte
+                        </Link>
+                    </p>
+                    <p className="text-xs text-slate-500">
+                        En vous connectant, vous acceptez nos{" "}
+                        <Link href="/terms" className="text-cyan-400 hover:text-cyan-300">
+                            conditions d&apos;utilisation
+                        </Link>
+                    </p>
+                </div>
             </div>
         </div>
     );
