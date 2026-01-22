@@ -64,6 +64,11 @@ export default function AccountPage() {
     const [editName, setEditName] = useState("");
     const [savingProfile, setSavingProfile] = useState(false);
 
+    // Photo edit state
+    const [editingPhoto, setEditingPhoto] = useState(false);
+    const [photoOptions, setPhotoOptions] = useState<{ provider: string; previewUrl: string | null }[]>([]);
+    const [uploadingPhoto, setUploadingPhoto] = useState(false);
+
     // Admin state
     const [users, setUsers] = useState<AdminUser[]>([]);
     const [userSearch, setUserSearch] = useState("");
@@ -289,8 +294,17 @@ export default function AccountPage() {
                     {/* Profile Info */}
                     <div className="px-8 pb-8 relative">
                         {/* Avatar */}
-                        <div className="absolute -top-16 left-8">
-                            <div className={`w-32 h-32 rounded-2xl border-4 ${theme === "light" ? "border-white bg-slate-100" : "border-slate-900 bg-slate-800"} overflow-hidden shadow-xl`}>
+                        <div className="absolute -top-16 left-8 group">
+                            <div className={`w-32 h-32 rounded-2xl border-4 ${theme === "light" ? "border-white bg-slate-100" : "border-slate-900 bg-slate-800"} overflow-hidden shadow-xl relative cursor-pointer`}
+                                onClick={async () => {
+                                    setEditingPhoto(true);
+                                    try {
+                                        const res = await fetch("/api/user/image");
+                                        const data = await res.json();
+                                        if (data.syncOptions) setPhotoOptions(data.syncOptions);
+                                    } catch (e) { console.error(e); }
+                                }}
+                            >
                                 {user?.image ? (
                                     <Image
                                         src={user.image}
@@ -304,6 +318,10 @@ export default function AccountPage() {
                                         {user?.name?.[0]?.toUpperCase() || "U"}
                                     </div>
                                 )}
+                                {/* Hover overlay */}
+                                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                    <span className="text-white text-2xl">📷</span>
+                                </div>
                             </div>
                         </div>
 
@@ -563,10 +581,10 @@ export default function AccountPage() {
                                                 </td>
                                                 <td className="py-4">
                                                     <span className={`px-2 py-1 rounded-full text-xs font-medium ${u.role === "SUPERADMIN"
-                                                            ? "bg-purple-500/20 text-purple-400"
-                                                            : u.role === "ADMIN"
-                                                                ? "bg-cyan-500/20 text-cyan-400"
-                                                                : theme === "light" ? "bg-slate-200 text-slate-700" : "bg-slate-700 text-slate-300"
+                                                        ? "bg-purple-500/20 text-purple-400"
+                                                        : u.role === "ADMIN"
+                                                            ? "bg-cyan-500/20 text-cyan-400"
+                                                            : theme === "light" ? "bg-slate-200 text-slate-700" : "bg-slate-700 text-slate-300"
                                                         }`}>
                                                         {u.role}
                                                     </span>
@@ -639,6 +657,136 @@ export default function AccountPage() {
                                 </button>
                             </div>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Edit Photo Modal */}
+            {editingPhoto && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <div className={`${cardClass} border rounded-2xl p-6 w-full max-w-md`}>
+                        <h2 className={`text-xl font-semibold ${textClass} mb-4`}>📷 Modifier la photo de profil</h2>
+
+                        {/* Current photo */}
+                        <div className="flex justify-center mb-6">
+                            <div className="w-24 h-24 rounded-full overflow-hidden bg-slate-800">
+                                {user?.image ? (
+                                    <Image src={user.image} alt="Current" width={96} height={96} className="w-full h-full object-cover" />
+                                ) : (
+                                    <div className="w-full h-full flex items-center justify-center text-3xl bg-gradient-to-br from-cyan-500 to-blue-600 text-white">
+                                        {user?.name?.[0]?.toUpperCase() || "U"}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Sync from provider */}
+                        {photoOptions.length > 0 && (
+                            <div className="mb-4">
+                                <p className={`text-sm ${subTextClass} mb-2`}>Synchroniser depuis :</p>
+                                <div className="flex gap-2">
+                                    {photoOptions.map((opt) => (
+                                        <button
+                                            key={opt.provider}
+                                            onClick={async () => {
+                                                setUploadingPhoto(true);
+                                                try {
+                                                    const res = await fetch("/api/user/image", {
+                                                        method: "POST",
+                                                        headers: { "Content-Type": "application/json" },
+                                                        body: JSON.stringify({ action: "sync", provider: opt.provider })
+                                                    });
+                                                    if (res.ok) {
+                                                        await update();
+                                                        setEditingPhoto(false);
+                                                    }
+                                                } catch (e) { console.error(e); }
+                                                setUploadingPhoto(false);
+                                            }}
+                                            disabled={uploadingPhoto}
+                                            className={`flex-1 p-3 ${theme === "light" ? "bg-slate-100 hover:bg-slate-200" : "bg-slate-800 hover:bg-slate-700"} rounded-xl transition-colors flex flex-col items-center gap-1 disabled:opacity-50`}
+                                        >
+                                            <span className="text-2xl">{providerIcons[opt.provider] || "🔗"}</span>
+                                            <span className={`text-xs ${subTextClass} capitalize`}>{opt.provider}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Upload custom */}
+                        <div className="mb-4">
+                            <p className={`text-sm ${subTextClass} mb-2`}>Ou télécharger une image :</p>
+                            <label className={`block w-full p-4 ${theme === "light" ? "bg-slate-100 hover:bg-slate-200" : "bg-slate-800 hover:bg-slate-700"} rounded-xl transition-colors cursor-pointer text-center`}>
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    className="hidden"
+                                    onChange={async (e) => {
+                                        const file = e.target.files?.[0];
+                                        if (!file) return;
+
+                                        setUploadingPhoto(true);
+                                        const reader = new FileReader();
+                                        reader.onload = async () => {
+                                            try {
+                                                const res = await fetch("/api/user/image", {
+                                                    method: "POST",
+                                                    headers: { "Content-Type": "application/json" },
+                                                    body: JSON.stringify({ action: "upload", imageUrl: reader.result })
+                                                });
+                                                if (res.ok) {
+                                                    await update();
+                                                    setEditingPhoto(false);
+                                                }
+                                            } catch (err) { console.error(err); }
+                                            setUploadingPhoto(false);
+                                        };
+                                        reader.readAsDataURL(file);
+                                    }}
+                                />
+                                <span className={`${textClass}`}>📁 Choisir un fichier</span>
+                            </label>
+                        </div>
+
+                        {/* Remove photo */}
+                        {user?.image && (
+                            <button
+                                onClick={async () => {
+                                    setUploadingPhoto(true);
+                                    try {
+                                        const res = await fetch("/api/user/image", {
+                                            method: "POST",
+                                            headers: { "Content-Type": "application/json" },
+                                            body: JSON.stringify({ action: "remove" })
+                                        });
+                                        if (res.ok) {
+                                            await update();
+                                            setEditingPhoto(false);
+                                        }
+                                    } catch (e) { console.error(e); }
+                                    setUploadingPhoto(false);
+                                }}
+                                disabled={uploadingPhoto}
+                                className="w-full p-3 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-xl transition-colors text-sm mb-4 disabled:opacity-50"
+                            >
+                                🗑️ Supprimer la photo
+                            </button>
+                        )}
+
+                        {/* Close */}
+                        <button
+                            onClick={() => setEditingPhoto(false)}
+                            className={`w-full p-3 ${theme === "light" ? "bg-slate-200 text-slate-700" : "bg-slate-700 text-slate-300"} rounded-xl transition-colors`}
+                        >
+                            Fermer
+                        </button>
+
+                        {uploadingPhoto && (
+                            <div className="absolute inset-0 bg-black/50 rounded-2xl flex items-center justify-center">
+                                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-cyan-500"></div>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
