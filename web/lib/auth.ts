@@ -35,12 +35,8 @@ declare module "next-auth" {
 // Admin email(s) - the main user who has full access
 const ADMIN_EMAILS = (process.env.ADMIN_EMAIL || "").split(",").map((e) => e.trim().toLowerCase());
 
-// For Cloudflare with HTTPS, we need secure cookies
-// The domain should match the NEXTAUTH_URL domain
-const isProduction = process.env.NODE_ENV === 'production' || process.env.NEXTAUTH_URL?.startsWith('https://');
-const cookieDomain = process.env.NEXTAUTH_URL ? new URL(process.env.NEXTAUTH_URL).hostname : undefined;
-
-console.log("[Auth] Cookie config - secure:", isProduction, "domain:", cookieDomain);
+console.log("[Auth] NEXTAUTH_URL:", process.env.NEXTAUTH_URL);
+console.log("[Auth] NODE_ENV:", process.env.NODE_ENV);
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
     adapter: PrismaAdapter(prisma),
@@ -48,37 +44,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         strategy: "jwt",
         maxAge: 30 * 24 * 60 * 60, // 30 days
     },
-    cookies: {
-        sessionToken: {
-            name: `next-auth.session-token`,
-            options: {
-                httpOnly: true,
-                sameSite: 'lax',
-                path: '/',
-                secure: isProduction,
-                domain: cookieDomain,
-            },
-        },
-        callbackUrl: {
-            name: `next-auth.callback-url`,
-            options: {
-                sameSite: 'lax',
-                path: '/',
-                secure: isProduction,
-                domain: cookieDomain,
-            },
-        },
-        csrfToken: {
-            name: `next-auth.csrf-token`,
-            options: {
-                httpOnly: true,
-                sameSite: 'lax',
-                path: '/',
-                secure: isProduction,
-                domain: cookieDomain,
-            },
-        },
-    },
+    // Let NextAuth handle cookies automatically
     providers: [
         Credentials({
             name: "Email",
