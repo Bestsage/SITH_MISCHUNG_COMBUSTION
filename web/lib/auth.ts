@@ -40,7 +40,7 @@ console.log("[Auth] NODE_ENV:", process.env.NODE_ENV);
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
     adapter: PrismaAdapter(prisma),
-    session: { 
+    session: {
         strategy: "jwt",
         maxAge: 30 * 24 * 60 * 60, // 30 days
     },
@@ -54,7 +54,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             },
             async authorize(credentials) {
                 console.log("[Auth] authorize() called with email:", credentials?.email);
-                
+
                 if (!credentials?.email || !credentials?.password) {
                     console.log("[Auth] Missing credentials");
                     return null;
@@ -164,6 +164,63 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
             return true;
         },
+        async signIn({ user, account, profile }) {
+            // Allow credentials sign-in
+            if (account?.provider === "credentials") {
+                return true;
+            }
+
+            // For OAuth providers, check if user with this email already exists
+            if (user.email && account) {
+                try {
+                    const existingUser = await prisma.user.findUnique({
+                        where: { email: user.email.toLowerCase() },
+                        include: { accounts: true }
+                    });
+
+                    if (existingUser) {
+                        // Check if this OAuth account is already linked
+                        const linkedAccount = existingUser.accounts.find(
+                            a => a.provider === account.provider && a.providerAccountId === account.providerAccountId
+                        );
+
+                        if (!linkedAccount) {
+                            // Link the OAuth account to existing user
+                            await prisma.account.create({
+                                data: {
+                                    userId: existingUser.id,
+                                    type: account.type,
+                                    provider: account.provider,
+                                    providerAccountId: account.providerAccountId,
+                                    access_token: account.access_token,
+                                    refresh_token: account.refresh_token,
+                                    expires_at: account.expires_at,
+                                    token_type: account.token_type,
+                                    scope: account.scope,
+                                    id_token: account.id_token,
+                                    session_state: account.session_state as string | undefined,
+                                }
+                            });
+
+                            // Update user image from OAuth if not set
+                            if (!existingUser.image && (profile as any)?.avatar_url) {
+                                await prisma.user.update({
+                                    where: { id: existingUser.id },
+                                    data: { image: (profile as any).avatar_url }
+                                });
+                            }
+
+                            console.log(`[Auth] Linked ${account.provider} account to existing user ${existingUser.email}`);
+                        }
+                    }
+                } catch (error) {
+                    console.error("[Auth] Error linking OAuth account:", error);
+                    // Don't block sign-in on linking error
+                }
+            }
+
+            return true;
+        },
         async jwt({ token, user }) {
             if (user) {
                 token.id = user.id;
@@ -177,11 +234,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                 session.user.id = token.id as string;
                 session.user.role = token.role as string;
                 session.user.email = token.email as string;
-                
+
                 const userEmail = session.user.email?.toLowerCase();
-                session.user.isAdmin = 
-                    token.role === 'ADMIN' || 
-                    token.role === 'SUPERADMIN' || 
+                session.user.isAdmin =
+                    token.role === 'ADMIN' ||
+                    token.role === 'SUPERADMIN' ||
                     (userEmail ? ADMIN_EMAILS.includes(userEmail) : false);
             }
             return session;
