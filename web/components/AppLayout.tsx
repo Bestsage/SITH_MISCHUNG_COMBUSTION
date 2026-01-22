@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ReactNode } from "react";
+import { useSession } from "next-auth/react";
+import Image from "next/image";
 
 const NAV_ITEMS = [
     { name: "Vue d'ensemble", href: "/", icon: "📊" },
@@ -19,6 +21,7 @@ const NAV_ITEMS = [
 
 export default function AppLayout({ children }: { children: ReactNode }) {
     const pathname = usePathname();
+    const { data: session } = useSession();
 
     return (
         <div className="min-h-screen w-full bg-[#0a0a0f] flex">
@@ -36,6 +39,41 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                         </div>
                     </div>
                 </div>
+
+                {/* User Profile Card */}
+                {session?.user && (
+                    <Link href="/account" className="mx-4 mt-4">
+                        <div className={`p-3 rounded-xl border transition-all hover:bg-[#1a1a24] ${pathname === '/account' ? 'bg-[#1a1a24] border-[#00d4ff]/50' : 'border-[#27272a]'}`}>
+                            <div className="flex items-center gap-3">
+                                <div className="relative">
+                                    {session.user.image ? (
+                                        <Image
+                                            src={session.user.image}
+                                            alt={session.user.name || "User"}
+                                            width={40}
+                                            height={40}
+                                            className="rounded-full ring-2 ring-[#27272a]"
+                                        />
+                                    ) : (
+                                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#00d4ff] to-[#8b5cf6] flex items-center justify-center text-white font-bold">
+                                            {session.user.name?.[0]?.toUpperCase() || "U"}
+                                        </div>
+                                    )}
+                                    {/* Online badge */}
+                                    <span className="absolute bottom-0 right-0 w-3 h-3 bg-[#10b981] border-2 border-[#12121a] rounded-full"></span>
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium text-white truncate">
+                                        {session.user.name || "Utilisateur"}
+                                    </p>
+                                    <p className="text-xs text-[#71717a] truncate">
+                                        {session.user.isAdmin ? "🔰 Admin" : "Membre"}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </Link>
+                )}
 
                 {/* Navigation */}
                 <nav className="flex-1 p-4 space-y-1">

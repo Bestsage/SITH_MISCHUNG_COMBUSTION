@@ -1,8 +1,22 @@
 import NextAuth from "next-auth";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { prisma } from "@/lib/prisma";
-import { authConfig } from "./auth.config";
+import Credentials from "next-auth/providers/credentials";
+import GitHub from "next-auth/providers/github";
+import Google from "next-auth/providers/google";
+import Discord from "next-auth/providers/discord";
+import Slack from "next-auth/providers/slack";
 
+// Simple hash function for passwords (in production, use bcrypt)
+function hashPassword(password: string): string {
+    // Simple hash for demo - in production use bcrypt!
+    const crypto = require('crypto');
+    return crypto.createHash('sha256').update(password).digest('hex');
+}
+
+function verifyPassword(password: string, hash: string): boolean {
+    return hashPassword(password) === hash;
+}
 
 // Extend the session type to include admin role
 declare module "next-auth" {
@@ -22,34 +36,137 @@ declare module "next-auth" {
 const ADMIN_EMAILS = (process.env.ADMIN_EMAIL || "").split(",").map((e) => e.trim().toLowerCase());
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
-    ...authConfig,
     adapter: PrismaAdapter(prisma),
-    session: { strategy: "database" }, // Explicitly use database strategy with adapter
-    callbacks: {
-        ...authConfig.callbacks,
-        async session({ session, user }) {
-            // With database adapter, 'user' object is passed to session callback
-            if (session.user && user) {
-                session.user.id = user.id;
-                // Check DB role or env var admin
-                // We use 'any' cast because Prisma user type might not match explicitly yet in TS
-                const userRole = (user as any).role;
-                const userEmail = session.user.email?.toLowerCase();
-
-                session.user.role = userRole;
-                session.user.isAdmin = userRole === 'ADMIN' || userRole === 'SUPERADMIN' || (userEmail ? ADMIN_EMAILS.includes(userEmail) : false);
-
-                // Auto-promote to SUPERADMIN if in env var
-                if (userEmail && ADMIN_EMAILS.includes(userEmail) && userRole !== 'SUPERADMIN') {
-                    // Optimization: Auto promote logic is handled in signIn event usually
+    session: { strategy: "jwt" }, // Use JWT for credentials provider compatibility
+    providers: [
+        Credentials({
+            name: "Email",
+            credentials: {
+                email: { label: "Email", type: "email" },
+                password: { label: "Mot de passe", type: "password" }
+            },
+            async authorize(credentials) {
+                if (!credentials?.email || !credentials?.password) {
+                    return null;
                 }
+
+                const email = (credentials.email as string).toLowerCase();
+                const password = credentials.password as string;
+
+                // Find user in database
+                const user = await prisma.user.findUnique({
+                    where: { email }
+                });
+
+                if (!user) {
+                    // User doesn't exist - create if it's admin email with default password
+                    if (ADMIN_EMAILS.includes(email) && password === "1234") {
+                        const newUser = await prisma.user.create({
+                            data: {
+                                email,
+                                name: "Samuel Gebhard",
+                                password: hashPassword("1234"),
+                                role: "SUPERADMIN",
+                            }
+                        });
+                        return {
+                            id: newUser.id,
+                            email: newUser.email,
+                            name: newUser.name,
+                            role: newUser.role,
+                        };
+                    }
+                    return null;
+                }
+
+                // Verify password
+                if (user.password) {
+                    if (!verifyPassword(password, user.password)) {
+                        return null;
+                    }
+                } else {
+                    // User exists but has no password (OAuth user)
+                    // Allow admin with default password to set it
+                    if (ADMIN_EMAILS.includes(email) && password === "1234") {
+                        await prisma.user.update({
+                            where: { id: user.id },
+                            data: { password: hashPassword("1234") }
+                        });
+                    } else {
+                        return null;
+                    }
+                }
+
+                return {
+                    id: user.id,
+                    email: user.email,
+                    name: user.name,
+                    image: user.image,
+                    role: user.role,
+                };
+            }
+        }),
+        GitHub({
+            clientId: process.env.GITHUB_CLIENT_ID,
+            clientSecret: process.env.GITHUB_CLIENT_SECRET,
+        }),
+        Google({
+            clientId: process.env.GOOGLE_CLIENT_ID,
+            clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+        }),
+        Discord({
+            clientId: process.env.DISCORD_CLIENT_ID,
+            clientSecret: process.env.DISCORD_CLIENT_SECRET,
+        }),
+        Slack({
+            clientId: process.env.SLACK_CLIENT_ID,
+            clientSecret: process.env.SLACK_CLIENT_SECRET,
+        }),
+    ],
+    pages: {
+        signIn: "/auth/signin",
+        error: "/auth/error",
+    },
+    callbacks: {
+        authorized({ auth, request: { nextUrl } }) {
+            const isLoggedIn = !!auth?.user;
+            const isOnAuthPage = nextUrl.pathname.startsWith('/auth');
+            const isOnApiAuth = nextUrl.pathname.startsWith('/api/auth');
+
+            // Auth bypass mode
+            const authBypass = process.env.AUTH_BYPASS === 'true';
+            if (authBypass) return true;
+
+            if (isOnAuthPage || isOnApiAuth) return true;
+            if (!isLoggedIn) return false;
+
+            return true;
+        },
+        async jwt({ token, user }) {
+            if (user) {
+                token.id = user.id;
+                token.role = (user as any).role;
+                token.email = user.email;
+            }
+            return token;
+        },
+        async session({ session, token }) {
+            if (session.user && token) {
+                session.user.id = token.id as string;
+                session.user.role = token.role as string;
+                session.user.email = token.email as string;
+                
+                const userEmail = session.user.email?.toLowerCase();
+                session.user.isAdmin = 
+                    token.role === 'ADMIN' || 
+                    token.role === 'SUPERADMIN' || 
+                    (userEmail ? ADMIN_EMAILS.includes(userEmail) : false);
             }
             return session;
         }
     },
     events: {
         async signIn({ user }) {
-            // Update last login
             if (user.id) {
                 try {
                     await prisma.user.update({
@@ -57,7 +174,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                         data: { lastLoginAt: new Date() },
                     });
 
-                    // Auto-promote to SUPERADMIN if email matches env
                     if (user.email && ADMIN_EMAILS.includes(user.email.toLowerCase())) {
                         const currentUser = await prisma.user.findUnique({ where: { id: user.id } });
                         if (currentUser && currentUser.role !== 'SUPERADMIN') {
@@ -73,4 +189,5 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             }
         }
     },
+    trustHost: true,
 });

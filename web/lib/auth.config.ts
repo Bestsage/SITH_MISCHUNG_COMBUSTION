@@ -3,9 +3,22 @@ import GitHub from "next-auth/providers/github";
 import Google from "next-auth/providers/google";
 import Discord from "next-auth/providers/discord";
 import Slack from "next-auth/providers/slack";
+import Credentials from "next-auth/providers/credentials";
 
 export const authConfig = {
     providers: [
+        Credentials({
+            name: "Email",
+            credentials: {
+                email: { label: "Email", type: "email", placeholder: "votre@email.com" },
+                password: { label: "Mot de passe", type: "password" }
+            },
+            async authorize(credentials) {
+                // This will be handled in auth.ts with database access
+                // Return null here - actual auth happens in auth.ts
+                return null;
+            }
+        }),
         GitHub({
             clientId: process.env.GITHUB_CLIENT_ID,
             clientSecret: process.env.GITHUB_CLIENT_SECRET,

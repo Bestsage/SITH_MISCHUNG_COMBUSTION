@@ -315,15 +315,26 @@ export default function Home() {
                           <LineChart data={results?.geometry_profile ? results.geometry_profile.x.map((x: number, i: number) => {
                             const profile = results.geometry_profile!;
                             return {
-                              x: (x * 1000).toFixed(1),
-                              r: (profile.r[i] * 1000).toFixed(2),
-                              rNeg: (-profile.r[i] * 1000).toFixed(2)
+                              x: x * 1000,  // Keep as number for proper sorting
+                              r: profile.r[i] * 1000,
+                              rNeg: -profile.r[i] * 1000
                             };
-                          }) : []}>
+                          }).sort((a, b) => a.x - b.x) : []}>
                             <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-                            <XAxis dataKey="x" stroke="#71717a" fontSize={10} />
-                            <YAxis stroke="#71717a" fontSize={10} />
-                            <Tooltip contentStyle={{ backgroundColor: '#1a1a25', border: '1px solid #27272a' }} />
+                            <XAxis 
+                              dataKey="x" 
+                              stroke="#71717a" 
+                              fontSize={10} 
+                              type="number"
+                              domain={['dataMin', 'dataMax']}
+                              tickFormatter={(v) => v.toFixed(0)}
+                            />
+                            <YAxis stroke="#71717a" fontSize={10} domain={['auto', 'auto']} />
+                            <Tooltip 
+                              contentStyle={{ backgroundColor: '#1a1a25', border: '1px solid #27272a' }}
+                              formatter={(value: number) => value.toFixed(2) + ' mm'}
+                              labelFormatter={(label: number) => `x: ${label.toFixed(1)} mm`}
+                            />
                             <Line type="monotone" dataKey="r" stroke="#00d4ff" strokeWidth={2} dot={false} name="R+ (mm)" />
                             <Line type="monotone" dataKey="rNeg" stroke="#00d4ff" strokeWidth={2} dot={false} name="R- (mm)" />
                           </LineChart>

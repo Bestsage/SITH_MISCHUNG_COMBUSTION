@@ -664,107 +664,32 @@ async fn calculate_full(
     let thrust_vac = motor.mdot * cea_result.isp_vac * 9.81;   // [N]
     let thrust_sl = motor.mdot * cea_result.isp_sl * 9.81;      // [N]
 
-    // 4. Generate geometry profile for plotting (80% bell nozzle contour)
-    let n_points = 100;
-    let mut x_profile = Vec::with_capacity(n_points);
-    let mut r_profile = Vec::with_capacity(n_points);
-    let mut area_profile = Vec::with_capacity(n_points);
-    let mut area_ratio_profile = Vec::with_capacity(n_points);
-
-    let total_length = l_chamber + l_nozzle;
-    let throat_x = l_chamber;
-
-    // === Pre-Calculate Convergent Geometry ===
-    let r_u = 1.5 * r_throat; // Chamber-to-Cone radius
-    let r_d_conv = 1.5 * r_throat; // Cone-to-Throat radius (Standard Rao is 1.5 for convergent side)
-    let theta_conv = motor.theta_n.to_radians();
-
-    // Geometric points relative to throat (x=0 at throat, growing negative upstream)
-    let x_throat_arc_start = -r_d_conv * theta_conv.sin();
-    let y_throat_arc_start = r_throat + r_d_conv * (1.0 - theta_conv.cos());
-
-    let h_cone =
-        r_chamber - r_throat - r_u * (1.0 - theta_conv.cos()) - r_d_conv * (1.0 - theta_conv.cos());
-    let h_cone = h_cone.max(0.0);
-
-    let l_cone = h_cone / theta_conv.tan();
-
-    let x_cone_start = x_throat_arc_start - l_cone;
-    let x_chamber_arc_start = x_cone_start - r_u * theta_conv.sin();
-
-    let l_conv_geometric = -x_chamber_arc_start;
-
-    // === Pre-Calculate Divergent Geometry (Initial Arc) ===
-    let r_d_div = 0.382 * r_throat; // Throat-to-Parabola radius (Standard Rao)
-                                    // Initial parabolic angle (approximate, usually 20-30 deg depending on expansion)
-                                    // We'll calculate the angle where the arc matches the average parabola slope or just use a fixed small angle
-                                    // For simplicity and smoothness, let's use a fixed transition angle or finding where parabola starts
-    let theta_div_start = 28.0_f64.to_radians(); // Typical start angle for parabola
-    let x_div_arc_end = r_d_div * theta_div_start.sin();
-
-    // Parabola parameters
-    // We need to fit a parabola from (x_div_arc_end, y_div_arc_end) to (l_nozzle, r_exit)
-    // This is complex to splice perfectly.
-    // Simplified approach: Use arc for x < x_div_arc_end, then blend/switch to parabola.
-    // Better simplified approach for this tool:
-    // Just enforce the divergent arc for a small distance, then standard bell curve shifted.
-
-    for i in 0..n_points {
-        let x = (i as f64 / (n_points - 1) as f64) * total_length;
-        x_profile.push(x);
-
-        let r = if x < throat_x - l_conv_geometric {
-            r_chamber
-        } else if x <= throat_x {
-            // ARC-LINE-ARC Convergent Section
-            let x_local = -(throat_x - x);
-
-            if x_local > x_throat_arc_start {
-                // Convergent Throat Arc (Radius 1.5 Rt)
-                let y_center = r_throat + r_d_conv;
-                y_center - (r_d_conv * r_d_conv - x_local * x_local).max(0.0).sqrt()
-            } else if x_local > x_cone_start {
-                // Straight Cone
-                y_throat_arc_start + (x_throat_arc_start - x_local) * theta_conv.tan()
-            } else if x_local > x_chamber_arc_start {
-                // Chamber Arc
-                let x_center = x_chamber_arc_start;
-                let y_center = r_chamber - r_u;
-                let dx = x_local - x_center;
-                y_center + (r_u * r_u - dx * dx).max(0.0).sqrt()
-            } else {
-                r_chamber
-            }
-        } else {
-            // Divergent Section
-            let x_local = x - throat_x;
-
-            if x_local < x_div_arc_end {
-                // Divergent Throat Arc (Radius 0.382 Rt)
-                // Circle centered at (0, Rt + 0.382Rt)
-                let y_center = r_throat + r_d_div;
-                y_center - (r_d_div * r_d_div - x_local * x_local).max(0.0).sqrt()
-            } else {
-                // Parabolic Bell (Simplified)
-                // We maintain the 80% bell generic shape but blend it from the arc
-                let t = x_local / l_nozzle;
-                let t = t.clamp(0.0, 1.0);
-                r_throat + (r_exit - r_throat) * (2.0 * t - t * t).powf(0.85)
-            }
-        };
-
-        r_profile.push(r);
-
-        let area = std::f64::consts::PI * r * r;
-        area_profile.push(area);
-        area_ratio_profile.push(area / area_throat);
-    }
-
+    // =========================================================================
+    //  ÉTAPE 4: GÉNÉRATION DU PROFIL GÉOMÉTRIQUE (BÉZIER-RAO)
+    // =========================================================================
+    //
+    // Utilise le module geometry.rs avec l'algorithme de Bézier quadratique
+    // pour générer un contour de tuyère de Rao (Thrust Optimized Parabolic)
+    
+    let geometry_params = GeometryParams {
+        r_throat,
+        l_chamber,
+        l_nozzle,
+        contraction_ratio: motor.contraction_ratio,
+        expansion_ratio,
+        theta_conv: motor.theta_n,  // Angle du convergent
+        theta_div: motor.theta_e,   // Angle de sortie (θ_e)
+        theta_n: motor.theta_n,     // Angle initial (θ_n)
+        nozzle_type: "bell".to_string(),
+    };
+    
+    let geo_profile = geometry_params.generate_profile(100);
+    
     let geometry_profile = motor_definition::GeometryProfile {
-        x: x_profile,
-        r: r_profile,
-        area: area_profile,
-        area_ratio: area_ratio_profile,
+        x: geo_profile.x,
+        r: geo_profile.r,
+        area: geo_profile.area,
+        area_ratio: geo_profile.area_ratio,
     };
 
     // 5. Mock thermal results (would call actual solver)

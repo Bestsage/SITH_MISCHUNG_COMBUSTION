@@ -72,34 +72,55 @@ def calculate_cea(req: CEARequest):
 
 @app.get("/propellants")
 def get_propellants():
-    """Get all available fuel and oxidizer cards from RocketCEA"""
+    """Get all available fuel and oxidizer cards from RocketCEA + extended lists"""
     try:
         from rocketcea.blends import fuelCards, oxCards
         
+        # Extended fuels not in blends but supported by CEA
+        extra_fuels = [
+            "RP-1", "JP-4", "JP-5", "JP-10", "Jet-A", "Biodiesel",
+            "C6H6", "C7H8", "C8H18", "C10H22", "C12H26",
+            "B5H9", "B10H14", "Al", "Mg", "Li", "Be",
+            "PBAN", "AN", "HMX", "RDX", "Syntin", "ALICE",
+            "Aerozine-50", "Diborane", "Pentaborane", "Decaborane"
+        ]
+        
+        # Extended oxidizers not in blends but supported by CEA
+        extra_oxidizers = [
+            "FLOX70", "FLOX80", "MON-1", "MON-10", "NTO", 
+            "RFNA", "WFNA", "Ozone", "O3", "Oxygen", "Fluorine",
+            "AK-20", "AK-27"
+        ]
+        
+        # Combine blends + extras, remove duplicates
+        all_fuel_names = set(fuelCards.keys()) | set(extra_fuels)
+        all_ox_names = set(oxCards.keys()) | set(extra_oxidizers)
+        
         fuels = []
-        for name in fuelCards.keys():
+        for name in all_fuel_names:
             try:
-                card = fuelCards[name]
-                # Parse basic info from card
+                card = fuelCards.get(name, "")
                 fuels.append({
                     "name": name,
                     "type": "fuel",
-                    "card": str(card)[:200] if card else ""
+                    "card": str(card)[:200] if card else "",
+                    "source": "blends" if name in fuelCards else "cea_standard"
                 })
             except:
-                fuels.append({"name": name, "type": "fuel", "card": ""})
+                fuels.append({"name": name, "type": "fuel", "card": "", "source": "cea_standard"})
         
         oxidizers = []
-        for name in oxCards.keys():
+        for name in all_ox_names:
             try:
-                card = oxCards[name]
+                card = oxCards.get(name, "")
                 oxidizers.append({
                     "name": name,
                     "type": "oxidizer",
-                    "card": str(card)[:200] if card else ""
+                    "card": str(card)[:200] if card else "",
+                    "source": "blends" if name in oxCards else "cea_standard"
                 })
             except:
-                oxidizers.append({"name": name, "type": "oxidizer", "card": ""})
+                oxidizers.append({"name": name, "type": "oxidizer", "card": "", "source": "cea_standard"})
         
         return {
             "fuels": sorted(fuels, key=lambda x: x["name"]),

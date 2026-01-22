@@ -7,6 +7,25 @@ const nextConfig: NextConfig = {
       allowedOrigins: ['*'],
     },
   },
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'avatars.githubusercontent.com',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'lh3.googleusercontent.com',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'cdn.discordapp.com',
+        pathname: '/**',
+      },
+    ],
+  },
   async rewrites() {
     return {
       // Auth routes should NOT be proxied - handled by NextAuth
