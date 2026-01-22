@@ -35,9 +35,41 @@ declare module "next-auth" {
 // Admin email(s) - the main user who has full access
 const ADMIN_EMAILS = (process.env.ADMIN_EMAIL || "").split(",").map((e) => e.trim().toLowerCase());
 
+// Check if we're in production (HTTPS)
+const useSecureCookies = process.env.NEXTAUTH_URL?.startsWith('https://');
+const cookiePrefix = useSecureCookies ? '__Secure-' : '';
+
 export const { handlers, signIn, signOut, auth } = NextAuth({
     adapter: PrismaAdapter(prisma),
     session: { strategy: "jwt" }, // Use JWT for credentials provider compatibility
+    cookies: {
+        sessionToken: {
+            name: `${cookiePrefix}next-auth.session-token`,
+            options: {
+                httpOnly: true,
+                sameSite: 'lax',
+                path: '/',
+                secure: useSecureCookies,
+            },
+        },
+        callbackUrl: {
+            name: `${cookiePrefix}next-auth.callback-url`,
+            options: {
+                sameSite: 'lax',
+                path: '/',
+                secure: useSecureCookies,
+            },
+        },
+        csrfToken: {
+            name: `next-auth.csrf-token`,
+            options: {
+                httpOnly: true,
+                sameSite: 'lax',
+                path: '/',
+                secure: useSecureCookies,
+            },
+        },
+    },
     providers: [
         Credentials({
             name: "Email",
