@@ -11,7 +11,7 @@ import { getStats } from "@/lib/activity";
 // Safe hook that doesn't throw if outside provider
 function useSafeTheme() {
     const context = useContext(ThemeContext);
-    return context ?? { theme: "dark", setTheme: () => {} };
+    return context ?? { theme: "dark", setTheme: () => { } };
 }
 
 interface UserStats {
@@ -37,7 +37,18 @@ interface AdminUser {
     createdAt: string;
     lastLoginAt: string | null;
     activityCount: number;
+    linkedAccounts: string[];
+    projectsCount: number;
+    simulationsCount: number;
 }
+
+const providerIcons: Record<string, string> = {
+    github: "🐙",
+    google: "🔵",
+    discord: "💜",
+    slack: "💚",
+    email: "📧"
+};
 
 export default function AccountPage() {
     const { data: session, status, update } = useSession();
@@ -47,12 +58,12 @@ export default function AccountPage() {
     const [stats, setStats] = useState<UserStats | null>(null);
     const [localStats, setLocalStats] = useState({ simulations: 0, designs: 0, cfdAnalyses: 0 });
     const [loading, setLoading] = useState(true);
-    
+
     // Profile edit state
     const [editingProfile, setEditingProfile] = useState(false);
     const [editName, setEditName] = useState("");
     const [savingProfile, setSavingProfile] = useState(false);
-    
+
     // Admin state
     const [users, setUsers] = useState<AdminUser[]>([]);
     const [userSearch, setUserSearch] = useState("");
@@ -69,13 +80,13 @@ export default function AccountPage() {
             const local = getStats();
             setLocalStats(local);
         };
-        
+
         // Load immediately
         loadLocalStats();
-        
+
         // Refresh every 2 seconds to catch updates from other pages
         const interval = setInterval(loadLocalStats, 2000);
-        
+
         // Also listen for storage events (updates from other tabs)
         const handleStorage = (e: StorageEvent) => {
             if (e.key === "rocket_studio_stats") {
@@ -83,7 +94,7 @@ export default function AccountPage() {
             }
         };
         window.addEventListener("storage", handleStorage);
-        
+
         return () => {
             clearInterval(interval);
             window.removeEventListener("storage", handleStorage);
@@ -235,8 +246,8 @@ export default function AccountPage() {
     };
 
     const bgClass = theme === "light" ? "bg-slate-100" : "bg-slate-950";
-    const cardClass = theme === "light" 
-        ? "bg-white border-slate-200" 
+    const cardClass = theme === "light"
+        ? "bg-white border-slate-200"
         : "bg-slate-900/50 border-slate-800/50";
     const textClass = theme === "light" ? "text-slate-900" : "text-white";
     const subTextClass = theme === "light" ? "text-slate-600" : "text-slate-400";
@@ -298,7 +309,7 @@ export default function AccountPage() {
 
                         {/* Actions */}
                         <div className="flex justify-end pt-4 gap-3">
-                            <button 
+                            <button
                                 onClick={() => {
                                     setEditName(user?.name || "");
                                     setEditingProfile(true);
@@ -388,14 +399,14 @@ export default function AccountPage() {
                                     label="Unités métriques"
                                     description="Utiliser les unités SI (mètres, bar, K)"
                                     checked={true}
-                                    onChange={() => {}}
+                                    onChange={() => { }}
                                 />
                                 <PreferenceToggle
                                     theme={theme}
                                     label="Animations 3D"
                                     description="Activer la rotation automatique du modèle 3D"
                                     checked={true}
-                                    onChange={() => {}}
+                                    onChange={() => { }}
                                 />
                                 <PreferenceToggle
                                     theme={theme}
@@ -419,7 +430,7 @@ export default function AccountPage() {
                                         <p className={`font-medium ${textClass}`}>Exporter mes données</p>
                                         <p className={`text-sm ${subTextClass}`}>Télécharger toutes vos données en JSON</p>
                                     </div>
-                                    <button 
+                                    <button
                                         onClick={handleExport}
                                         disabled={exporting}
                                         className="px-4 py-2 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-400 rounded-lg transition-colors text-sm disabled:opacity-50"
@@ -432,7 +443,7 @@ export default function AccountPage() {
                                         <p className={`font-medium ${textClass}`}>Thème de l&apos;interface</p>
                                         <p className={`text-sm ${subTextClass}`}>Basculer entre mode clair et sombre</p>
                                     </div>
-                                    <button 
+                                    <button
                                         onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
                                         className={`px-4 py-2 ${theme === "light" ? "bg-slate-900 text-white" : "bg-white text-slate-900"} rounded-lg transition-colors text-sm`}
                                     >
@@ -444,7 +455,7 @@ export default function AccountPage() {
                                         <p className="font-medium text-red-400">Supprimer le compte</p>
                                         <p className={`text-sm ${subTextClass}`}>Cette action est irréversible</p>
                                     </div>
-                                    <button 
+                                    <button
                                         onClick={() => {
                                             if (confirm("Êtes-vous sûr de vouloir supprimer votre compte ?")) {
                                                 alert("Fonctionnalité en développement");
@@ -501,7 +512,7 @@ export default function AccountPage() {
                                 className={`px-4 py-2 ${theme === "light" ? "bg-slate-100 border-slate-200" : "bg-slate-800/50 border-slate-700"} border rounded-lg ${textClass} placeholder-slate-500 focus:outline-none focus:border-cyan-500`}
                             />
                         </div>
-                        
+
                         {loadingUsers ? (
                             <div className="text-center py-8">
                                 <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-cyan-500 mx-auto"></div>
@@ -512,20 +523,25 @@ export default function AccountPage() {
                                     <thead>
                                         <tr className={`text-left border-b ${theme === "light" ? "border-slate-200" : "border-slate-700"}`}>
                                             <th className={`pb-3 ${subTextClass} font-medium`}>Utilisateur</th>
+                                            <th className={`pb-3 ${subTextClass} font-medium`}>Connexion</th>
                                             <th className={`pb-3 ${subTextClass} font-medium`}>Rôle</th>
-                                            <th className={`pb-3 ${subTextClass} font-medium`}>Activité</th>
-                                            <th className={`pb-3 ${subTextClass} font-medium`}>Inscrit le</th>
+                                            <th className={`pb-3 ${subTextClass} font-medium`}>Stats</th>
+                                            <th className={`pb-3 ${subTextClass} font-medium`}>Dernière connexion</th>
                                             {isSuperAdmin && <th className={`pb-3 ${subTextClass} font-medium`}>Actions</th>}
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {users.map((u) => (
-                                            <tr key={u.id} className={`border-b ${theme === "light" ? "border-slate-100" : "border-slate-800"}`}>
+                                            <tr key={u.id} className={`border-b ${theme === "light" ? "border-slate-100" : "border-slate-800"} hover:${theme === "light" ? "bg-slate-50" : "bg-slate-800/30"}`}>
                                                 <td className="py-4">
                                                     <div className="flex items-center gap-3">
-                                                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center text-white font-medium">
-                                                            {u.name?.[0]?.toUpperCase() || u.email[0].toUpperCase()}
-                                                        </div>
+                                                        {u.image ? (
+                                                            <Image src={u.image} alt={u.name || ""} width={40} height={40} className="w-10 h-10 rounded-full object-cover" />
+                                                        ) : (
+                                                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center text-white font-medium">
+                                                                {u.name?.[0]?.toUpperCase() || u.email[0].toUpperCase()}
+                                                            </div>
+                                                        )}
                                                         <div>
                                                             <p className={`font-medium ${textClass}`}>{u.name || "Sans nom"}</p>
                                                             <p className={`text-sm ${subTextClass}`}>{u.email}</p>
@@ -533,21 +549,37 @@ export default function AccountPage() {
                                                     </div>
                                                 </td>
                                                 <td className="py-4">
-                                                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                                        u.role === "SUPERADMIN" 
+                                                    <div className="flex items-center gap-1">
+                                                        {u.linkedAccounts.length > 0 ? (
+                                                            u.linkedAccounts.map((provider, idx) => (
+                                                                <span key={idx} title={provider} className="text-lg">
+                                                                    {providerIcons[provider] || "🔗"}
+                                                                </span>
+                                                            ))
+                                                        ) : (
+                                                            <span className="text-lg" title="Email">{providerIcons.email}</span>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                                <td className="py-4">
+                                                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${u.role === "SUPERADMIN"
                                                             ? "bg-purple-500/20 text-purple-400"
                                                             : u.role === "ADMIN"
-                                                            ? "bg-cyan-500/20 text-cyan-400"
-                                                            : theme === "light" ? "bg-slate-200 text-slate-700" : "bg-slate-700 text-slate-300"
-                                                    }`}>
+                                                                ? "bg-cyan-500/20 text-cyan-400"
+                                                                : theme === "light" ? "bg-slate-200 text-slate-700" : "bg-slate-700 text-slate-300"
+                                                        }`}>
                                                         {u.role}
                                                     </span>
                                                 </td>
-                                                <td className={`py-4 ${subTextClass}`}>
-                                                    {u.activityCount} actions
+                                                <td className="py-4">
+                                                    <div className={`text-sm ${subTextClass}`}>
+                                                        <div>🔥 {u.activityCount} actions</div>
+                                                        <div>📁 {u.projectsCount} projets</div>
+                                                        <div>🌊 {u.simulationsCount} CFD</div>
+                                                    </div>
                                                 </td>
                                                 <td className={`py-4 ${subTextClass}`}>
-                                                    {formatDate(u.createdAt)}
+                                                    {u.lastLoginAt ? formatDate(u.lastLoginAt) : "Jamais"}
                                                 </td>
                                                 {isSuperAdmin && (
                                                     <td className="py-4">
@@ -616,10 +648,10 @@ export default function AccountPage() {
 
 function TabButton({ theme, active, onClick, children }: { theme: string; active: boolean; onClick: () => void; children: React.ReactNode }) {
     const activeClass = "text-cyan-400 border-b-2 border-cyan-400";
-    const inactiveClass = theme === "light" 
-        ? "text-slate-600 hover:text-slate-900" 
+    const inactiveClass = theme === "light"
+        ? "text-slate-600 hover:text-slate-900"
         : "text-slate-400 hover:text-slate-300";
-    
+
     return (
         <button
             onClick={onClick}
@@ -634,7 +666,7 @@ function InfoField({ theme, label, value }: { theme: string; label: string; valu
     const textClass = theme === "light" ? "text-slate-900" : "text-white";
     const subTextClass = theme === "light" ? "text-slate-600" : "text-slate-400";
     const borderClass = theme === "light" ? "border-slate-200" : "border-slate-800/50";
-    
+
     return (
         <div className={`flex items-center justify-between py-2 border-b ${borderClass} last:border-0`}>
             <span className={subTextClass}>{label}</span>
@@ -643,16 +675,16 @@ function InfoField({ theme, label, value }: { theme: string; label: string; valu
     );
 }
 
-function PreferenceToggle({ theme, label, description, checked, onChange }: { 
-    theme: string; 
-    label: string; 
-    description: string; 
+function PreferenceToggle({ theme, label, description, checked, onChange }: {
+    theme: string;
+    label: string;
+    description: string;
     checked: boolean;
     onChange: () => void;
 }) {
     const textClass = theme === "light" ? "text-slate-900" : "text-white";
     const subTextClass = theme === "light" ? "text-slate-600" : "text-slate-400";
-    
+
     return (
         <div className="flex items-center justify-between py-2">
             <div>
@@ -661,14 +693,12 @@ function PreferenceToggle({ theme, label, description, checked, onChange }: {
             </div>
             <button
                 onClick={onChange}
-                className={`w-12 h-6 rounded-full transition-colors ${
-                    checked ? "bg-cyan-500" : theme === "light" ? "bg-slate-300" : "bg-slate-700"
-                }`}
+                className={`w-12 h-6 rounded-full transition-colors ${checked ? "bg-cyan-500" : theme === "light" ? "bg-slate-300" : "bg-slate-700"
+                    }`}
             >
                 <div
-                    className={`w-5 h-5 bg-white rounded-full transition-transform shadow-md ${
-                        checked ? "translate-x-6" : "translate-x-0.5"
-                    }`}
+                    className={`w-5 h-5 bg-white rounded-full transition-transform shadow-md ${checked ? "translate-x-6" : "translate-x-0.5"
+                        }`}
                 />
             </button>
         </div>
@@ -679,7 +709,7 @@ function ActivityItem({ theme, action, detail, time }: { theme: string; action: 
     const textClass = theme === "light" ? "text-slate-900" : "text-white";
     const subTextClass = theme === "light" ? "text-slate-600" : "text-slate-400";
     const borderClass = theme === "light" ? "border-slate-200" : "border-slate-800/50";
-    
+
     return (
         <div className={`flex items-center justify-between py-3 border-b ${borderClass} last:border-0`}>
             <div>

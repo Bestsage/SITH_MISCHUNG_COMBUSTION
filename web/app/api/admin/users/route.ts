@@ -42,9 +42,17 @@ export async function GET(request: Request) {
                     role: true,
                     createdAt: true,
                     lastLoginAt: true,
+                    accounts: {
+                        select: {
+                            provider: true
+                        }
+                    },
                     _count: {
                         select: {
-                            activities: true
+                            activities: true,
+                            ownedProjects: true,
+                            memberships: true,
+                            cfdSimulations: true
                         }
                     }
                 },
@@ -57,8 +65,17 @@ export async function GET(request: Request) {
 
         return NextResponse.json({
             users: users.map(u => ({
-                ...u,
-                activityCount: u._count.activities
+                id: u.id,
+                name: u.name,
+                email: u.email,
+                image: u.image,
+                role: u.role,
+                createdAt: u.createdAt,
+                lastLoginAt: u.lastLoginAt,
+                linkedAccounts: u.accounts.map(a => a.provider),
+                activityCount: u._count.activities,
+                projectsCount: u._count.ownedProjects + u._count.memberships,
+                simulationsCount: u._count.cfdSimulations
             })),
             total,
             page,
