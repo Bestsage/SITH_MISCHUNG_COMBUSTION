@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 // OpenFOAM service running in Docker container
-const OPENFOAM_URL = process.env.OPENFOAM_URL || "http://172.18.0.2:8001";
+const OPENFOAM_URL = process.env.OPENFOAM_URL || "http://localhost:8001";
 
 export async function GET(request: Request) {
     try {
