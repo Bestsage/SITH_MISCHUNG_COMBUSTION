@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
-import { jobs } from "@/lib/cfd-store";
+
+// OpenFOAM service running in Docker container
+const OPENFOAM_URL = process.env.OPENFOAM_URL || "http://172.18.0.2:8001";
 
 export async function GET(request: Request) {
     try {
@@ -13,24 +15,29 @@ export async function GET(request: Request) {
             );
         }
         
-        const job = jobs.get(jobId);
+        // Forward to real OpenFOAM service
+        const response = await fetch(`${OPENFOAM_URL}/api/cfd/status/${jobId}`);
         
-        if (!job) {
+        if (!response.ok) {
+            const errorText = await response.text();
             return NextResponse.json(
-                { error: "Job non trouvé", available: Array.from(jobs.keys()) },
-                { status: 404 }
+                { error: `OpenFOAM status error: ${response.status}`, details: errorText },
+                { status: response.status }
             );
         }
         
+        const data = await response.json();
+        
         return NextResponse.json({
-            status: job.status,
-            progress: job.progress,
-            error: job.error,
+            status: data.status,
+            progress: data.progress,
+            message: data.message,
+            error: data.status === "failed" ? data.message : undefined,
         });
     } catch (error) {
         console.error("CFD status error:", error);
         return NextResponse.json(
-            { error: "Erreur lors de la récupération du status" },
+            { error: "Erreur de connexion au serveur OpenFOAM" },
             { status: 500 }
         );
     }

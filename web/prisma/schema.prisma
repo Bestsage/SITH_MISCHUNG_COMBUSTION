@@ -27,11 +27,12 @@ model User {
   lastLoginAt   DateTime?
 
   // Relations
-  ownedProjects Project[]       @relation("ProjectOwner")
-  memberships   ProjectMember[]
-  activities    Activity[]
-  accounts      Account[]
-  sessions      Session[]
+  ownedProjects  Project[]       @relation("ProjectOwner")
+  memberships    ProjectMember[]
+  activities     Activity[]
+  accounts       Account[]
+  sessions       Session[]
+  cfdSimulations CFDSimulation[]
 }
 
 // Pour NextAuth - stocke les comptes OAuth liés
@@ -137,6 +138,23 @@ model Activity {
   user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
   projectId String?
   project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+}
+
+// ============================================================================
+// SIMULATIONS CFD SAUVEGARDÉES
+// ============================================================================
+
+model CFDSimulation {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  jobId       String?  // OpenFOAM job ID
+  params      String   // JSON stringifié - paramètres d'entrée
+  result      String   // JSON stringifié - résultats complets
+  createdAt   DateTime @default(now())
+  
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 // ============================================================================

@@ -198,6 +198,11 @@ export default function CFDPage() {
     const [result, setResult] = useState<CFDResult | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [field, setField] = useState<FieldType>("mach");
+    const [currentJobId, setCurrentJobId] = useState<string | null>(null);
+    const [currentParams, setCurrentParams] = useState<Record<string, unknown> | null>(null);
+    const [saving, setSaving] = useState(false);
+    const [saveName, setSaveName] = useState("");
+    const [showSaveDialog, setShowSaveDialog] = useState(false);
 
     const abortControllerRef = useRef<AbortController | null>(null);
     const OPENFOAM_API = process.env.NEXT_PUBLIC_OPENFOAM_URL || "/api/cfd";
@@ -257,6 +262,8 @@ export default function CFDPage() {
 
             const jobInfo = await startResponse.json();
             const jobId = jobInfo.job_id;
+            setCurrentJobId(jobId);
+            setCurrentParams(simParams);
             addLog(`✅ Job créé: ID ${jobId}`);
 
             let completed = false;
@@ -321,6 +328,60 @@ export default function CFDPage() {
         }
     };
 
+    const saveSimulation = async () => {
+        if (!result || !saveName.trim()) return;
+        
+        setSaving(true);
+        try {
+            const response = await fetch("/api/cfd/save", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    name: saveName.trim(),
+                    description: `Simulation OpenFOAM - ${currentJobId}`,
+                    jobId: currentJobId,
+                    params: currentParams,
+                    result: result
+                })
+            });
+            
+            if (response.ok) {
+                addLog("💾 Simulation sauvegardée avec succès !");
+                setShowSaveDialog(false);
+                setSaveName("");
+            } else {
+                const data = await response.json();
+                addLog(`❌ Erreur sauvegarde: ${data.error}`);
+            }
+        } catch (err: any) {
+            addLog(`❌ Erreur sauvegarde: ${err.message}`);
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const exportResults = () => {
+        if (!result) return;
+        
+        const exportData = {
+            jobId: currentJobId,
+            params: currentParams,
+            result: result,
+            exportedAt: new Date().toISOString()
+        };
+        
+        const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `cfd-simulation-${currentJobId || 'export'}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        addLog("📁 Résultats exportés en JSON !");
+    };
+
     return (
         <AppLayout>
             <div className="flex flex-col h-screen bg-[#0a0a0f] text-white p-6 gap-6">
@@ -333,6 +394,22 @@ export default function CFDPage() {
                     </div>
                     {/* Controls */}
                     <div className="flex gap-4 items-center">
+                        {result && (
+                            <>
+                                <button
+                                    onClick={() => setShowSaveDialog(true)}
+                                    className="px-4 py-2 rounded font-bold bg-green-600 hover:bg-green-500 text-white transition-all"
+                                >
+                                    💾 Sauvegarder
+                                </button>
+                                <button
+                                    onClick={exportResults}
+                                    className="px-4 py-2 rounded font-bold bg-purple-600 hover:bg-purple-500 text-white transition-all"
+                                >
+                                    📁 Exporter JSON
+                                </button>
+                            </>
+                        )}
                         <button
                             onClick={runSimulation}
                             disabled={status === "running"}
@@ -345,6 +422,38 @@ export default function CFDPage() {
                         </button>
                     </div>
                 </header>
+
+                {/* Save Dialog */}
+                {showSaveDialog && (
+                    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                        <div className="bg-[#1a1a25] rounded-lg border border-[#27272a] p-6 w-96">
+                            <h3 className="text-lg font-bold mb-4">💾 Sauvegarder la Simulation</h3>
+                            <input
+                                type="text"
+                                value={saveName}
+                                onChange={(e) => setSaveName(e.target.value)}
+                                placeholder="Nom de la simulation..."
+                                className="w-full px-4 py-2 bg-[#0a0a0f] border border-[#27272a] rounded mb-4 text-white"
+                                autoFocus
+                            />
+                            <div className="flex gap-3 justify-end">
+                                <button
+                                    onClick={() => setShowSaveDialog(false)}
+                                    className="px-4 py-2 rounded bg-gray-700 hover:bg-gray-600 text-white"
+                                >
+                                    Annuler
+                                </button>
+                                <button
+                                    onClick={saveSimulation}
+                                    disabled={!saveName.trim() || saving}
+                                    className="px-4 py-2 rounded bg-green-600 hover:bg-green-500 text-white disabled:opacity-50"
+                                >
+                                    {saving ? "Sauvegarde..." : "Sauvegarder"}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {/* Main Content Area */}
                 <div className="flex flex-1 gap-6 min-h-0">
