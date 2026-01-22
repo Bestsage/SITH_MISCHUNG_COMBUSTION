@@ -85,20 +85,33 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                 password: { label: "Mot de passe", type: "password" }
             },
             async authorize(credentials) {
+                console.log("[Auth] authorize() called with email:", credentials?.email);
+                
                 if (!credentials?.email || !credentials?.password) {
+                    console.log("[Auth] Missing credentials");
                     return null;
                 }
 
                 const email = (credentials.email as string).toLowerCase();
                 const password = credentials.password as string;
 
+                console.log("[Auth] Looking up user:", email);
+
                 // Find user in database
-                const user = await prisma.user.findUnique({
-                    where: { email }
-                });
+                let user;
+                try {
+                    user = await prisma.user.findUnique({
+                        where: { email }
+                    });
+                    console.log("[Auth] User found:", user ? "yes" : "no");
+                } catch (error) {
+                    console.error("[Auth] Database error:", error);
+                    return null;
+                }
 
                 if (!user) {
                     // User doesn't exist - create if it's admin email with default password
+                    console.log("[Auth] User not found, checking admin email");
                     if (ADMIN_EMAILS.includes(email) && password === "1234") {
                         const newUser = await prisma.user.create({
                             data: {
@@ -108,6 +121,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                                 role: "SUPERADMIN",
                             }
                         });
+                        console.log("[Auth] Created admin user");
                         return {
                             id: newUser.id,
                             email: newUser.email,
@@ -115,6 +129,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                             role: newUser.role,
                         };
                     }
+                    console.log("[Auth] Not admin or wrong password");
                     return null;
                 }
 
