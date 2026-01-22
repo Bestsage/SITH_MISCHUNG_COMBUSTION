@@ -17,7 +17,7 @@ services:
       - NEXTAUTH_URL=https://mischungcombustor.uk
       - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
       - AUTH_TRUST_HOST=true
-      - AUTH_BYPASS=true
+      - AUTH_BYPASS=false
       - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID}
       - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET}
       - ADMIN_EMAIL=${ADMIN_EMAIL}
