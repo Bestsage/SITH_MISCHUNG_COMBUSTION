@@ -1,41 +1,13 @@
 import type { NextAuthConfig } from "next-auth";
-import GitHub from "next-auth/providers/github";
-import Google from "next-auth/providers/google";
-import Discord from "next-auth/providers/discord";
-import Slack from "next-auth/providers/slack";
-import Credentials from "next-auth/providers/credentials";
+
+// This config is used by the Edge middleware only
+// It cannot access the database, so we just check if there's a valid session
+// The actual authentication logic is in auth.ts
 
 export const authConfig = {
-    providers: [
-        Credentials({
-            name: "Email",
-            credentials: {
-                email: { label: "Email", type: "email", placeholder: "votre@email.com" },
-                password: { label: "Mot de passe", type: "password" }
-            },
-            async authorize(credentials) {
-                // This will be handled in auth.ts with database access
-                // Return null here - actual auth happens in auth.ts
-                return null;
-            }
-        }),
-        GitHub({
-            clientId: process.env.GITHUB_CLIENT_ID,
-            clientSecret: process.env.GITHUB_CLIENT_SECRET,
-        }),
-        Google({
-            clientId: process.env.GOOGLE_CLIENT_ID,
-            clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-        }),
-        Discord({
-            clientId: process.env.DISCORD_CLIENT_ID,
-            clientSecret: process.env.DISCORD_CLIENT_SECRET,
-        }),
-        Slack({
-            clientId: process.env.SLACK_CLIENT_ID,
-            clientSecret: process.env.SLACK_CLIENT_SECRET,
-        }),
-    ],
+    // No providers here - they are defined in auth.ts
+    // The middleware only needs to check existing sessions
+    providers: [],
     pages: {
         signIn: "/auth/signin",
         error: "/auth/error",
@@ -45,7 +17,7 @@ export const authConfig = {
             const isLoggedIn = !!auth?.user;
             const isOnAuthPage = nextUrl.pathname.startsWith('/auth');
             const isOnApiAuth = nextUrl.pathname.startsWith('/api/auth');
-            const isOnPublicPage = nextUrl.pathname === '/' || nextUrl.pathname.startsWith('/_next') || nextUrl.pathname.startsWith('/static');
+            const isOnApi = nextUrl.pathname.startsWith('/api');
 
             console.log("[Middleware] Path:", nextUrl.pathname);
             console.log("[Middleware] isLoggedIn:", isLoggedIn);
@@ -54,22 +26,22 @@ export const authConfig = {
             // Auth bypass mode - allows access without login
             const authBypass = process.env.AUTH_BYPASS === 'true';
             if (authBypass) {
-                return true; // Allow all access when bypass is enabled
+                return true;
             }
 
-            // Allow access to auth pages and API auth routes
-            if (isOnAuthPage || isOnApiAuth) {
+            // Allow access to auth pages, API auth routes, and all API routes
+            if (isOnAuthPage || isOnApiAuth || isOnApi) {
                 return true;
             }
 
             // Redirect unauthenticated users to login page
             if (!isLoggedIn) {
-                return false; // Redirects to signin page automatically by default
+                return false;
             }
 
             return true;
         },
-        jwt({ token, user, trigger, session }) {
+        jwt({ token, user }) {
             if (user) {
                 token.id = user.id;
                 token.role = (user as any).role;
@@ -80,10 +52,6 @@ export const authConfig = {
             if (session.user && token) {
                 session.user.id = token.id as string;
                 session.user.role = token.role as string;
-
-                // Admin check can stay here or be moved, but session callback runs on server/client, usually OK.
-                // However, for pure Edge compatibility, we might want to keep this simple.
-                // The advanced role logic from DB will be in auth.ts
             }
             return session;
         }
