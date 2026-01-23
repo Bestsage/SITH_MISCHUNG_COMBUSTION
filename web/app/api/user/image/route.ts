@@ -153,9 +153,7 @@ export async function GET() {
 
         const user = await prisma.user.findUnique({
             where: { email: session.user.email },
-            select: {
-                id: true,
-                image: true,
+            include: {
                 accounts: {
                     select: {
                         provider: true,
@@ -168,6 +166,8 @@ export async function GET() {
         if (!user) {
             return NextResponse.json({ error: "Utilisateur non trouvé" }, { status: 404 });
         }
+
+        console.log(`[Image API] User email: ${session.user.email}, user.id: ${user.id}`);
 
         // Fetch provider images from separate table
         const providerImages = await prisma.providerImage.findMany({
