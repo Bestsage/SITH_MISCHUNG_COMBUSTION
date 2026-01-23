@@ -202,17 +202,18 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                                 }
                             });
 
-                            // Update user image from OAuth if not set
-                            // Google uses 'picture', GitHub uses 'avatar_url'
-                            const profileImage = (profile as any)?.picture || (profile as any)?.avatar_url;
-                            if (!existingUser.image && profileImage) {
-                                await prisma.user.update({
-                                    where: { id: existingUser.id },
-                                    data: { image: profileImage }
-                                });
-                            }
-
                             console.log(`[Auth] Linked ${account.provider} account to existing user ${existingUser.email}`);
+                        }
+
+                        // Always update user image from OAuth provider
+                        // Google uses 'picture', GitHub uses 'avatar_url', Discord uses 'image_url' or avatar in profile
+                        const profileImage = (profile as any)?.picture || (profile as any)?.avatar_url || (profile as any)?.image_url;
+                        if (profileImage) {
+                            await prisma.user.update({
+                                where: { id: existingUser.id },
+                                data: { image: profileImage }
+                            });
+                            console.log(`[Auth] Updated image from ${account.provider} for ${existingUser.email}`);
                         }
                     }
                 } catch (error) {

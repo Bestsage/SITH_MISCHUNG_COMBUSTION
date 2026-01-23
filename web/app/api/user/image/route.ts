@@ -18,7 +18,7 @@ export async function POST(request: Request) {
         // Check if user is admin for updating other users
         const currentUser = await prisma.user.findUnique({
             where: { email: session.user.email },
-            include: { accounts: true }
+            include: { accounts: true },
         });
 
         if (!currentUser) {
@@ -41,25 +41,20 @@ export async function POST(request: Request) {
             if (provider === "github" && account.providerAccountId) {
                 newImageUrl = `https://avatars.githubusercontent.com/u/${account.providerAccountId}`;
             } else if (provider === "google") {
-                // For Google, try to use the passed imageUrl or fetch from user's stored image
-                // Google profile images are typically stored via OAuth at sign-in
+                // For Google, use the passed imageUrl or user's stored image
                 if (imageUrl) {
                     newImageUrl = imageUrl;
-                } else {
-                    // Fetch the user to get their current OAuth image if available
-                    const userData = await prisma.user.findUnique({
-                        where: { id: userId },
-                        select: { image: true }
-                    });
-                    // If user already has a Google image stored, refresh from there
-                    // Otherwise, try to construct from Google's profile API
-                    if (userData?.image?.includes('googleusercontent.com')) {
-                        newImageUrl = userData.image;
-                    }
+                } else if (currentUser.image?.includes('googleusercontent.com')) {
+                    // User already has Google image stored, use it
+                    newImageUrl = currentUser.image;
                 }
-            } else if (provider === "discord" && account.providerAccountId) {
-                // Discord avatar - need to fetch from API or use default
-                newImageUrl = `https://cdn.discordapp.com/avatars/${account.providerAccountId}/default.png`;
+            } else if (provider === "discord") {
+                // For Discord, use user's stored image if it's a Discord image
+                if (imageUrl) {
+                    newImageUrl = imageUrl;
+                } else if (currentUser.image?.includes('cdn.discordapp.com')) {
+                    newImageUrl = currentUser.image;
+                }
             }
 
             if (newImageUrl) {
@@ -163,7 +158,10 @@ export async function GET() {
                     previewUrl = user.image;
                 }
             } else if (account.provider === "discord") {
-                previewUrl = `https://cdn.discordapp.com/avatars/${account.providerAccountId}/default.png`;
+                // For Discord, use the user's current image if it's a Discord image
+                if (user.image?.includes('cdn.discordapp.com')) {
+                    previewUrl = user.image;
+                }
             }
 
             return {
