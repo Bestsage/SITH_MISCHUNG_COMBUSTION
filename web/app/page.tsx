@@ -9,7 +9,7 @@ import katex from "katex";
 
 const Motor3DViewer = dynamic(() => import("@/components/Motor3DViewer"), { ssr: false });
 
-type ResultTab = "summary" | "3d" | "cea" | "graphs" | "bartz" | "heatmap" | "stress";
+type ResultTab = "summary" | "3d" | "cea" | "graphs" | "bartz" | "stress";
 
 export default function Home() {
   // Use shared context for state persistence across pages
@@ -256,7 +256,6 @@ export default function Home() {
               { key: "cea", label: "⚗️ CEA Raw", color: "#a855f7" },
               { key: "graphs", label: "📈 Graphes", color: "#10b981" },
               { key: "bartz", label: "🔥 Bartz", color: "#f59e0b" },
-              { key: "heatmap", label: "🌡️ Heatmap", color: "#ef4444" },
               { key: "stress", label: "💪 Contraintes", color: "#06b6d4" },
             ].map((tab) => (
               <button key={tab.key} onClick={() => setResultTab(tab.key as ResultTab)}
@@ -321,16 +320,16 @@ export default function Home() {
                             };
                           }).sort((a, b) => a.x - b.x) : []}>
                             <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-                            <XAxis 
-                              dataKey="x" 
-                              stroke="#71717a" 
-                              fontSize={10} 
+                            <XAxis
+                              dataKey="x"
+                              stroke="#71717a"
+                              fontSize={10}
                               type="number"
                               domain={['dataMin', 'dataMax']}
                               tickFormatter={(v) => v.toFixed(0)}
                             />
                             <YAxis stroke="#71717a" fontSize={10} domain={['auto', 'auto']} />
-                            <Tooltip 
+                            <Tooltip
                               contentStyle={{ backgroundColor: '#1a1a25', border: '1px solid #27272a' }}
                               formatter={(value) => typeof value === 'number' ? value.toFixed(2) + ' mm' : ''}
                               labelFormatter={(label) => typeof label === 'number' ? `x: ${label.toFixed(1)} mm` : ''}
@@ -603,58 +602,6 @@ export default function Home() {
                   </div>
                 )}
 
-                {/* HEATMAP TAB */}
-                {resultTab === "heatmap" && (
-                  <div className="space-y-6">
-                    <h2 className="text-2xl font-bold text-white">🌡️ Carte Thermique Paroi</h2>
-
-                    <div className="card">
-                      <h3 className="card-header">Distribution de Température</h3>
-                      <div className="h-64 relative">
-                        {/* Simulated heatmap using gradient */}
-                        <div className="absolute inset-0 rounded-lg overflow-hidden">
-                          <div className="h-full w-full" style={{
-                            background: `linear-gradient(90deg, 
-                              hsl(200, 80%, 50%) 0%, 
-                              hsl(60, 80%, 50%) 20%,
-                              hsl(30, 80%, 50%) 35%,
-                              hsl(0, 80%, 50%) 45%,
-                              hsl(30, 80%, 50%) 55%,
-                              hsl(60, 80%, 50%) 70%,
-                              hsl(200, 80%, 50%) 100%)`
-                          }}>
-                            <div className="h-full flex items-center justify-center">
-                              <div className="bg-[#0a0a0f]/80 rounded-lg p-4 text-center">
-                                <p className="text-white font-bold">Col (Maximum)</p>
-                                <p className="text-[#ef4444] text-2xl font-mono">~{config.twall_max} K</p>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex justify-between mt-2 text-xs text-[#71717a]">
-                        <span>Chambre</span>
-                        <span>Col</span>
-                        <span>Sortie</span>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-4">
-                      <div className="card text-center">
-                        <p className="text-xs text-[#71717a] mb-1">T paroi (hot side)</p>
-                        <p className="text-2xl font-bold text-[#ef4444]">~{(config.twall_max * 0.9).toFixed(0)} K</p>
-                      </div>
-                      <div className="card text-center">
-                        <p className="text-xs text-[#71717a] mb-1">T paroi (cold side)</p>
-                        <p className="text-2xl font-bold text-[#f59e0b]">~{(config.twall_max * 0.6).toFixed(0)} K</p>
-                      </div>
-                      <div className="card text-center">
-                        <p className="text-xs text-[#71717a] mb-1">ΔT paroi</p>
-                        <p className="text-2xl font-bold text-[#00d4ff]">~{(config.twall_max * 0.3).toFixed(0)} K</p>
-                      </div>
-                    </div>
-                  </div>
-                )}
 
                 {/* STRESS TAB */}
                 {resultTab === "stress" && (

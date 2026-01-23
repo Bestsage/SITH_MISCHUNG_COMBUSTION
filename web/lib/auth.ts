@@ -237,6 +237,20 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                 session.user.role = token.role as string;
                 session.user.email = token.email as string;
 
+                // Fetch fresh user data from database (image and name can change)
+                try {
+                    const dbUser = await prisma.user.findUnique({
+                        where: { id: token.id as string },
+                        select: { image: true, name: true }
+                    });
+                    if (dbUser) {
+                        session.user.image = dbUser.image;
+                        session.user.name = dbUser.name;
+                    }
+                } catch (e) {
+                    console.error("[Auth] Error fetching user data for session:", e);
+                }
+
                 const userEmail = session.user.email?.toLowerCase();
                 session.user.isAdmin =
                     token.role === 'ADMIN' ||
