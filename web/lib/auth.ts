@@ -208,10 +208,17 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                                     scope: account.scope,
                                     id_token: account.id_token,
                                     session_state: account.session_state as string | undefined,
+                                    providerImage: profileImage || null,
                                 }
                             });
-
-                            console.log(`[Auth] Linked ${account.provider} account to existing user ${existingUser.email}`);
+                            console.log(`[Auth] Linked ${account.provider} to ${existingUser.email} with image: ${profileImage}`);
+                        } else if (profileImage) {
+                            // Update existing account's provider image
+                            await prisma.account.update({
+                                where: { id: linkedAccount.id },
+                                data: { providerImage: profileImage }
+                            });
+                            console.log(`[Auth] Updated ${account.provider} providerImage: ${profileImage}`);
                         }
 
                         // Update user's main image
@@ -220,7 +227,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                                 where: { id: existingUser.id },
                                 data: { image: profileImage }
                             });
-                            console.log(`[Auth] Updated user image from ${account.provider}: ${profileImage}`);
                         }
                     }
                 } catch (error) {

@@ -50,6 +50,7 @@ model Account {
   scope             String?
   id_token          String?
   session_state     String?
+  providerImage     String?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
