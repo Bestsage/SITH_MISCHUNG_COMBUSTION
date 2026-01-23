@@ -681,9 +681,9 @@ export default function AccountPage() {
                         </div>
 
                         {/* Sync from provider */}
-                        {photoOptions.length > 0 && (
-                            <div className="mb-4">
-                                <p className={`text-sm ${subTextClass} mb-2`}>Synchroniser depuis :</p>
+                        <div className="mb-4">
+                            <p className={`text-sm ${subTextClass} mb-2`}>Synchroniser depuis un compte lié :</p>
+                            {photoOptions.length > 0 ? (
                                 <div className="flex gap-2">
                                     {photoOptions.map((opt) => (
                                         <button
@@ -725,8 +725,12 @@ export default function AccountPage() {
                                         </button>
                                     ))}
                                 </div>
-                            </div>
-                        )}
+                            ) : (
+                                <p className={`text-xs ${subTextClass} italic`}>
+                                    Aucun compte OAuth lié. Connectez-vous via Google, Discord ou GitHub pour synchroniser les photos.
+                                </p>
+                            )}
+                        </div>
 
                         {/* Upload custom */}
                         <div className="mb-4">
