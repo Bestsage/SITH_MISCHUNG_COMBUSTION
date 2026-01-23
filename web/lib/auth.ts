@@ -203,10 +203,12 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                             });
 
                             // Update user image from OAuth if not set
-                            if (!existingUser.image && (profile as any)?.avatar_url) {
+                            // Google uses 'picture', GitHub uses 'avatar_url'
+                            const profileImage = (profile as any)?.picture || (profile as any)?.avatar_url;
+                            if (!existingUser.image && profileImage) {
                                 await prisma.user.update({
                                     where: { id: existingUser.id },
-                                    data: { image: (profile as any).avatar_url }
+                                    data: { image: profileImage }
                                 });
                             }
 

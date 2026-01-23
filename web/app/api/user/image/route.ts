@@ -40,8 +40,23 @@ export async function POST(request: Request) {
 
             if (provider === "github" && account.providerAccountId) {
                 newImageUrl = `https://avatars.githubusercontent.com/u/${account.providerAccountId}`;
-            } else if (provider === "google" && imageUrl) {
-                newImageUrl = imageUrl;
+            } else if (provider === "google") {
+                // For Google, try to use the passed imageUrl or fetch from user's stored image
+                // Google profile images are typically stored via OAuth at sign-in
+                if (imageUrl) {
+                    newImageUrl = imageUrl;
+                } else {
+                    // Fetch the user to get their current OAuth image if available
+                    const userData = await prisma.user.findUnique({
+                        where: { id: userId },
+                        select: { image: true }
+                    });
+                    // If user already has a Google image stored, refresh from there
+                    // Otherwise, try to construct from Google's profile API
+                    if (userData?.image?.includes('googleusercontent.com')) {
+                        newImageUrl = userData.image;
+                    }
+                }
             } else if (provider === "discord" && account.providerAccountId) {
                 // Discord avatar - need to fetch from API or use default
                 newImageUrl = `https://cdn.discordapp.com/avatars/${account.providerAccountId}/default.png`;
@@ -142,6 +157,11 @@ export async function GET() {
 
             if (account.provider === "github") {
                 previewUrl = `https://avatars.githubusercontent.com/u/${account.providerAccountId}`;
+            } else if (account.provider === "google") {
+                // For Google, use the user's current image if it's a Google image
+                if (user.image?.includes('googleusercontent.com')) {
+                    previewUrl = user.image;
+                }
             } else if (account.provider === "discord") {
                 previewUrl = `https://cdn.discordapp.com/avatars/${account.providerAccountId}/default.png`;
             }
