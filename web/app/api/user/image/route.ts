@@ -68,30 +68,48 @@ export async function POST(request: Request) {
 
         if (action === "upload") {
             // Handle base64 image upload
+            console.log("[Image Upload] Starting upload...");
+
             if (!imageUrl || !imageUrl.startsWith("data:image/")) {
+                console.log("[Image Upload] Invalid image data");
                 return NextResponse.json({ error: "Image invalide" }, { status: 400 });
             }
 
             // Extract base64 data
             const matches = imageUrl.match(/^data:image\/(\w+);base64,(.+)$/);
             if (!matches) {
+                console.log("[Image Upload] Failed to parse base64");
                 return NextResponse.json({ error: "Format d'image invalide" }, { status: 400 });
             }
 
             const ext = matches[1];
             const base64Data = matches[2];
             const buffer = Buffer.from(base64Data, "base64");
+            console.log(`[Image Upload] Parsed image: ${ext}, size: ${buffer.length} bytes`);
 
             // Ensure uploads directory exists
             const uploadsDir = path.join(process.cwd(), "public", "uploads", "avatars");
-            await mkdir(uploadsDir, { recursive: true });
+            console.log(`[Image Upload] Uploads dir: ${uploadsDir}`);
+
+            try {
+                await mkdir(uploadsDir, { recursive: true });
+            } catch (mkdirErr) {
+                console.error("[Image Upload] Failed to create directory:", mkdirErr);
+            }
 
             // Generate unique filename
             const filename = `${userId}-${Date.now()}.${ext}`;
             const filepath = path.join(uploadsDir, filename);
+            console.log(`[Image Upload] Writing to: ${filepath}`);
 
             // Write file
-            await writeFile(filepath, buffer);
+            try {
+                await writeFile(filepath, buffer);
+                console.log("[Image Upload] File written successfully");
+            } catch (writeErr) {
+                console.error("[Image Upload] Failed to write file:", writeErr);
+                return NextResponse.json({ error: "Erreur d'écriture du fichier" }, { status: 500 });
+            }
 
             // Update user with new image URL
             const publicUrl = `/uploads/avatars/${filename}`;
@@ -99,6 +117,7 @@ export async function POST(request: Request) {
                 where: { id: userId },
                 data: { image: publicUrl }
             });
+            console.log(`[Image Upload] User updated with image: ${publicUrl}`);
 
             return NextResponse.json({ success: true, image: publicUrl });
         }

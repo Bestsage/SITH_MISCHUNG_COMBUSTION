@@ -752,8 +752,14 @@ export default function AccountPage() {
                                                 if (res.ok) {
                                                     await update();
                                                     setEditingPhoto(false);
+                                                } else {
+                                                    const err = await res.json();
+                                                    alert(err.error || "Erreur lors de l'upload");
                                                 }
-                                            } catch (err) { console.error(err); }
+                                            } catch (err) {
+                                                console.error(err);
+                                                alert("Erreur lors de l'upload de l'image");
+                                            }
                                             setUploadingPhoto(false);
                                         };
                                         reader.readAsDataURL(file);
