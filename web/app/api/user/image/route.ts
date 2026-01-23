@@ -121,8 +121,8 @@ export async function POST(request: Request) {
                 return NextResponse.json({ error: "Erreur d'écriture du fichier" }, { status: 500 });
             }
 
-            // Update user with new image URL
-            const publicUrl = `/uploads/avatars/${filename}`;
+            // Update user with new image URL (use API route to serve the image)
+            const publicUrl = `/api/avatars/${filename}`;
             await prisma.user.update({
                 where: { id: userId },
                 data: { image: publicUrl }
