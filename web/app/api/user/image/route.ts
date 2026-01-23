@@ -91,9 +91,15 @@ export async function POST(request: Request) {
             const buffer = Buffer.from(base64Data, "base64");
             console.log(`[Image Upload] Parsed image: ${ext}, size: ${buffer.length} bytes`);
 
-            // Ensure uploads directory exists
-            const uploadsDir = path.join(process.cwd(), "public", "uploads", "avatars");
-            console.log(`[Image Upload] Uploads dir: ${uploadsDir}`);
+            // Use absolute path for Docker or relative for development
+            // In Docker, files are at /app/web/public/uploads
+            // In dev, files are at process.cwd()/public/uploads
+            const isDocker = process.env.DATABASE_URL?.includes('/app/db');
+            const uploadsDir = isDocker
+                ? '/app/web/public/uploads/avatars'
+                : path.join(process.cwd(), "public", "uploads", "avatars");
+            console.log(`[Image Upload] Uploads dir: ${uploadsDir} (Docker: ${isDocker})`);
+            console.log(`[Image Upload] CWD: ${process.cwd()}`);
 
             try {
                 await mkdir(uploadsDir, { recursive: true });
