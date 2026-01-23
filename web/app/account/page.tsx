@@ -706,9 +706,9 @@ export default function AccountPage() {
                                                 } catch (e) { console.error(e); }
                                                 setUploadingPhoto(false);
                                             }}
-                                            disabled={uploadingPhoto || !opt.previewUrl}
-                                            title={opt.previewUrl ? `Sync depuis ${opt.provider}` : `Pas d'image disponible pour ${opt.provider}`}
-                                            className={`flex-1 p-3 ${theme === "light" ? "bg-slate-100 hover:bg-slate-200" : "bg-slate-800 hover:bg-slate-700"} rounded-xl transition-colors flex flex-col items-center gap-2 disabled:opacity-50 ${!opt.previewUrl ? "cursor-not-allowed" : ""}`}
+                                            disabled={uploadingPhoto}
+                                            title={opt.previewUrl ? `Sync depuis ${opt.provider}` : `Reconnectez-vous via ${opt.provider} pour capturer l'image`}
+                                            className={`flex-1 p-3 ${theme === "light" ? "bg-slate-100 hover:bg-slate-200" : "bg-slate-800 hover:bg-slate-700"} rounded-xl transition-colors flex flex-col items-center gap-2 disabled:opacity-50`}
                                         >
                                             {opt.previewUrl ? (
                                                 <Image
@@ -719,7 +719,7 @@ export default function AccountPage() {
                                                     className="w-12 h-12 rounded-full object-cover"
                                                 />
                                             ) : (
-                                                <span className="text-3xl opacity-50">{providerIcons[opt.provider] || "🔗"}</span>
+                                                <span className="text-3xl">{providerIcons[opt.provider] || "🔗"}</span>
                                             )}
                                             <span className={`text-xs ${subTextClass} capitalize`}>{opt.provider}</span>
                                         </button>
