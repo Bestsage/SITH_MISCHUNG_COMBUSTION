@@ -208,18 +208,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                                     scope: account.scope,
                                     id_token: account.id_token,
                                     session_state: account.session_state as string | undefined,
-                                    providerImage: profileImage || null, // Store provider image
                                 }
                             });
 
                             console.log(`[Auth] Linked ${account.provider} account to existing user ${existingUser.email}`);
-                        } else if (profileImage) {
-                            // Update existing account's provider image
-                            await prisma.account.update({
-                                where: { id: linkedAccount.id },
-                                data: { providerImage: profileImage }
-                            });
-                            console.log(`[Auth] Updated ${account.provider} providerImage for ${existingUser.email}`);
                         }
 
                         // Update user's main image
