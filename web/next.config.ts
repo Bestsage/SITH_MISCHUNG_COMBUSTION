@@ -36,9 +36,9 @@ const nextConfig: NextConfig = {
           source: '/api/cfd/:path*',
           destination: 'http://openfoam-cfd:8001/api/cfd/:path*',
         },
-        // All other API routes -> Rust backend (except auth, user, admin)
+        // All other API routes -> Rust backend (except auth, user, admin, avatars)
         {
-          source: '/api/:path((?!auth|user|admin).*)',
+          source: '/api/:path((?!auth|user|admin|avatars).*)',
           destination: 'http://localhost:8000/api/:path*',
         },
         {
