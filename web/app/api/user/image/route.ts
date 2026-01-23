@@ -173,6 +173,7 @@ export async function GET() {
         const providerImages = await prisma.providerImage.findMany({
             where: { userId: user.id }
         });
+        console.log(`[Image API] User ${user.id} has ${user.accounts.length} accounts, ${providerImages.length} provider images`);
 
         // Build available sync options
         const syncOptions = user.accounts.map((account: { provider: string; providerAccountId: string }) => {
@@ -189,12 +190,14 @@ export async function GET() {
                 }
             }
 
+            console.log(`[Image API] Provider ${account.provider}: previewUrl=${previewUrl ? 'set' : 'null'}`);
             return {
                 provider: account.provider,
                 previewUrl
             };
         });
 
+        console.log(`[Image API] Returning ${syncOptions.length} sync options`);
         return NextResponse.json({
             currentImage: user.image,
             syncOptions
