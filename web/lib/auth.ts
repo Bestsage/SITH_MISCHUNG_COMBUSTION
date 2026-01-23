@@ -206,14 +206,21 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                         }
 
                         // Always update user image from OAuth provider
-                        // Google uses 'picture', GitHub uses 'avatar_url', Discord uses 'image_url' or avatar in profile
-                        const profileImage = (profile as any)?.picture || (profile as any)?.avatar_url || (profile as any)?.image_url;
+                        // Google uses 'picture', GitHub uses 'avatar_url'
+                        // Discord: NextAuth puts the avatar URL in user.image directly
+                        let profileImage = (profile as any)?.picture || (profile as any)?.avatar_url || (profile as any)?.image_url;
+
+                        // Fallback to user.image which NextAuth populates for some providers like Discord
+                        if (!profileImage && user.image) {
+                            profileImage = user.image;
+                        }
+
                         if (profileImage) {
                             await prisma.user.update({
                                 where: { id: existingUser.id },
                                 data: { image: profileImage }
                             });
-                            console.log(`[Auth] Updated image from ${account.provider} for ${existingUser.email}`);
+                            console.log(`[Auth] Updated image from ${account.provider} for ${existingUser.email}: ${profileImage}`);
                         }
                     }
                 } catch (error) {
