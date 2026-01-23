@@ -42,13 +42,14 @@ export async function POST(request: Request) {
                 // GitHub: can construct URL from account ID
                 newImageUrl = `https://avatars.githubusercontent.com/u/${account.providerAccountId}`;
             } else {
-                // For other providers, fetch stored providerImage from Account
-                const accountData = await prisma.account.findFirst({
-                    where: { userId: userId, provider: provider },
-                    select: { providerImage: true }
+                // For other providers, fetch stored image from ProviderImage table
+                const providerImageData = await prisma.providerImage.findUnique({
+                    where: {
+                        userId_provider: { userId: userId, provider: provider }
+                    }
                 });
-                if (accountData?.providerImage) {
-                    newImageUrl = accountData.providerImage;
+                if (providerImageData?.imageUrl) {
+                    newImageUrl = providerImageData.imageUrl;
                 } else if (imageUrl) {
                     newImageUrl = imageUrl;
                 }
@@ -158,8 +159,7 @@ export async function GET() {
                 accounts: {
                     select: {
                         provider: true,
-                        providerAccountId: true,
-                        providerImage: true
+                        providerAccountId: true
                     }
                 }
             }
@@ -169,16 +169,24 @@ export async function GET() {
             return NextResponse.json({ error: "Utilisateur non trouvé" }, { status: 404 });
         }
 
+        // Fetch provider images from separate table
+        const providerImages = await prisma.providerImage.findMany({
+            where: { userId: user.id }
+        });
+
         // Build available sync options
-        const syncOptions = user.accounts.map((account: { provider: string; providerAccountId: string; providerImage: string | null }) => {
+        const syncOptions = user.accounts.map((account: { provider: string; providerAccountId: string }) => {
             let previewUrl: string | null = null;
 
             if (account.provider === "github") {
                 // GitHub: can always construct URL from account ID
                 previewUrl = `https://avatars.githubusercontent.com/u/${account.providerAccountId}`;
-            } else if (account.providerImage) {
-                // Use stored provider image
-                previewUrl = account.providerImage;
+            } else {
+                // Check ProviderImage table for stored image
+                const providerImg = providerImages.find(p => p.provider === account.provider);
+                if (providerImg) {
+                    previewUrl = providerImg.imageUrl;
+                }
             }
 
             return {

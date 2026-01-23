@@ -50,7 +50,6 @@ model Account {
   scope             String?
   id_token          String?
   session_state     String?
-  providerImage     String?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -73,6 +72,18 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+// Table séparée pour stocker les images de profil des providers OAuth
+// Ceci évite de modifier le modèle Account qui est géré par l'adapter NextAuth
+model ProviderImage {
+  id        String   @id @default(cuid())
+  userId    String
+  provider  String
+  imageUrl  String
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@unique([userId, provider])
 }
 
 // ============================================================================

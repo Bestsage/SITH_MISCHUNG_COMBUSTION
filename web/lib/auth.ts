@@ -208,21 +208,30 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                                     scope: account.scope,
                                     id_token: account.id_token,
                                     session_state: account.session_state as string | undefined,
-                                    providerImage: profileImage || null,
                                 }
                             });
-                            console.log(`[Auth] Linked ${account.provider} to ${existingUser.email} with image: ${profileImage}`);
-                        } else if (profileImage) {
-                            // Update existing account's provider image
-                            await prisma.account.update({
-                                where: { id: linkedAccount.id },
-                                data: { providerImage: profileImage }
-                            });
-                            console.log(`[Auth] Updated ${account.provider} providerImage: ${profileImage}`);
+                            console.log(`[Auth] Linked ${account.provider} to ${existingUser.email}`);
                         }
 
-                        // Update user's main image
+                        // Store provider image in separate ProviderImage table
                         if (profileImage) {
+                            await prisma.providerImage.upsert({
+                                where: {
+                                    userId_provider: {
+                                        userId: existingUser.id,
+                                        provider: account.provider
+                                    }
+                                },
+                                update: { imageUrl: profileImage },
+                                create: {
+                                    userId: existingUser.id,
+                                    provider: account.provider,
+                                    imageUrl: profileImage
+                                }
+                            });
+                            console.log(`[Auth] Stored ${account.provider} image: ${profileImage}`);
+
+                            // Update user's main image
                             await prisma.user.update({
                                 where: { id: existingUser.id },
                                 data: { image: profileImage }
